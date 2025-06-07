@@ -57,3 +57,37 @@ export const signup = async (
     return ServerResponse.failed(error);
   }
 };
+
+export const login = async (email: string, password: string) => {
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return ServerResponse.failed("User doesn't exist");
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return ServerResponse.failed("Invalid credentials");
+    }
+
+    const token = sign({ userId: String(user._id) }, process.env.JWT_SECRET, {
+      expiresIn: "30d",
+    });
+
+    return new ServerResponse(
+      true,
+      "User created",
+      {
+        userId: String(user._id),
+        fullname: user.fullname,
+        username: user.username,
+        email: user.email,
+        profilePic: user.profilePic,
+      },
+      200,
+      token
+    );
+  } catch (error) {
+    return ServerResponse.failed(error);
+  }
+};

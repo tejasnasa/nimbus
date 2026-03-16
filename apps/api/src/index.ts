@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import { auth } from "./utils/auth";
 import { toNodeHandler } from "better-auth/node";
+import masterRouter from "./routers/master.router";
 
 const app = express();
 app.use(
@@ -17,6 +18,8 @@ app.use(
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
 app.use(express.json());
+
+app.use("/api", masterRouter);
 
 app.get("/", (req, res) => {
   res.send("Hello World to u!");

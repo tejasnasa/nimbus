@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
-import { auth } from "../utils/auth";
-import { ServerResponse } from "../models/serverResponse";
+import { auth } from "../lib/auth";
+import { ServerResponse } from "@nimbus/types";
 
 const authCheck = async (req: Request, res: Response, next: NextFunction) => {
   const session = await auth.api.getSession({
@@ -9,10 +9,11 @@ const authCheck = async (req: Request, res: Response, next: NextFunction) => {
   });
 
   if (!session) {
-    const response = new ServerResponse(false, "Unauthorized", null, 401);
+    const response = ServerResponse.unauthorized();
 
-    return res.status(401).json(response);
+    return res.status(response.statusCode).json(response);
   }
+
   req.body.user = session.user;
   next();
 };

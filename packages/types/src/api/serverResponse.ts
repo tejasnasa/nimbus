@@ -3,19 +3,24 @@ export class ServerResponse<T = null> {
   message: string;
   responseObject: T;
   statusCode: number;
-  accessToken: string | undefined;
 
   constructor(
     status: boolean,
     message: string,
     responseObject: T,
     statusCode: number,
-    accessToken?: string,
   ) {
     this.success = status;
     this.message = message;
     this.responseObject = responseObject;
     this.statusCode = statusCode;
-    this.accessToken = accessToken;
+  }
+
+  static internalError() {
+    return new ServerResponse(false, "Internal Server Error", null, 500);
+  }
+
+  static unauthorized() {
+    return new ServerResponse(false, "Unauthorized", null, 401);
   }
 }

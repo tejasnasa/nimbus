@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { auth } from "./utils/auth";
+import { auth } from "./lib/auth";
 import { toNodeHandler } from "better-auth/node";
 import masterRouter from "./routers/master.router";
 

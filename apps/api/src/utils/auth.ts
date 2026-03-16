@@ -10,4 +10,6 @@ export const auth = betterAuth({
     enabled: true,
   },
   experimental: { joins: true },
+  trustedOrigins: ["http://localhost:3000"],
+  baseURL: "http://localhost:3001",
 });

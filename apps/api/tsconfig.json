@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
+    "moduleResolution": "bundler",
+    "module": "ESNext",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "target": "es2018",
     "strict": true,
-    "moduleResolution": "node",
     "sourceMap": true,
     "outDir": "dist",
     "baseUrl": ".",

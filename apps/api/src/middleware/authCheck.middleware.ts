@@ -14,7 +14,7 @@ const authCheck = async (req: Request, res: Response, next: NextFunction) => {
     return res.status(response.statusCode).json(response);
   }
 
-  req.body.user = session.user;
+  req.body.token = session.user;
   next();
 };
 

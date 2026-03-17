@@ -13,6 +13,7 @@
     "@better-auth/prisma-adapter": "^1.5.5",
     "@nimbus/db": "^1.0.0",
     "@nimbus/types": "^1.0.0",
+    "@nimbus/utils": "^1.0.0",
     "better-auth": "^1.5.5",
     "cors": "^2.8.6",
     "dotenv": "^16.0.3",

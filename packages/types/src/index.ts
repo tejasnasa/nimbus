@@ -1,2 +1,2 @@
 export { ServerResponse } from "./api/serverResponse";
-export { workspaceSchemaApi, workspaceSchemaWeb } from "./validations/workspace";
+export { workspaceSchema } from "./validations/workspace";

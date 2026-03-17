@@ -23,10 +23,12 @@ model User {
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  workspaceMembers WorkspaceMember[]
+  messages      Message[]
 
   @@unique([email])
   @@map("user")
-}
+}  
 
 model Session {
   id        String   @id
@@ -76,7 +78,61 @@ model Verification {
   @@map("verification")
 }
 
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slugId    Int      @unique @default(autoincrement())
+  slug      String   
+  createdAt DateTime @default(now())
 
-model Test {
-  id          String   @id @default(uuid())
+  members   WorkspaceMember[]
+  messages  Message[]
+  documents Document[]
+}
+
+model WorkspaceMember {
+  id          String      @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        MemberRole  @default(MEMBER)
+  joinedAt    DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Message {
+  id          String      @id @default(cuid())
+  content     String
+  userId      String
+  workspaceId String
+  createdAt   DateTime    @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model Document {
+  id          String      @id @default(cuid())
+  title       String
+  workspaceId String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  yjsState    Bytes?
+
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
 }

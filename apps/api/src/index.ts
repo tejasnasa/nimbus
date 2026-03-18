@@ -7,6 +7,7 @@ import masterRouter from "./routers/master.router";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import applySocketAuth from "./middleware/socket.middleware";
+import registerChatHandlers from "./socket/chat";
 
 const app = express();
 app.use(
@@ -38,6 +39,10 @@ const io = new Server(httpServer, {
 });
 
 applySocketAuth(io);
+
+io.on("connection", (socket) => {
+  registerChatHandlers(io, socket);
+});
 
 httpServer.listen(3001, () => {
   console.log("Server is running on port 3001");

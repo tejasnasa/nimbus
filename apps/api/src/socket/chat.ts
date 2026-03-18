@@ -4,13 +4,34 @@ import { Server, Socket } from "socket.io";
 const registerChatHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
 
-  socket.on("workspace:join", (workspaceId: string) => {
+  socket.on("workspace:join", async (workspaceId: string) => {
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: user.id,
+          workspaceId: workspaceId,
+        },
+      },
+    });
+
+    if (!member) return;
     socket.join(workspaceId);
   });
 
   socket.on(
     "message:send",
     async (data: { workspaceId: string; content: string }) => {
+      const member = await prisma.workspaceMember.findUnique({
+        where: {
+          userId_workspaceId: {
+            userId: user.id,
+            workspaceId: data.workspaceId,
+          },
+        },
+      });
+
+      if (!member) return;
+
       const message = await prisma.message.create({
         data: {
           content: data.content,
@@ -28,6 +49,18 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
       });
     },
   );
+
+  socket.on("typing:start", (workspaceId: string) => {
+    socket
+      .to(workspaceId)
+      .emit("typing:start", { userId: user.id, name: user.name });
+  });
+
+  socket.on("typing:stop", (workspaceId: string) => {
+    socket
+      .to(workspaceId)
+      .emit("typing:stop", { userId: user.id, name: user.name });
+  });
 };
 
 export default registerChatHandlers;

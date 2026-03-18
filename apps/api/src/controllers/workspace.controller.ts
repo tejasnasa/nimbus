@@ -59,6 +59,60 @@ export const getMyWorkspaces = async (id: string) => {
   }
 };
 
-export const getWorkspaceById = async () => {};
+export const getWorkspaceById = async (wsid: string, id: string) => {
+  try {
+    const workspace = await prisma.workspace.findUnique({
+      where: {
+        id: wsid,
+      },
+      include: {
+        members: true,
+      },
+    });
 
-export const deleteWorkspace = async () => {};
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const isMember = workspace.members.some((member) => member.userId === id);
+    if (!isMember) {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    return ServerResponse.ok(workspace, "Workspace retrieved");
+  } catch (error) {
+    return ServerResponse.internalError();
+  }
+};
+
+export const deleteWorkspace = async (wsid: string, id: string) => {
+  try {
+    const workspace = await prisma.workspace.findUnique({
+      where: {
+        id: wsid,
+      },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const isMember = workspace.members.some((member) => member.userId === id);
+    if (!isMember) {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    await prisma.workspace.delete({
+      where: {
+        id: wsid,
+      },
+    });
+
+    return ServerResponse.ok(null, "Workspace deleted");
+  } catch (error) {
+    return ServerResponse.internalError();
+  }
+};

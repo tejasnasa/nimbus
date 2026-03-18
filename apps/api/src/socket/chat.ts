@@ -13,8 +13,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
         },
       },
     });
-
     if (!member) return;
+
     socket.join(workspaceId);
   });
 
@@ -60,6 +60,20 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     socket
       .to(workspaceId)
       .emit("typing:stop", { userId: user.id, name: user.name });
+  });
+
+  socket.on("workspace:leave", async (workspaceId: string) => {
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: user.id,
+          workspaceId: workspaceId,
+        },
+      },
+    });
+    if (!member) return;
+
+    socket.leave(workspaceId);
   });
 };
 

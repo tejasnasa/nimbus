@@ -4,11 +4,14 @@ import cors from "cors";
 import { auth } from "./lib/auth";
 import { toNodeHandler } from "better-auth/node";
 import masterRouter from "./routers/master.router";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import applySocketAuth from "./middleware/socket.middleware";
 
 const app = express();
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: process.env.FRONTEND_URL,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -25,6 +28,17 @@ app.get("/", (req, res) => {
   res.send("Hello World to u!");
 });
 
-app.listen(3001, () => {
+const httpServer = createServer(app);
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  },
+});
+
+applySocketAuth(io);
+
+httpServer.listen(3001, () => {
   console.log("Server is running on port 3001");
 });

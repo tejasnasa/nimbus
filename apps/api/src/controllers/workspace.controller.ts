@@ -37,7 +37,27 @@ export const createWorkspace = async (name: string, id: string) => {
   }
 };
 
-export const getMyWorkspaces = async () => {};
+export const getMyWorkspaces = async (id: string) => {
+  try {
+    const workspaces = await prisma.workspace.findMany({
+      where: {
+        members: {
+          some: {
+            userId: id,
+          },
+        },
+      },
+    });
+
+    if (!workspaces) {
+      return ServerResponse.notFound("No workspaces found");
+    }
+
+    return ServerResponse.ok(workspaces, "Workspaces retrieved");
+  } catch (error) {
+    return ServerResponse.internalError();
+  }
+};
 
 export const getWorkspaceById = async () => {};
 

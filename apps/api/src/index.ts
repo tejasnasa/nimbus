@@ -8,6 +8,9 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import applySocketAuth from "./middleware/socket.middleware";
 import registerChatHandlers from "./socket/chat";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { pubClient, subClient } from "./lib/redis";
+import { registerPresenceHandlers } from "./socket/presence";
 
 const app = express();
 app.use(
@@ -38,10 +41,13 @@ const io = new Server(httpServer, {
   },
 });
 
+io.adapter(createAdapter(pubClient, subClient));
+
 applySocketAuth(io);
 
 io.on("connection", (socket) => {
   registerChatHandlers(io, socket);
+  registerPresenceHandlers(io, socket);
 });
 
 httpServer.listen(3001, () => {

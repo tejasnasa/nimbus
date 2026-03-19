@@ -14,10 +14,12 @@
     "@nimbus/db": "^1.0.0",
     "@nimbus/types": "^1.0.0",
     "@nimbus/utils": "^1.0.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "better-auth": "^1.5.5",
     "cors": "^2.8.6",
     "dotenv": "^16.0.3",
     "express": "^5.2.1",
+    "ioredis": "^5.10.0",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

@@ -10,6 +10,7 @@ import applySocketAuth from "./middleware/socket.middleware";
 import registerChatHandlers from "./socket/chat";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { pubClient, subClient } from "./lib/redis";
+import { registerDocumentHandlers } from "./socket/document";
 
 const app = express();
 app.use(
@@ -46,6 +47,7 @@ applySocketAuth(io);
 
 io.on("connection", (socket) => {
   registerChatHandlers(io, socket);
+  registerDocumentHandlers(io, socket);
 });
 
 httpServer.listen(3001, () => {

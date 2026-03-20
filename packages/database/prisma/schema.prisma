@@ -84,6 +84,7 @@ model Workspace {
   slugId    Int      @unique @default(autoincrement())
   slug      String   
   createdAt DateTime @default(now())
+  inviteCode String @unique @default(cuid())
 
   members   WorkspaceMember[]
   messages  Message[]

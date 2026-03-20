@@ -7,6 +7,7 @@ import {
   getMyWorkspaces,
   getWorkspaceBySlugId,
   joinWorkspace,
+  regenerateInviteCode,
 } from "../controllers/workspace.controller";
 
 const workspaceRouter = express.Router();
@@ -33,6 +34,15 @@ workspaceRouter.post("/join", async (req, res) => {
   const { id } = req.body.token;
 
   const response = await joinWorkspace(inviteCode, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
+  const { wsid } = req.params;
+  const { id } = req.body.token;
+
+  const response = await regenerateInviteCode(wsid, id);
 
   return res.status(response.statusCode).json(response);
 });

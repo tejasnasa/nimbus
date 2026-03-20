@@ -1,6 +1,7 @@
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
+import cuid from "cuid";
 
 export const createWorkspace = async (name: string, id: string) => {
   try {
@@ -115,6 +116,41 @@ export const joinWorkspace = async (inviteCode: string, id: string) => {
     return ServerResponse.ok("Joined workspace");
   } catch (error) {
     console.error("Full error:", JSON.stringify(error, null, 2));
+    return ServerResponse.internalError(error);
+  }
+};
+
+export const regenerateInviteCode = async (wsid: string, id: string) => {
+  try {
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: id,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    if (member?.role !== "ADMIN" && member?.role !== "OWNER") {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    const newInviteCode = cuid();
+
+    await prisma.workspace.update({
+      where: {
+        id: wsid,
+      },
+      data: {
+        inviteCode: newInviteCode,
+      },
+    });
+
+    return ServerResponse.ok(
+      { inviteCode: newInviteCode },
+      "Invite code regenerated",
+    );
+  } catch (error) {
     return ServerResponse.internalError(error);
   }
 };

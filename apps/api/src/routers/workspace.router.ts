@@ -5,7 +5,8 @@ import {
   createWorkspace,
   deleteWorkspace,
   getMyWorkspaces,
-  getWorkspaceById,
+  getWorkspaceBySlugId,
+  joinWorkspace,
 } from "../controllers/workspace.controller";
 
 const workspaceRouter = express.Router();
@@ -27,20 +28,29 @@ workspaceRouter.get("/", async (req, res) => {
   return res.status(response.statusCode).json(response);
 });
 
-workspaceRouter.get("/:wsid", async (req, res) => {
-  const { wsid } = req.params;
+workspaceRouter.post("/join", async (req, res) => {
+  const { inviteCode } = req.body;
   const { id } = req.body.token;
 
-  const response = await getWorkspaceById(wsid, id);
+  const response = await joinWorkspace(inviteCode, id);
 
   return res.status(response.statusCode).json(response);
 });
 
-workspaceRouter.delete("/:wsid", async (req, res) => {
+workspaceRouter.delete("/delete/:wsid", async (req, res) => {
   const { wsid } = req.params;
   const { id } = req.body.token;
 
   const response = await deleteWorkspace(wsid, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+workspaceRouter.get("/:slugId", async (req, res) => {
+  const { slugId } = req.params;
+  const { id } = req.body.token;
+
+  const response = await getWorkspaceBySlugId(slugId, id);
 
   return res.status(response.statusCode).json(response);
 });

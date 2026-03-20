@@ -28,12 +28,13 @@ export const createWorkspace = async (name: string, id: string) => {
         slug: ws.slug,
         slugId: ws.slugId,
         creatorId: memb.userId,
+        inviteCode: ws.inviteCode,
       };
     });
 
     return ServerResponse.created(workspace, "Workspace created");
   } catch (error) {
-    return ServerResponse.internalError();
+    return ServerResponse.internalError(error);
   }
 };
 
@@ -55,15 +56,15 @@ export const getMyWorkspaces = async (id: string) => {
 
     return ServerResponse.ok(workspaces, "Workspaces retrieved");
   } catch (error) {
-    return ServerResponse.internalError();
+    return ServerResponse.internalError(error);
   }
 };
 
-export const getWorkspaceById = async (wsid: string, id: string) => {
+export const getWorkspaceBySlugId = async (slugId: string, id: string) => {
   try {
     const workspace = await prisma.workspace.findUnique({
       where: {
-        id: wsid,
+        slugId: parseInt(slugId),
       },
       include: {
         members: true,
@@ -81,7 +82,40 @@ export const getWorkspaceById = async (wsid: string, id: string) => {
 
     return ServerResponse.ok(workspace, "Workspace retrieved");
   } catch (error) {
-    return ServerResponse.internalError();
+    return ServerResponse.internalError(error);
+  }
+};
+
+export const joinWorkspace = async (inviteCode: string, id: string) => {
+  try {
+    const workspace = await prisma.workspace.findFirst({
+      where: {
+        inviteCode,
+      },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Invalid invite code");
+    }
+
+    if (workspace.members.some((member) => member.userId === id)) {
+      return ServerResponse.badRequest("Already a member of this workspace");
+    }
+
+    await prisma.workspaceMember.create({
+      data: {
+        userId: id,
+        workspaceId: workspace.id,
+      },
+    });
+
+    return ServerResponse.ok("Joined workspace");
+  } catch (error) {
+    console.error("Full error:", JSON.stringify(error, null, 2));
+    return ServerResponse.internalError(error);
   }
 };
 
@@ -113,6 +147,6 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
 
     return ServerResponse.ok(null, "Workspace deleted");
   } catch (error) {
-    return ServerResponse.internalError();
+    return ServerResponse.internalError(error);
   }
 };

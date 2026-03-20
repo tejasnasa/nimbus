@@ -56,8 +56,11 @@ export class ServerResponse<T = null> {
     return new ServerResponse(false, message, null, 429);
   }
 
-  static internalError(message = "Internal Server Error") {
-    return new ServerResponse(false, message, null, 500);
+  static internalError<T>(
+    responseObject: T,
+    message = "Internal Server Error",
+  ) {
+    return new ServerResponse(false, message, responseObject, 500);
   }
 
   static notImplemented(message = "Not Implemented") {

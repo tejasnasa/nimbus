@@ -25,6 +25,6 @@ export const getWorkspaceMessages = async (workspaceId: string, id: string) => {
 
     return ServerResponse.ok(messages.reverse(), "Messages retrieved");
   } catch (error) {
-    return ServerResponse.internalError();
+    return ServerResponse.internalError(error);
   }
 };

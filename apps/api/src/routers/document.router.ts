@@ -1,0 +1,47 @@
+import express from "express";
+import {
+  createDocument,
+  deleteDocument,
+  getDocument,
+  getWorkspaceDocuments,
+} from "../controllers/document.controller";
+
+const documentRouter = express.Router();
+
+documentRouter.post("/create", async (req, res) => {
+  const { id } = req.body.token;
+  const { title, workspaceId } = req.body;
+
+  const response = await createDocument(title, workspaceId, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+documentRouter.get("/workspace/:workspaceId", async (req, res) => {
+  const { id } = req.body.token;
+  const { workspaceId } = req.params;
+
+  const response = await getWorkspaceDocuments(workspaceId, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+documentRouter.get("/:docId", async (req, res) => {
+  const { id } = req.body.token;
+  const { docId } = req.params;
+
+  const response = await getDocument(docId, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+documentRouter.delete("/:docId", async (req, res) => {
+  const { id } = req.body.token;
+  const { docId } = req.params;
+
+  const response = await deleteDocument(docId, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+export default documentRouter;

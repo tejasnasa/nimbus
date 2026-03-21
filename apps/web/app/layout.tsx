@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "@nimbus/ui/globals.css";
 import { JetBrains_Mono } from "next/font/google";
 
 const jetBrainsMono = JetBrains_Mono({

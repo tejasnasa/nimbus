@@ -1,0 +1,23 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "radix-vega",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "iconLibrary": "remixicon",
+  "aliases": {
+    "components": "@nimbus/ui/components",
+    "utils": "@nimbus/ui/lib/utils",
+    "hooks": "@nimbus/ui/hooks",
+    "lib": "@nimbus/ui/lib",
+    "ui": "@nimbus/ui/components"
+  },
+  "rtl": false,
+  "menuColor": "default-translucent",
+  "menuAccent": "subtle"
+}

@@ -11,7 +11,7 @@
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@repo/ui": "*",
+    "@nimbus/ui": "*",
     "better-auth": "^1.5.5",
     "next": "16.1.5",
     "react": "^19.2.0",
@@ -19,8 +19,8 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "@repo/eslint-config": "*",
-    "@repo/typescript-config": "*",
+    "@nimbus/eslint-config": "*",
+    "@nimbus/typescript-config": "*",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",

@@ -48,9 +48,3 @@ a {
     display: unset;
   }
 }
-
-/* --preset b3RFodwUE */
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;

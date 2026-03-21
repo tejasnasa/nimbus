@@ -81,7 +81,7 @@ export const deleteDocument = async (docId: string, userId: string) => {
       );
 
     await prisma.document.delete({ where: { id: docId } });
-    docs.delete(`doc:${docId}`);
+    docs.delete(docId);
     return ServerResponse.ok("Document deleted");
   } catch (error) {
     return ServerResponse.internalError(error);

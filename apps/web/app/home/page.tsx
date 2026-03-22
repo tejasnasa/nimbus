@@ -101,13 +101,7 @@ export default function Home() {
         {workspaces.map((ws) => (
           <WorkspaceCard
             key={ws.slugId}
-            slugId={ws.slugId}
-            name={ws.name}
-            description={ws.description}
-            lastUpdated={ws.lastUpdated}
-            slug={ws.slug}
-            docCount={ws.docCount}
-            members={ws.members}
+            workspace={ws}
           />
         ))}
       </section>

@@ -1,4 +1,5 @@
-export const timeAgo = (dateInput: string | Date) => {
+export const timeAgo = (dateInput: string | Date | undefined) => {
+  if (!dateInput) return "Never";
   const date = new Date(dateInput);
   const now = new Date();
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -38,4 +39,3 @@ export const timeAgo = (dateInput: string | Date) => {
 
   return "just now";
 };
-

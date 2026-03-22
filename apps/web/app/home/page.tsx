@@ -29,7 +29,8 @@ const workspaces = [
   {
     slugId: 2,
     name: "Design Team",
-    description: "Workspace for the design team to collaborate on UI/UX projects",
+    description:
+      "Workspace for the design team to collaborate on UI/UX projects",
     slug: "design-team",
     docCount: 8,
     lastUpdated: "2026-02-15T12:34:56Z",
@@ -38,7 +39,8 @@ const workspaces = [
   {
     slugId: 3,
     name: "Dev Squad",
-    description: "Workspace for the development squad working on the new product launch",
+    description:
+      "Workspace for the development squad working on the new product launch",
     slug: "dev-squad",
     docCount: 20,
     lastUpdated: "2026-03-19T12:34:56Z",
@@ -47,12 +49,43 @@ const workspaces = [
   {
     slugId: 4,
     name: "Marketing",
-    description: "Workspace for the marketing team to plan campaigns and strategies",
+    description:
+      "Workspace for the marketing team to plan campaigns and strategies",
     slug: "marketing",
     docCount: 5,
     lastUpdated: "2025-02-21T12:34:56Z",
     members: getRandomMembers(6),
   },
+  {
+    slugId: 5,
+    name: "SIH Project",
+    description: "Workspace for SIH 2025 project collaboration",
+    slug: "sih-project",
+    docCount: 12,
+    lastUpdated: "2025-06-15T12:34:56Z",
+    members: getRandomMembers(4),
+  },
+  {
+    slugId: 6,
+    name: "Design Team",
+    description:
+      "Workspace for the design team to collaborate on UI/UX projects",
+    slug: "design-team",
+    docCount: 8,
+    lastUpdated: "2026-02-15T12:34:56Z",
+    members: getRandomMembers(5),
+  },
+  {
+    slugId: 7,
+    name: "Dev Squad",
+    description:
+      "Workspace for the development squad working on the new product launch",
+    slug: "dev-squad",
+    docCount: 20,
+    lastUpdated: "2026-03-19T12:34:56Z",
+    members: getRandomMembers(3),
+  },
+  
 ];
 
 export default function Home() {
@@ -62,7 +95,7 @@ export default function Home() {
       <h1 className="mx-28 my-8 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
 
-      <section className="mx-28 flex justify-between">
+      <section className="mx-28 flex flex-wrap gap-8">
         {workspaces.map((ws) => (
           <WorkspaceCard
             key={ws.slugId}

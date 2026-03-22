@@ -4,13 +4,16 @@ type AvatarGroupProps = {
   className?: string;
 };
 
-export default function AvatarGroup({ users, max = 3, className }: AvatarGroupProps) {
+export default function AvatarGroup({
+  users,
+  max = 3,
+  className,
+}: AvatarGroupProps) {
   const visible = users.slice(0, max);
   const remaining = users.length - max;
 
   return (
     <div className={`flex items-center ${className}`}>
-
       {visible.map((user, i) => (
         <img
           key={i}

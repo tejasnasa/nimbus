@@ -40,21 +40,18 @@ export default function AlertDialog({
 
           <div
             className="
-              relative z-50 w-full max-w-160 rounded-lg border border-(--border) bg-(--background) p-12 shadow-lg animate-in fade-in zoom-in-95
+              relative z-50 w-full max-w-120 rounded-lg border border-(--border) bg-(--background) p-8 shadow-lg animate-in fade-in zoom-in-95
             "
           >
             <div className="space-y-2">
-              <h2 className="text-2xl font-semibold text-(--foreground)">
+              <h2 className="text-xl font-semibold text-(--foreground)">
                 {title}
               </h2>
-              <p className="text-lg text-(--muted-foreground)">{description}</p>
+              <p className="text-md text-(--muted-foreground)">{description}</p>
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
-              <Button
-                onClick={() => setOpen(false)}
-                className=" px-4 py-2 rounded-md border border-(--border) text-(--foreground) "
-              >
+              <Button onClick={() => setOpen(false)} size="sm">
                 Cancel
               </Button>
 
@@ -63,7 +60,8 @@ export default function AlertDialog({
                   onConfirm?.();
                   setOpen(false);
                 }}
-                className=" px-4 py-2 rounded-md bg-red-500 hover:bg-red-600"
+                className=" bg-red-500 hover:bg-red-600"
+                size="sm"
               >
                 Continue
               </Button>

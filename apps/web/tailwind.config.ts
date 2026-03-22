@@ -3,7 +3,8 @@ import uiConfig from "@nimbus/ui/tailwind.config";
 
 const config: Config = {
   content: [
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./app/**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
     "../../packages/ui/src/**/*.{ts,tsx}",
   ],
   presets: [uiConfig],

@@ -1,7 +1,7 @@
 import { InputHTMLAttributes } from "react";
 
 export default function Input({
-  className,
+  className = "",
   ...props
 }: InputHTMLAttributes<HTMLInputElement>) {
   return (

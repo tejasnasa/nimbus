@@ -1,6 +1,9 @@
+import { Spinner } from "./icons/Spinner";
+
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: "sm" | "md" | "lg";
   ratio?: number;
+  loading?: boolean;
 };
 
 const sizes = {
@@ -9,11 +12,18 @@ const sizes = {
   lg: "h-12 px-6 text-lg",
 };
 
+const iconSizes = {
+  sm: "h-3 w-3",
+  md: "h-4 w-4",
+  lg: "h-5 w-5",
+};
+
 export default function Button({
   className = "",
   size = "md",
   ratio,
   style,
+  loading = false,
   ...props
 }: Props) {
   const base = sizes[size];
@@ -25,15 +35,13 @@ export default function Button({
         ...style,
         ...(ratio && { aspectRatio: ratio }),
       }}
-      className={`
-        bg-(--primary)
-        text-(--primary-foreground)
-        hover:bg-(--primary)/90
-        rounded-md transition-all active:translate-y-0.5
-        ${base}
-        ${ratio ? "px-0" : ""} 
-        ${className}
+      disabled={loading || props.disabled}
+      className={` bg-(--primary) text-(--primary-foreground) hover:bg-(--primary)/90 rounded-md transition-all active:translate-y-0.5 inline-flex items-center justify-center gap-2 ${base} ${ratio ? "px-0" : ""} ${className}
       `}
-    />
+    >
+      {loading && <Spinner className={iconSizes[size]} />}
+
+      {props.children}
+    </button>
   );
 }

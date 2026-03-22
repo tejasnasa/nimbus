@@ -11,7 +11,7 @@ export default function Home() {
     <main className="h-dvh p-4 bg-(--background)">
       <Input placeholder="Email" />
       <Textarea placeholder="Type your message here." />
-      <Button>Submit</Button>
+      <Button loading={true}>Submit</Button>
       <AvatarGroup
         max={3}
         users={[

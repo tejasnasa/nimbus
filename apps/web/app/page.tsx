@@ -5,7 +5,7 @@ import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
 import AvatarGroup from "@nimbus/ui/AvatarGroup";
 import AlertDialog from "@nimbus/ui/AlertDialog";
-import Cloud from "../assets/Cloud";
+import Cloud from "@nimbus/ui/icons/Cloud";
 
 export default function Home() {
   return (

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Cloud from "../../assets/Cloud";
+import Cloud from "@nimbus/ui/icons/Cloud";
 import signupimage from "../../assets/signup.jpg";
 import Link from "next/link";
 import FormSwitch from "../../components/FormSwitch";

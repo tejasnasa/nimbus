@@ -12,7 +12,7 @@ interface LoginFormProps {
 
 export default function LoginForm({ openSignup, ...props }: LoginFormProps) {
   return (
-    <section className="bg-(--card) p-6">
+    <section className="bg-(--card) p-6 rounded-xl">
       <div className="flex flex-col align-middle items-center mb-6">
         <h1 className="text-2xl text-[25px] font-bold text-center m-2">
           Login to your account

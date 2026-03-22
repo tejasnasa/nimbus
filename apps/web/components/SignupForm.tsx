@@ -12,8 +12,8 @@ interface SignupFormProps {
 
 export default function SignupForm({ openLogin, ...props }: SignupFormProps) {
   return (
-    <section className="bg-(--card) p-6">
-      <div className="flex flex-col align-middle items-center mb-8">
+    <section className="bg-(--card) p-6 rounded-xl">
+      <div className="flex flex-col align-middle items-center mb-6">
         <h1 className="text-2xl text-[26px] font-bold text-center m-2">
           Create your account
         </h1>

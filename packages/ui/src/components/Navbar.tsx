@@ -4,7 +4,7 @@ import Avatar from "./Avatar";
 
 export default function Navbar() {
   return (
-    <section className="p-4 px-12 flex justify-between">
+    <section className="m-4 mx-16 flex justify-between">
       <Link href="/" className="flex items-center gap-2 font-medium">
         <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Cloud />

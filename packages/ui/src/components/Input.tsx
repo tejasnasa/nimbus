@@ -7,7 +7,7 @@ export default function Input({
   return (
     <input
       {...props}
-      className={`bg-(--card) h-10 w-80 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring) ${className}`}
+      className={`bg-(--muted) h-10 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring) ${className}`}
     />
   );
 }

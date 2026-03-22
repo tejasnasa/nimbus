@@ -1,11 +1,12 @@
 import "../globals.css";
 
-export default function Input({ defValue }: { defValue?: string }) {
+export default function Input({ defValue, placeholder }: { defValue?: string; placeholder?: string }) {
   return (
-    <div className="text-red-600">
-      <input type="text" defaultValue={defValue} className="bg-yellow-500" />
-      <br />
-      <button className="bg-red-500 text-white p-4">UI Button</button>
-    </div>
+    <input
+      type="text"
+      defaultValue={defValue}
+      placeholder={placeholder}
+      className="bg-(--card) h-10 w-80 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring)"
+    />
   );
 }

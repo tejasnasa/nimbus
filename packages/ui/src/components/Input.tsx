@@ -1,19 +1,13 @@
+import { InputHTMLAttributes } from "react";
 import "../globals.css";
 
 export default function Input({
-  defValue,
-  placeholder,
   className,
-}: {
-  defValue?: string;
-  placeholder?: string;
-  className?: string;
-}) {
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      type="text"
-      defaultValue={defValue}
-      placeholder={placeholder}
+      {...props}
       className={`bg-(--card) h-10 w-80 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring) ${className}`}
     />
   );

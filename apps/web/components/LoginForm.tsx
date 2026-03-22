@@ -1,34 +1,28 @@
 import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
 import OrContinueWith from "@nimbus/ui/OrContinueWith";
+import Image from "next/image";
 import { FormHTMLAttributes } from "react";
 import google from "../assets/google.svg";
-import Image from "next/image";
 
-interface SignupFormProps {
+interface LoginFormProps {
   props?: FormHTMLAttributes<HTMLFormElement>;
-  openLogin?: () => void;
+  openSignup?: () => void;
 }
 
-export default function SignupForm({ openLogin, ...props }: SignupFormProps) {
+export default function LoginForm({ openSignup, ...props }: LoginFormProps) {
   return (
     <section className="bg-(--card) p-6">
-      <div className="flex flex-col align-middle items-center mb-8">
-        <h1 className="text-2xl text-[26px] font-bold text-center m-2">
-          Create your account
+      <div className="flex flex-col align-middle items-center mb-6">
+        <h1 className="text-2xl text-[25px] font-bold text-center m-2">
+          Login to your account
         </h1>
         <div className="text-xs text-(--muted-foreground)">
-          Fill in the form below to create your account
+          Enter your email to login to your account
         </div>
       </div>
 
       <form className="flex flex-col gap-4 items-center p-2 mt-4" {...props}>
-        <div className="flex flex-col gap-2">
-          <label htmlFor="name" className="text-sm">
-            Name
-          </label>
-          <Input placeholder="Tejas Nasa" className="w-80" id="name" />
-        </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="email" className="text-sm">
             Email
@@ -46,14 +40,14 @@ export default function SignupForm({ openLogin, ...props }: SignupFormProps) {
             id="password"
           />
         </div>
-        <Button className="m-4 mt-2 font-semibold w-full" size="sm">
-          Sign Up
+        <Button className="font-semibold w-full m-3" size="sm">
+          Login
         </Button>
       </form>
       <div className="flex flex-col items-center justify-center gap-4">
         <OrContinueWith />
         <Button size="sm" className="bg-white text-black hover:bg-gray-200">
-          Sign up with
+          Login with
           <Image
             src={google}
             alt="Google"
@@ -63,10 +57,10 @@ export default function SignupForm({ openLogin, ...props }: SignupFormProps) {
           />
         </Button>
         <button
-          onClick={openLogin}
+          onClick={openSignup}
           className="text-sm text-(--muted-foreground) hover:underline hover:cursor-pointer transition-all"
         >
-          Already have an account? Log in
+          Don&apos;t have an account? Sign up
         </button>
       </div>
     </section>

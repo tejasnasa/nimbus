@@ -5,10 +5,13 @@ import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
 import AvatarGroup from "@nimbus/ui/AvatarGroup";
 import AlertDialog from "@nimbus/ui/AlertDialog";
+import Cloud from "../assets/Cloud";
 
 export default function Home() {
   return (
     <main className="h-dvh p-4 bg-(--background)">
+      <Cloud />
+
       <Input placeholder="Email" />
       <Textarea placeholder="Type your message here." />
       <Button loading={true}>Submit</Button>

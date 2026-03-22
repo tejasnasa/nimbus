@@ -1,7 +1,10 @@
+"use client";
+
 import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
 import AvatarGroup from "@nimbus/ui/AvatarGroup";
+import AlertDialog from "@nimbus/ui/AlertDialog";
 
 export default function Home() {
   return (
@@ -34,6 +37,17 @@ export default function Home() {
               "https://pbs.twimg.com/profile_images/1990733388261593088/YUExHPAQ_400x400.jpg",
           },
         ]}
+      />
+
+      <AlertDialog
+        trigger={
+          <Button className="bg-red-500 hover:bg-red-600">
+            Delete Account
+          </Button>
+        }
+        title="Are you absolutely sure?"
+        description="This action cannot be undone. This will permanently delete your account and remove all of your data."
+        onConfirm={() => console.log("deleted")}
       />
     </main>
   );

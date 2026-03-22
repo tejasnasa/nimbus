@@ -1,4 +1,3 @@
-import CreateWorkspaceCard from "@nimbus/ui/CreateWorkspaceCard";
 import Navbar from "@nimbus/ui/Navbar";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
@@ -8,6 +7,7 @@ import pic3 from "../../assets/avatars/picture3.png";
 import pic4 from "../../assets/avatars/picture4.png";
 import pic5 from "../../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
+import CreateWorkspaceCard from "../../components/CreateWorkspaceCard";
 
 const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 

@@ -1,4 +1,9 @@
-import Button from "./Button";
+"use client";
+
+import Button from "@nimbus/ui/Button";
+import CreateWorkspaceModal from "./CreateWorkspaceModal";
+
+const doNothing = () => {};
 
 export default function CreateWorkspaceCard() {
   return (
@@ -10,9 +15,14 @@ export default function CreateWorkspaceCard() {
         </p>
       </div>
 
-      <Button size="lg" className="m-2">
-        + Create Workspace
-      </Button>
+      <CreateWorkspaceModal
+        trigger={
+          <Button size="lg" className="m-2">
+            + Create Workspace
+          </Button>
+        }
+        onConfirm={doNothing}
+      />
     </div>
   );
 }

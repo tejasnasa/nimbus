@@ -4,10 +4,12 @@ export default function ChatMsgA({
   name,
   image,
   message,
+  time,
 }: {
   name: string;
   image: string;
   message: string;
+  time: string;
 }) {
   return (
     <div className="flex items-center m-2">
@@ -16,10 +18,13 @@ export default function ChatMsgA({
           name: name,
           image: image,
         }}
-        classname="w-8 h-8 m-2"
+        classname="w-8 h-8 mr-2 self-start"
       />
-      <div className="text-sm bg-(--card) p-1.5 w-fit rounded-md">
-        {message}
+      <div>
+        <div className="text-sm bg-(--card) p-1.5 w-fit rounded-md">
+          {message}
+        </div>
+        <p className="text-[10px] text-(--muted-foreground) m-px">{time}</p>
       </div>
     </div>
   );

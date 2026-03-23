@@ -1,18 +1,20 @@
 import { Spinner } from "./icons/Spinner";
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   ratio?: number;
   loading?: boolean;
 };
 
 const sizes = {
+  xs: "px-2 py-1 text-xs",
   sm: "p-2 px-3 text-sm",
   md: "h-10 px-4 text-md",
   lg: "h-12 px-6 text-lg",
 };
 
 const iconSizes = {
+  xs: "h-2 w-2",
   sm: "h-3 w-3",
   md: "h-4 w-4",
   lg: "h-5 w-5",

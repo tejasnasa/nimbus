@@ -7,7 +7,7 @@ export default function Workspace() {
       <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-4xl">SIH Project</h1>
-          <button className="w-5 h-5">
+          <button className="w-5 h-5 m-2">
             <Settings />
           </button>
         </div>

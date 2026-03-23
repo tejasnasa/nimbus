@@ -1,5 +1,21 @@
 import Settings from "@nimbus/ui/icons/Settings";
 import Chat from "@nimbus/ui/Chat";
+import DocTabs from "@nimbus/ui/DocTabs";
+
+const docList = [
+  {
+    label: "Document1",
+    content: <p>Account settings here</p>,
+  },
+  {
+    label: "Document2",
+    content: <p>Password settings here</p>,
+  },
+  {
+    label: "Document3",
+    content: <p>Notification settings here</p>,
+  },
+];
 
 export default function Workspace() {
   return (
@@ -16,7 +32,11 @@ export default function Workspace() {
         </div>
         <Chat />
       </section>
-      <section className="w-[75%]">Editor</section>
+      <section className="w-[75%]">
+        <DocTabs
+          tabs={docList}
+        />
+      </section>
     </main>
   );
 }

@@ -1,21 +1,28 @@
 "use client";
 import { useState, useEffect } from "react";
-import Button from "./Button";
+
+type AlertDialogControls = {
+  open: () => void;
+  close: () => void;
+};
 
 type Props = {
   trigger: React.ReactNode;
-  title: string;
-  description: string;
   onConfirm?: () => void;
+  children: React.ReactNode | ((controls: AlertDialogControls) => React.ReactNode);
 };
 
 export default function AlertDialog({
   trigger,
-  title,
-  description,
   onConfirm,
+  children,
 }: Props) {
   const [open, setOpen] = useState(false);
+
+  const controls: AlertDialogControls = {
+    open: () => setOpen(true),
+    close: () => setOpen(false),
+  };
 
   useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
@@ -38,7 +45,9 @@ export default function AlertDialog({
             onClick={() => setOpen(false)}
           />
 
-          <div
+          {typeof children === "function" ? children(controls) : children}
+
+          {/* <div
             className="
               relative z-50 w-full max-w-120 rounded-lg border border-(--border) bg-(--background) p-8 shadow-lg animate-in fade-in zoom-in-95
             "
@@ -66,7 +75,7 @@ export default function AlertDialog({
                 Continue
               </Button>
             </div>
-          </div>
+          </div> */}
         </div>
       )}
     </>

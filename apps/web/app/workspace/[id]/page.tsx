@@ -1,6 +1,5 @@
 import Settings from "@nimbus/ui/icons/Settings";
 import Chat from "@nimbus/ui/Chat";
-import DocTabs from "@nimbus/ui/DocTabs";
 import DocEditor from "../../../components/DocEditor";
 
 export default function Workspace() {

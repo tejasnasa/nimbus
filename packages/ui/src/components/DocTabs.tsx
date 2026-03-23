@@ -7,7 +7,12 @@ interface DocTabsProps {
   setActive: Dispatch<SetStateAction<number>>;
 }
 
-export default function DocTabs({ tabs, setTabs, active, setActive }: DocTabsProps) {
+export default function DocTabs({
+  tabs,
+  setTabs,
+  active,
+  setActive,
+}: DocTabsProps) {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
 
@@ -49,7 +54,7 @@ export default function DocTabs({ tabs, setTabs, active, setActive }: DocTabsPro
                 dragIndex.current = null;
               }}
               onClick={() => setActive(i)}
-              className={`py-2 text-sm font-medium transition-colors -mb-px border-b-2 cursor-grab active:cursor-grabbing ${
+              className={`py-2 text-sm font-medium transition-colors -mb-px border-b-2  active:cursor-grabbing ${
                 dragOver === i
                   ? "border-(--primary) opacity-50"
                   : active === i

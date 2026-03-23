@@ -54,7 +54,7 @@ export default function DocTabs({
                 dragIndex.current = null;
               }}
               onClick={() => setActive(i)}
-              className={`py-2 text-sm font-medium transition-colors -mb-px border-b-2  active:cursor-grabbing ${
+              className={`py-2 text-md font-medium transition-colors -mb-px border-b-2 ${
                 dragOver === i
                   ? "border-(--primary) opacity-50"
                   : active === i

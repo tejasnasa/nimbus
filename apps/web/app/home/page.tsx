@@ -19,7 +19,7 @@ const members = [
   { avatarUrl: getAvatarForUser(5, avatars), online: true },
 ];
 
-function getRandomMembers(count: number) {
+export function getRandomMembers(count: number) {
   const shuffled = members.sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 }
@@ -58,7 +58,7 @@ const workspaces = [
 
 export default function Home() {
   return (
-    <main className="h-dvh">
+    <main className="min-h-dvh">
       <Navbar />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />

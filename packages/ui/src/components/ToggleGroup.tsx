@@ -15,7 +15,7 @@ export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-(--border) mx-28 my-8 p-0 w-fit">
+    <div className="flex items-center gap-1 rounded-md border border-(--border) mx-28 my-4 p-0 w-fit">
       {options.map((option) => (
         <button
           key={option}

@@ -43,7 +43,7 @@ export default function OptionMenu({
 
       {open && (
         <div
-          className={`absolute z-50 mt-1 rounded-md border border-(--border) bg-(--card) shadow-md p-1 animate-in fade-in-0 zoom-in-95 ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
+          className={`absolute z-50 rounded-md border border-(--border) bg-(--card) shadow-md p-1 animate-in fade-in-0 zoom-in-95 ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
         >
           {items.map((item, i) => (
             <button

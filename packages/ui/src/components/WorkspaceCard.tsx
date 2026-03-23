@@ -30,10 +30,10 @@ export default function WorkspaceCard(props: WorkspaceCardProps) {
     <Link
       id={props.workspace.slugId.toString()}
       href={`/workspace/${props.workspace.slugId}/${props.workspace.slug}`}
-      className="w-[23%] p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
+      className="w-[24%] p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
     >
       <div>
-        <div className="flex justify-between mb-2">
+        <div className="flex justify-between items-center mb-2">
           <h2 className="text-3xl">{props.workspace.name}</h2>
           <div
             onClick={(e) => {
@@ -43,7 +43,7 @@ export default function WorkspaceCard(props: WorkspaceCardProps) {
           >
             <OptionMenu
               trigger={
-                <button className="p-2 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
+                <button className="p-1.5 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
                   <Options />
                 </button>
               }

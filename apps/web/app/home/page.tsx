@@ -7,6 +7,7 @@ import pic4 from "../../assets/avatars/picture4.png";
 import pic5 from "../../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
 import CreateWorkspaceCard from "../../components/CreateWorkspaceCard";
+import ToggleGroup from "@nimbus/ui/ToggleGroup";
 
 const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
@@ -60,8 +61,9 @@ export default function Home() {
     <main className="h-dvh">
       <Navbar />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
+      <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
 
-      <section className="mx-28 flex flex-wrap gap-8">
+      <section className="mx-28 flex flex-wrap gap-5">
         <CreateWorkspaceCard />
 
         {workspaces.map((ws) => (

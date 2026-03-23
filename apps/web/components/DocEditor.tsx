@@ -30,6 +30,10 @@ export default function DocEditor() {
         language="cpp"
         value={tabs[active]?.content ?? ""}
         theme={"customDarkTheme"}
+        options={{
+          fontSize: 20,
+          fontFamily: "JetBrains Mono, Fira Code, monospace",
+        }}
         beforeMount={(monaco) => {
           initializeTheme(monaco);
         }}

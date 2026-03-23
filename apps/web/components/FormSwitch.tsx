@@ -19,10 +19,10 @@ export default function FormSwitch() {
       </div>
 
       {/* shown only on desktop */}
-      <div className="hidden md:block relative w-full min-h-[530px]">
+      <div className="hidden md:block relative w-full min-h-140">
         <div
           className={`
-            absolute inset-0 transition-all duration-300
+            absolute inset-0 transition-all duration-300 mt-10
             ${formType === "login" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"}
           `}
         >

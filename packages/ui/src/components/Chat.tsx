@@ -12,24 +12,28 @@ export default function Chat() {
           image="https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg"
           message="Hi!"
           time="10:00 AM"
+          isOnline={true}
         />
         <ChatMsgB
           name="Jimmy McGill"
           image="https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg"
           message="Hello!"
           time="10:05 AM"
+          isOnline={true}
         />
         <ChatMsgA
           name="Jimmy McGill"
           image="https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg"
           message="lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.  Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
           time="10:05 AM"
+          isOnline={false}
         />
         <ChatMsgB
           name="Jimmy McGill"
           image="https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg"
           message="lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.  Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
           time="10:05 AM"
+          isOnline={false}
         />
       </div>
 

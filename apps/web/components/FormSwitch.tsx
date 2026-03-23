@@ -2,6 +2,7 @@
 import { useState } from "react";
 import SignupForm from "./SignupForm";
 import LoginForm from "./LoginForm";
+import SignupFormContainer from "../containers/SignupFormContainer";
 
 export default function FormSwitch() {
   const [formType, setFormType] = useState<"login" | "signup">("login");
@@ -34,7 +35,7 @@ export default function FormSwitch() {
             ${formType === "signup" ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none"}
           `}
         >
-          <SignupForm openLogin={() => setFormType("login")} />
+          <SignupFormContainer />
         </div>
       </div>
     </>

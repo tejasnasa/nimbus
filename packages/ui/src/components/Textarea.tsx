@@ -7,7 +7,7 @@ export default function Textarea({
   return (
     <textarea
       {...props}
-      className={`bg-(--card) h-40 w-96 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring) resize-none ${className}`}
+      className={`bg-(--muted) h-40 w-96 rounded-md px-3 py-4 text-md focus-visible:outline-none focus-visible:ring-4 transition focus-visible:ring-(--ring) resize-none ${className}`}
     ></textarea>
   );
 }

@@ -43,7 +43,7 @@ export default function WorkspaceCard(props: WorkspaceCardProps) {
           >
             <OptionMenu
               trigger={
-                <button className="p-2 hover:cursor-pointer">
+                <button className="p-2 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
                   <Options />
                 </button>
               }

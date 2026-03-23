@@ -1,7 +1,4 @@
-"use client";
-
 import Navbar from "@nimbus/ui/Navbar";
-import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
 import pic1 from "../../assets/avatars/picture1.png";
 import pic2 from "../../assets/avatars/picture2.png";
@@ -62,7 +59,7 @@ export default function Home() {
   return (
     <main className="h-dvh">
       <Navbar />
-      <h1 className="mx-28 my-8 text-8xl font-semibold">Workspaces</h1>
+      <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
 
       <section className="mx-28 flex flex-wrap gap-8">
         <CreateWorkspaceCard />

@@ -30,7 +30,7 @@ export default function Navbar() {
         ]}
         size="lg"
         direction="left"
-        className="w-40"
+        className="w-36"
       />
     </section>
   );

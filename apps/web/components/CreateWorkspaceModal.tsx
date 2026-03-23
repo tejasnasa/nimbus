@@ -34,7 +34,7 @@ export default function CreateWorkspaceModal({ trigger, onConfirm }: Props) {
 
           <div
             className="
-                relative z-50 w-full max-w-120 rounded-xl border border-(--border) bg-(--background) p-3 shadow-lg animate-in fade-in zoom-in-95
+                relative z-50 w-full max-w-120 rounded-xl border border-(--border) bg-(--card) p-3 shadow-lg animate-in fade-in zoom-in-95
               "
           >
             <div className="space-y-2">
@@ -67,7 +67,7 @@ export default function CreateWorkspaceModal({ trigger, onConfirm }: Props) {
               <div className="m-4 flex justify-end gap-2">
                 <Button
                   onClick={() => setOpen(false)}
-                  className="bg-transparent hover:bg-white/10 border border-(--border) hover:border-white/10"
+                  className="bg-transparent hover:bg-white/10 border border-(--border) hover:border-white/10 hover:cursor-pointer"
                   size="sm"
                 >
                   Cancel
@@ -79,6 +79,7 @@ export default function CreateWorkspaceModal({ trigger, onConfirm }: Props) {
                     setOpen(false);
                   }}
                   size="sm"
+                  className="hover:cursor-pointer"
                 >
                   Continue
                 </Button>

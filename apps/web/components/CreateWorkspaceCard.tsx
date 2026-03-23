@@ -17,7 +17,7 @@ export default function CreateWorkspaceCard() {
 
       <CreateWorkspaceModal
         trigger={
-          <Button size="lg" className="m-2">
+          <Button size="lg" className="m-2 hover:cursor-pointer">
             + Create Workspace
           </Button>
         }

@@ -1,39 +1,29 @@
-"use client";
-import { useState, useRef } from "react";
+import { useState, useRef, Dispatch, SetStateAction } from "react";
 
 interface DocTabsProps {
-  tabs: {
-    label: string;
-    content: React.ReactNode;
-  }[];
-  defaultIndex?: number;
+  tabs: { label: string; content: string }[];
+  setTabs: Dispatch<SetStateAction<{ label: string; content: string }[]>>;
+  active: number;
+  setActive: Dispatch<SetStateAction<number>>;
 }
 
-export default function DocTabs({
-  tabs: initialTabs,
-  defaultIndex = 0,
-}: DocTabsProps) {
-  const [tabs, setTabs] = useState(initialTabs);
-  const [active, setActive] = useState(defaultIndex);
+export default function DocTabs({ tabs, setTabs, active, setActive }: DocTabsProps) {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
 
   const handleDrop = (i: number) => {
     const from = dragIndex.current;
     if (from === null || from === i) return;
-
     const reordered = [...tabs];
     const [moved] = reordered.splice(from, 1);
     if (!moved) return;
     reordered.splice(i, 0, moved);
-
     setActive((prev) => {
       if (prev === from) return i;
       if (from < prev && i >= prev) return prev - 1;
       if (from > prev && i <= prev) return prev + 1;
       return prev;
     });
-
     setTabs(reordered);
     setDragOver(null);
     dragIndex.current = null;
@@ -72,7 +62,6 @@ export default function DocTabs({
           ))}
         </div>
       </div>
-      <div className="mt-4">{tabs[active]?.content}</div>
     </div>
   );
 }

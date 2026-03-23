@@ -5,7 +5,8 @@
   "exports": {
     "./*": "./src/components/*.tsx",
     "./globals.css": "./src/globals.css",
-    "./tailwind.config": "./tailwind.config.ts"
+    "./tailwind.config": "./tailwind.config.ts",
+    "./themes/*": "./src/themes/*.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",

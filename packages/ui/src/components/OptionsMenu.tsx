@@ -12,9 +12,18 @@ interface OptionItem {
 interface OptionMenuProps {
   trigger: React.ReactNode;
   items: OptionItem[];
+  size: "sm" | "lg";
+  direction: "left" | "right";
+  className?: string;
 }
 
-export default function OptionMenu({ trigger, items }: OptionMenuProps) {
+export default function OptionMenu({
+  trigger,
+  items,
+  size,
+  direction,
+  className,
+}: OptionMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -30,15 +39,12 @@ export default function OptionMenu({ trigger, items }: OptionMenuProps) {
 
   return (
     <div className="relative inline-block" ref={ref}>
-      <div
-        onClick={() => setOpen((o) => !o)}
-        className="hover:bg-(--muted) rounded-md"
-      >
-        {trigger}
-      </div>
+      <div onClick={() => setOpen((o) => !o)}>{trigger}</div>
 
       {open && (
-        <div className="absolute z-50 mt-1 min-w-44 rounded-md border border-(--border) bg-(--card) shadow-md p-1 animate-in fade-in-0 zoom-in-95">
+        <div
+          className={`absolute z-50 mt-1 rounded-md border border-(--border) bg-(--card) shadow-md p-1 animate-in fade-in-0 zoom-in-95 ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
+        >
           {items.map((item, i) => (
             <button
               key={i}
@@ -47,7 +53,9 @@ export default function OptionMenu({ trigger, items }: OptionMenuProps) {
                 item.onClick?.();
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer
+              className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer
+                ${size === "sm" && "text-xs"}
+                ${size === "lg" && "text-sm"}
                 ${
                   item.destructive
                     ? "text-(--destructive) hover:bg-(--muted) "

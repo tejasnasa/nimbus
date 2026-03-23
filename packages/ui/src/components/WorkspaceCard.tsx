@@ -47,6 +47,9 @@ export default function WorkspaceCard(props: WorkspaceCardProps) {
                   <Options />
                 </button>
               }
+              size="sm"
+              direction="right"
+              className="w-44"
               items={[
                 { label: "Copy Invite Code", icon: <Clipboard /> },
                 { label: "Duplicate", icon: <Duplicate />, disabled: true },

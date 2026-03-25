@@ -152,7 +152,10 @@ export const joinWorkspace = async (inviteCode: string, id: string) => {
       },
     });
 
-    return ServerResponse.ok("Joined workspace");
+    return ServerResponse.ok(
+      { slug: workspace.slug, slugId: workspace.slugId },
+      "Joined workspace",
+    );
   } catch (error) {
     console.error("Full error:", JSON.stringify(error, null, 2));
     return ServerResponse.internalError(error);

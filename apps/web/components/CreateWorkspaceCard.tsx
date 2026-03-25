@@ -4,9 +4,22 @@ import Button from "@nimbus/ui/Button";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
+import { useWorkspaceForm } from "../hooks/useWorkspaceForm";
+import { useWorkspaceJoinForm } from "../hooks/useWorkspaceJoinForm";
 
 export default function CreateWorkspaceCard() {
-  const { register, firstError, isSubmitting, onSubmit } = useWorkspaceJoinForm();
+  const {
+    register: creationRegister,
+    firstError: creationFirstError,
+    isSubmitting: creationIsSubmitting,
+    onSubmit: creationOnSubmit,
+  } = useWorkspaceForm();
+  const {
+    register: joinRegister,
+    firstError: joinFirstError,
+    isSubmitting: joinIsSubmitting,
+    onSubmit: joinOnSubmit,
+  } = useWorkspaceJoinForm();
 
   return (
     <div className="w-[calc(48%+16px)] p-6 bg-(--card) rounded-lg flex flex-col justify-between text-center">
@@ -31,7 +44,7 @@ export default function CreateWorkspaceCard() {
                 Create Workspace
               </h2>
             </div>
-            <form onSubmit={onSubmit}>
+            <form onSubmit={creationOnSubmit}>
               <div className="flex flex-col text-left m-4">
                 <label htmlFor="title" className="m-1 text-sm">
                   Title
@@ -40,7 +53,7 @@ export default function CreateWorkspaceCard() {
                   placeholder="Tejas's Workspace"
                   id="title"
                   className="w-full"
-                  {...register("name")}
+                  {...creationRegister("name")}
                 ></Input>
               </div>
               <div className="flex flex-col text-left m-4">
@@ -51,13 +64,13 @@ export default function CreateWorkspaceCard() {
                   placeholder="Describe your workspace..."
                   id="description"
                   className="w-full"
-                  {...register("description")}
+                  {...creationRegister("description")}
                 />
               </div>
 
-              {firstError && (
+              {creationFirstError && (
                 <span className="text-xs text-red-500 self-start ml-0.5">
-                  {firstError}
+                  {creationFirstError}
                 </span>
               )}
 
@@ -73,7 +86,7 @@ export default function CreateWorkspaceCard() {
                 <Button
                   size="sm"
                   className="hover:cursor-pointer"
-                  loading={isSubmitting}
+                  loading={creationIsSubmitting}
                 >
                   Continue
                 </Button>
@@ -95,19 +108,19 @@ export default function CreateWorkspaceCard() {
                 Join Workspace
               </h2>
             </div>
-            <form onSubmit={onSubmit}>
+            <form onSubmit={joinOnSubmit}>
               <div className="flex flex-col text-left m-4">
                 <Input
                   placeholder="Invite Code"
                   id="inviteCode"
                   className="w-4/5 mx-auto text-center my-4"
-                  {...register("inviteCode")}
+                  {...joinRegister("inviteCode")}
                 ></Input>
               </div>
 
-              {firstError && (
+              {joinFirstError && (
                 <span className="text-xs text-red-500 self-start ml-0.5">
-                  {firstError}
+                  {joinFirstError}
                 </span>
               )}
 
@@ -123,7 +136,7 @@ export default function CreateWorkspaceCard() {
                 <Button
                   size="sm"
                   className="hover:cursor-pointer"
-                  loading={isSubmitting}
+                  loading={joinIsSubmitting}
                 >
                   Continue
                 </Button>

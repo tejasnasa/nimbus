@@ -10,3 +10,7 @@ export const workspaceSchema = z.object({
     .max(255, "Description must be at most 255 characters")
     .optional(),
 });
+
+export const workspaceJoinSchema = z.object({
+  inviteCode: z.string(),
+});

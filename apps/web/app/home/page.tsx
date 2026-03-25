@@ -14,11 +14,10 @@ export default async function Home() {
       headers: await headers(),
     },
   });
-  const workspaces = await getWorkspaces();
-
   if (error || !session) {
     redirect("/login");
   }
+  const workspaces = await getWorkspaces();
 
   return (
     <main className="min-h-dvh mb-10">
@@ -31,7 +30,7 @@ export default async function Home() {
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
       <section className="mx-28 flex flex-wrap gap-4">
-        <CreateWorkspaceCard  />
+        <CreateWorkspaceCard />
         {workspaces.map((ws) => (
           <WorkspaceCard key={ws.id} workspace={ws} />
         ))}

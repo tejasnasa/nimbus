@@ -13,6 +13,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   if (!res.ok) throw new Error("Failed to fetch workspaces");
 
   const data = await res.json();
+  console.log(data.responseObject);
 
   return data.responseObject;
 }

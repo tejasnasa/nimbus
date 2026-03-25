@@ -1,6 +1,7 @@
 export type Member = {
   id: string;
   image: string | null;
+  role: string;
   online?: boolean;
 };
 

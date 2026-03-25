@@ -1,12 +1,11 @@
 import Navbar from "@nimbus/ui/Navbar";
-import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
-import CreateWorkspaceCard from "../../components/CreateWorkspaceCard";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import { authClient } from "../../lib/auth-client";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { logoutAction } from "../../actions/auth";
 import { getWorkspaces } from "../../api/workspace";
+import ViewWorkspaces from "../../components/ViewWorkspaces";
 
 export default async function Home() {
   const { data: session, error } = await authClient.getSession({
@@ -17,6 +16,7 @@ export default async function Home() {
   if (error || !session) {
     redirect("/login");
   }
+
   const workspaces = await getWorkspaces();
 
   return (
@@ -28,13 +28,8 @@ export default async function Home() {
         name={session.user.name}
       />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
-      <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
-      <section className="mx-28 flex flex-wrap gap-4">
-        <CreateWorkspaceCard />
-        {workspaces.map((ws) => (
-          <WorkspaceCard key={ws.id} workspace={ws} />
-        ))}
-      </section>
+
+      <ViewWorkspaces workspaces={workspaces} id={session.user.id} />
     </main>
   );
 }

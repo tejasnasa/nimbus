@@ -64,6 +64,7 @@ export const getMyWorkspaces = async (id: string) => {
         updatedAt: true,
         members: {
           select: {
+            role: true,
             user: {
               select: {
                 id: true,
@@ -91,6 +92,7 @@ export const getMyWorkspaces = async (id: string) => {
         members: ws.members.map((m) => ({
           id: m.user.id,
           image: m.user.image,
+          role: m.role,
         })),
       })),
       "Workspaces retrieved",

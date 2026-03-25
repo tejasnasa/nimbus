@@ -13,7 +13,7 @@ import {
 const workspaceRouter = express.Router();
 
 workspaceRouter.post("/create", validate(workspaceSchema), async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
   const { name } = req.body;
 
   const response = await createWorkspace(name, id);
@@ -22,7 +22,7 @@ workspaceRouter.post("/create", validate(workspaceSchema), async (req, res) => {
 });
 
 workspaceRouter.get("/", async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
 
   const response = await getMyWorkspaces(id);
 
@@ -31,7 +31,7 @@ workspaceRouter.get("/", async (req, res) => {
 
 workspaceRouter.post("/join", async (req, res) => {
   const { inviteCode } = req.body;
-  const { id } = req.body.token;
+  const { id } = req.user!;
 
   const response = await joinWorkspace(inviteCode, id);
 
@@ -40,7 +40,7 @@ workspaceRouter.post("/join", async (req, res) => {
 
 workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
   const { wsid } = req.params;
-  const { id } = req.body.token;
+  const { id } = req.user!;
 
   const response = await regenerateInviteCode(wsid, id);
 
@@ -49,7 +49,7 @@ workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
 
 workspaceRouter.delete("/delete/:wsid", async (req, res) => {
   const { wsid } = req.params;
-  const { id } = req.body.token;
+  const { id } = req.user!;
 
   const response = await deleteWorkspace(wsid, id);
 
@@ -58,7 +58,7 @@ workspaceRouter.delete("/delete/:wsid", async (req, res) => {
 
 workspaceRouter.get("/:slugId", async (req, res) => {
   const { slugId } = req.params;
-  const { id } = req.body.token;
+  const { id } = req.user!;
 
   const response = await getWorkspaceBySlugId(slugId, id);
 

@@ -10,11 +10,10 @@ const authCheck = async (req: Request, res: Response, next: NextFunction) => {
 
   if (!session) {
     const response = ServerResponse.unauthorized();
-
     return res.status(response.statusCode).json(response);
   }
 
-  req.body.token = session.user;
+  req.user = session.user;
   next();
 };
 

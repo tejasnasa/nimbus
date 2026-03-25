@@ -9,7 +9,7 @@ import {
 const documentRouter = express.Router();
 
 documentRouter.post("/create", async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
   const { title, workspaceId } = req.body;
 
   const response = await createDocument(title, workspaceId, id);
@@ -18,7 +18,7 @@ documentRouter.post("/create", async (req, res) => {
 });
 
 documentRouter.get("/workspace/:workspaceId", async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
   const { workspaceId } = req.params;
 
   const response = await getWorkspaceDocuments(workspaceId, id);
@@ -27,7 +27,7 @@ documentRouter.get("/workspace/:workspaceId", async (req, res) => {
 });
 
 documentRouter.get("/:docId", async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
   const { docId } = req.params;
 
   const response = await getDocument(docId, id);
@@ -36,7 +36,7 @@ documentRouter.get("/:docId", async (req, res) => {
 });
 
 documentRouter.delete("/:docId", async (req, res) => {
-  const { id } = req.body.token;
+  const { id } = req.user!;
   const { docId } = req.params;
 
   const response = await deleteDocument(docId, id);

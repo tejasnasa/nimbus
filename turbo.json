@@ -3,7 +3,7 @@
   "ui": "tui",
   "tasks": {
     "build": {
-      "env": ["DATABASE_URL"],
+      "env": ["DATABASE_URL", "BACKEND_URL"],
       "dependsOn": ["^build", "^db:generate"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
@@ -21,11 +21,11 @@
     },
     "db:generate": {
       "cache": false,
-      "passThroughEnv": ["DATABASE_URL"]
+      "passThroughEnv": ["DATABASE_URL", "BACKEND_URL"]
     },
     "db:migrate": {
       "cache": false,
-      "passThroughEnv": ["DATABASE_URL"]
+      "passThroughEnv": ["DATABASE_URL", "BACKEND_URL"]
     },
     "db:deploy": {
       "cache": false

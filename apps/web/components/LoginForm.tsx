@@ -2,15 +2,26 @@ import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
 import OrContinueWith from "@nimbus/ui/OrContinueWith";
 import Image from "next/image";
-import { FormHTMLAttributes } from "react";
 import google from "../assets/google.svg";
+import { UseFormRegister } from "react-hook-form";
+import z from "zod";
+import { loginSchema } from "@nimbus/types";
 
 interface LoginFormProps {
-  props?: FormHTMLAttributes<HTMLFormElement>;
+  register: UseFormRegister<z.infer<typeof loginSchema>>;
+  firstError?: string;
+  isSubmitting: boolean;
+  onSubmit: (e: React.FormEvent) => void;
   openSignup?: () => void;
 }
 
-export default function LoginForm({ openSignup, ...props }: LoginFormProps) {
+export default function LoginForm({
+  register,
+  firstError,
+  isSubmitting,
+  onSubmit,
+  openSignup,
+}: LoginFormProps) {
   return (
     <section className="bg-(--card) p-6 rounded-xl">
       <div className="flex flex-col align-middle items-center mb-6">
@@ -22,12 +33,20 @@ export default function LoginForm({ openSignup, ...props }: LoginFormProps) {
         </div>
       </div>
 
-      <form className="flex flex-col gap-4 items-center p-2 mt-4" {...props}>
+      <form
+        className="flex flex-col gap-4 items-center p-2 mt-4"
+        onSubmit={onSubmit}
+      >
         <div className="flex flex-col gap-2">
           <label htmlFor="email" className="text-sm">
             Email
           </label>
-          <Input placeholder="tejas@example.com" className="w-80" id="email" />
+          <Input
+            placeholder="tejas@example.com"
+            className="w-80"
+            id="email"
+            {...register("email")}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="password" className="text-sm">
@@ -38,9 +57,19 @@ export default function LoginForm({ openSignup, ...props }: LoginFormProps) {
             type="password"
             className="w-80"
             id="password"
+            {...register("password")}
           />
         </div>
-        <Button className="font-semibold w-full m-3" size="sm">
+        {firstError && (
+          <span className="text-xs text-red-500 self-start ml-0.5">
+            {firstError}
+          </span>
+        )}
+        <Button
+          className="font-semibold w-full m-3"
+          size="sm"
+          loading={isSubmitting}
+        >
           Login
         </Button>
       </form>

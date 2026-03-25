@@ -3,7 +3,11 @@ import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 
-export const createWorkspace = async (name: string, id: string) => {
+export const createWorkspace = async (
+  name: string,
+  description: string | undefined,
+  id: string,
+) => {
   try {
     const slug = generateSlug(name);
 
@@ -12,6 +16,7 @@ export const createWorkspace = async (name: string, id: string) => {
         data: {
           name,
           slug,
+          description,
         },
       });
 

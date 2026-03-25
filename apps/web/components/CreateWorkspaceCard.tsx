@@ -4,8 +4,11 @@ import Button from "@nimbus/ui/Button";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
+import { useWorkspaceForm } from "../hooks/useWorkspaceForm";
 
 export default function CreateWorkspaceCard() {
+  const { register, firstError, isSubmitting, onSubmit } = useWorkspaceForm();
+
   return (
     <div className="w-[48.5%] p-6 bg-(--card) rounded-lg flex flex-col justify-between text-center py-10">
       <div>
@@ -28,7 +31,7 @@ export default function CreateWorkspaceCard() {
               Create Workspace
             </h2>
           </div>
-          <form action="">
+          <form onSubmit={onSubmit}>
             <div className="flex flex-col text-left m-4">
               <label htmlFor="title" className="m-1 text-sm">
                 Title
@@ -37,6 +40,7 @@ export default function CreateWorkspaceCard() {
                 placeholder="Tejas's Workspace"
                 id="title"
                 className="w-full"
+                {...register("name")}
               ></Input>
             </div>
             <div className="flex flex-col text-left m-4">
@@ -47,13 +51,19 @@ export default function CreateWorkspaceCard() {
                 placeholder="Describe your workspace..."
                 id="description"
                 className="w-full"
-              ></Textarea>
+                {...register("description")}
+              />
             </div>
+
+            {firstError && (
+              <span className="text-xs text-red-500 self-start ml-0.5">
+                {firstError}
+              </span>
+            )}
 
             <div className="m-4 flex justify-end gap-2">
               <Button
                 data-alert-dialog-close
-                type="button"
                 className="bg-transparent hover:bg-white/10 border border-(--border) hover:border-white/10 hover:cursor-pointer"
                 size="sm"
               >
@@ -61,10 +71,9 @@ export default function CreateWorkspaceCard() {
               </Button>
 
               <Button
-                data-alert-dialog-close
-                type="button"
                 size="sm"
                 className="hover:cursor-pointer"
+                loading={isSubmitting}
               >
                 Continue
               </Button>

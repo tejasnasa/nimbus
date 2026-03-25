@@ -10,7 +10,6 @@ import { getWorkspaces } from "../../api/workspace";
 
 export default async function Home() {
   const workspaces = await getWorkspaces();
-  console.log(workspaces);
   const { data: session, error } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
@@ -32,7 +31,7 @@ export default async function Home() {
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
       <section className="mx-28 flex flex-wrap gap-5">
-        <CreateWorkspaceCard />
+        <CreateWorkspaceCard  />
         {workspaces.map((ws) => (
           <WorkspaceCard key={ws.id} workspace={ws} />
         ))}

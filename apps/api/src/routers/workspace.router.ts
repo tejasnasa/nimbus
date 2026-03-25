@@ -14,9 +14,9 @@ const workspaceRouter = express.Router();
 
 workspaceRouter.post("/create", validate(workspaceSchema), async (req, res) => {
   const { id } = req.user!;
-  const { name } = req.body;
+  const { name, description } = req.body;
 
-  const response = await createWorkspace(name, id);
+  const response = await createWorkspace(name, description, id);
 
   return res.status(response.statusCode).json(response);
 });

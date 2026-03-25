@@ -76,7 +76,7 @@ export const getMyWorkspaces = async (id: string) => {
       },
       orderBy: {
         updatedAt: "desc",
-      }
+      },
     });
 
     if (!workspaces) {
@@ -218,8 +218,24 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
     }
 
     const isMember = workspace.members.some((member) => member.userId === id);
+
     if (!isMember) {
       return ServerResponse.forbidden("Access denied");
+    }
+
+    const isOwner = workspace.members.some(
+      (member) => member.userId === id && member.role === "OWNER",
+    );
+
+    if (!isOwner) {
+      await prisma.workspaceMember.delete({
+        where: {
+          userId_workspaceId: {
+            userId: id,
+            workspaceId: wsid,
+          },
+        },
+      });
     }
 
     await prisma.workspace.delete({

@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import AvatarGroup from "./AvatarGroup";
 import { timeAgo } from "@nimbus/utils";
@@ -45,7 +43,12 @@ export default function WorkspaceCard({ workspace }: { workspace: Workspace }) {
               direction="right"
               className="w-44"
               items={[
-                { label: "Copy Invite Code", icon: <Clipboard /> },
+                {
+                  label: "Copy Invite Code",
+                  icon: <Clipboard />,
+                  onClick: () =>
+                    navigator.clipboard.writeText(workspace.inviteCode),
+                },
                 { label: "Duplicate", icon: <Duplicate />, disabled: true },
                 {
                   label: "Delete",

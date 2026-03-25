@@ -60,6 +60,7 @@ export const getMyWorkspaces = async (id: string) => {
         description: true,
         slug: true,
         slugId: true,
+        inviteCode: true,
         updatedAt: true,
         members: {
           select: {
@@ -85,6 +86,7 @@ export const getMyWorkspaces = async (id: string) => {
         description: ws.description ?? "",
         slug: ws.slug,
         slugId: ws.slugId,
+        inviteCode: ws.inviteCode,
         updatedAt: ws.updatedAt.toISOString(),
         members: ws.members.map((m) => ({
           id: m.user.id,

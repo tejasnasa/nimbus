@@ -10,6 +10,7 @@ export type Workspace = {
   description: string;
   slug: string;
   slugId: number;
+  inviteCode: string;
   updatedAt: string;
   members: Member[];
 };

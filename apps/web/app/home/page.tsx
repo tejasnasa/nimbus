@@ -9,12 +9,12 @@ import { logoutAction } from "../../actions/auth";
 import { getWorkspaces } from "../../api/workspace";
 
 export default async function Home() {
-  const workspaces = await getWorkspaces();
   const { data: session, error } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
     },
   });
+  const workspaces = await getWorkspaces();
 
   if (error || !session) {
     redirect("/login");

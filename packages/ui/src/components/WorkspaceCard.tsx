@@ -9,32 +9,18 @@ import Options from "./icons/Options";
 import Delete from "./icons/Delete";
 import Clipboard from "./icons/Clipboard";
 import Duplicate from "./icons/Duplicate";
+import { Workspace } from "@nimbus/types";
 
-interface WorkspaceCardProps {
-  workspace: {
-    slugId: number;
-    name: string;
-    description?: string;
-    slug: string;
-    docCount: number;
-    lastUpdated?: string;
-    members: {
-      avatarUrl: string;
-      online?: boolean;
-    }[];
-  };
-}
-
-export default function WorkspaceCard(props: WorkspaceCardProps) {
+export default function WorkspaceCard({workspace}: { workspace: Workspace }) {
   return (
     <Link
-      id={props.workspace.slugId.toString()}
-      href={`/workspace/${props.workspace.slugId}/${props.workspace.slug}`}
+      id={workspace.slugId.toString()}
+      href={`/workspace/${workspace.slugId}/${workspace.slug}`}
       className="w-[24%] p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
     >
       <div>
         <div className="flex justify-between items-center mb-2">
-          <h2 className="text-3xl">{props.workspace.name}</h2>
+          <h2 className="text-3xl">{workspace.name}</h2>
           <div
             onClick={(e) => {
               e.preventDefault();
@@ -65,21 +51,21 @@ export default function WorkspaceCard(props: WorkspaceCardProps) {
 
         <div className="text-sm text-(--muted-foreground) flex items-center mb-6">
           <Clock />
-          <span className="ml-2">{timeAgo(props.workspace.lastUpdated)}</span>
+          <span className="ml-2">{timeAgo(workspace.updatedAt)}</span>
         </div>
-        <AvatarGroup
+        {/* <AvatarGroup
           users={
-            props.workspace.members?.map((member) => ({
-              image: member.avatarUrl,
+            workspace.members?.map((member) => ({
+              image: member.image,
               online: member.online,
             })) || []
           }
-        />
+        /> */}
       </div>
 
       <div>
         <p className="text-sm text-(--muted-foreground) mt-4">
-          {props.workspace.description}
+          {workspace.description}
         </p>
       </div>
     </Link>

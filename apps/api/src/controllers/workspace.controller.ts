@@ -49,13 +49,43 @@ export const getMyWorkspaces = async (id: string) => {
           },
         },
       },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        slug: true,
+        slugId: true,
+        updatedAt: true,
+        members: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                image: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!workspaces) {
-      return ServerResponse.notFound("No workspaces found");
+      return ServerResponse.ok([], "No workspaces found");
     }
 
-    return ServerResponse.ok(workspaces, "Workspaces retrieved");
+    return ServerResponse.ok(
+      workspaces.map((ws) => ({
+        id: ws.id,
+        name: ws.name,
+        slug: ws.slug,
+        slugId: ws.slugId,
+        members: ws.members.map((m) => ({
+          id: m.user.id,
+          image: m.user.image,
+        })),
+      })),
+      "Workspaces retrieved",
+    );
   } catch (error) {
     return ServerResponse.internalError(error);
   }

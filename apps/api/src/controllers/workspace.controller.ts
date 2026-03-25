@@ -74,6 +74,9 @@ export const getMyWorkspaces = async (id: string) => {
           },
         },
       },
+      orderBy: {
+        updatedAt: "desc",
+      }
     });
 
     if (!workspaces) {

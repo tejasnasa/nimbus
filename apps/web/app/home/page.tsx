@@ -4,7 +4,7 @@ import { authClient } from "../../lib/auth-client";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { logoutAction } from "../../actions/auth";
-import { getWorkspaces } from "../../api/workspace";
+import { deleteWorkspace, getWorkspaces } from "../../api/workspace";
 import ViewWorkspaces from "../../components/ViewWorkspaces";
 
 export default async function Home() {
@@ -29,7 +29,11 @@ export default async function Home() {
       />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
 
-      <ViewWorkspaces workspaces={workspaces} id={session.user.id} />
+      <ViewWorkspaces
+        workspaces={workspaces}
+        id={session.user.id}
+        deleteWorkspace={deleteWorkspace}
+      />
     </main>
   );
 }

@@ -17,7 +17,13 @@ import { getAvatarForUser } from "@nimbus/utils";
 
 const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
-export default function WorkspaceCard({ workspace }: { workspace: Workspace }) {
+export default function WorkspaceCard({
+  workspace,
+  deleteWorkspace,
+}: {
+  workspace: Workspace;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
+}) {
   return (
     <Link
       id={workspace.slugId.toString()}
@@ -54,6 +60,7 @@ export default function WorkspaceCard({ workspace }: { workspace: Workspace }) {
                   label: "Delete",
                   destructive: true,
                   icon: <Delete />,
+                  onClick: () => deleteWorkspace(workspace.id),
                 },
               ]}
             />

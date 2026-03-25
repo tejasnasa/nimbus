@@ -5,13 +5,16 @@ import CreateWorkspaceCard from "./CreateWorkspaceCard";
 import { Workspace } from "@nimbus/types";
 import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
 import { useState } from "react";
+import { deleteWorkspace } from "../api/workspace";
 
 export default function ViewWorkspaces({
   workspaces,
   id,
+  deleteWorkspace,
 }: {
   workspaces: Workspace[];
   id: string;
+  deleteWorkspace: (workspaceId: string) => Promise<void>;
 }) {
   const [filter, setFilter] = useState("All Workspaces");
 
@@ -33,7 +36,7 @@ export default function ViewWorkspaces({
       <section className="mx-28 flex flex-wrap gap-4">
         <CreateWorkspaceCard />
         {filteredWorkspaces.map((ws) => (
-          <WorkspaceCard key={ws.id} workspace={ws} />
+          <WorkspaceCard key={ws.id} workspace={ws} deleteWorkspace={deleteWorkspace} />
         ))}
       </section>
     </>

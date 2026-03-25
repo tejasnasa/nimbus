@@ -8,6 +8,7 @@ import pic5 from "../../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
 import CreateWorkspaceCard from "../../components/CreateWorkspaceCard";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
+import { logoutAction } from "../actions/auth";
 
 const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
@@ -59,7 +60,7 @@ const workspaces = [
 export default function Home() {
   return (
     <main className="min-h-dvh">
-      <Navbar />
+      <Navbar logout={logoutAction} />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
 

@@ -5,7 +5,7 @@ import OptionMenu from "./OptionsMenu";
 import Settings from "./icons/Settings";
 import Logout from "./icons/Logout";
 
-export default function Navbar() {
+export default function Navbar({ logout }: { logout: () => void }) {
   return (
     <section className="m-4 mx-16 flex justify-between">
       <Link href="/" className="flex items-center gap-2 font-medium">
@@ -21,12 +21,18 @@ export default function Navbar() {
               name: "Tejas Nasa",
               image:
                 "https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg",
-            }} classname="h-12 w-12"
+            }}
+            classname="h-12 w-12"
           />
         }
         items={[
           { label: "Settings", icon: <Settings /> },
-          { label: "Sign Out", icon: <Logout />, destructive: true },
+          {
+            label: "Sign Out",
+            icon: <Logout />,
+            destructive: true,
+            onClick: logout,
+          },
         ]}
         size="lg"
         direction="left"

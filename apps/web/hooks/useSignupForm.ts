@@ -16,12 +16,19 @@ export function useSignupForm() {
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
-      await authClient.signUp.email({
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        callbackURL: "/home"
-      });
+      await authClient.signUp.email(
+        {
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          callbackURL: "/home",
+        },
+        {
+          onError: (ctx) => {
+            alert(ctx.error.message);
+          },
+        },
+      );
     } catch (error) {
       if (error) {
         form.setError("root", {

@@ -8,7 +8,10 @@ import pic5 from "../../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
 import CreateWorkspaceCard from "../../components/CreateWorkspaceCard";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
-import { logoutAction } from "../actions/auth";
+import { authClient } from "../../lib/auth-client";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { logoutAction } from "../../actions/auth";
 
 const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
@@ -57,13 +60,22 @@ const workspaces = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const { data: session, error } = await authClient.getSession({
+    fetchOptions: {
+      headers: await headers(),
+    },
+  });
+
+  if (error || !session) {
+    redirect("/login");
+  }
+
   return (
     <main className="min-h-dvh">
       <Navbar logout={logoutAction} />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
-
       <section className="mx-28 flex flex-wrap gap-5">
         <CreateWorkspaceCard />
 

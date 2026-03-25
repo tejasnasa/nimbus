@@ -3,8 +3,21 @@ import Cloud from "@nimbus/ui/icons/Cloud";
 import signupimage from "../../assets/signup.jpg";
 import Link from "next/link";
 import FormSwitch from "../../components/FormSwitch";
+import { authClient } from "../../lib/auth-client";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default function Login() {
+export default async function Login() {
+  const { data: session } = await authClient.getSession({
+    fetchOptions: {
+      headers: await headers(),
+    },
+  });
+
+  if (session) {
+    redirect("/home");
+  }
+
   return (
     <main className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">

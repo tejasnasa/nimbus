@@ -3,10 +3,22 @@ import { useState } from "react";
 import SignupForm from "./SignupForm";
 import LoginForm from "./LoginForm";
 import { useSignupForm } from "../hooks/useSignupForm";
+import { useLoginForm } from "../hooks/useLoginForm";
 
 export default function FormSwitch() {
   const [formType, setFormType] = useState<"login" | "signup">("login");
-  const { register, firstError, isSubmitting, onSubmit } = useSignupForm();
+  const {
+    register: signupRegister,
+    firstError: signupFirstError,
+    isSubmitting: signupIsSubmitting,
+    onSubmit: signupOnSubmit,
+  } = useSignupForm();
+  const {
+    register: loginRegister,
+    firstError: loginFirstError,
+    isSubmitting: loginIsSubmitting,
+    onSubmit: loginOnSubmit,
+  } = useLoginForm();
 
   return (
     <>
@@ -28,7 +40,13 @@ export default function FormSwitch() {
             ${formType === "login" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"}
           `}
         >
-          <LoginForm openSignup={() => setFormType("signup")} />
+          <LoginForm
+            register={loginRegister}
+            firstError={loginFirstError}
+            isSubmitting={loginIsSubmitting}
+            onSubmit={loginOnSubmit}
+            openSignup={() => setFormType("signup")}
+          />
         </div>
         <div
           className={`
@@ -37,10 +55,10 @@ export default function FormSwitch() {
           `}
         >
           <SignupForm
-            register={register}
-            firstError={firstError}
-            isSubmitting={isSubmitting}
-            onSubmit={onSubmit}
+            register={signupRegister}
+            firstError={signupFirstError}
+            isSubmitting={signupIsSubmitting}
+            onSubmit={signupOnSubmit}
             openLogin={() => setFormType("login")}
           />
         </div>

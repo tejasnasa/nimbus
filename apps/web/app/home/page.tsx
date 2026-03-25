@@ -73,7 +73,12 @@ export default async function Home() {
 
   return (
     <main className="min-h-dvh">
-      <Navbar logout={logoutAction} />
+      <Navbar
+        logout={logoutAction}
+        id={session.user.id}
+        avatar={session.user.image}
+        name={session.user.name}
+      />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
       <section className="mx-28 flex flex-wrap gap-5">

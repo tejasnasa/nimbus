@@ -55,14 +55,22 @@ export default function OptionMenu({
               }}
               className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer
                 ${size === "sm" && "text-xs"}
-                ${size === "lg" && "text-sm"}
+                ${size === "lg" && "text-md"}
                 ${
                   item.destructive
                     ? "text-(--destructive) hover:bg-(--muted) "
                     : "text-(--foreground) hover:bg-(--muted)"
                 }`}
             >
-              {item.icon && <span className="w-4 h-4">{item.icon}</span>}
+              {item.icon && (
+                <span
+                  className={`
+                    ${size === "sm" && "w-4 h-4"}
+                    ${size === "lg" && "w-5 h-5"}`}
+                >
+                  {item.icon}
+                </span>
+              )}
               {item.label}
             </button>
           ))}

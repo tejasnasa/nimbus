@@ -4,8 +4,26 @@ import Avatar from "./Avatar";
 import OptionMenu from "./OptionsMenu";
 import Settings from "./icons/Settings";
 import Logout from "./icons/Logout";
+import pic1 from "../assets/avatars/picture1.png";
+import pic2 from "../assets/avatars/picture2.png";
+import pic3 from "../assets/avatars/picture3.png";
+import pic4 from "../assets/avatars/picture4.png";
+import pic5 from "../assets/avatars/picture5.png";
+import { getAvatarForUser } from "@nimbus/utils";
 
-export default function Navbar({ logout }: { logout: () => void }) {
+const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
+
+export default function Navbar({
+  logout,
+  avatar,
+  id,
+  name,
+}: {
+  logout: () => void;
+  avatar?: string | null;
+  id: string;
+  name: string;
+}) {
   return (
     <section className="m-4 mx-16 flex justify-between">
       <Link href="/" className="flex items-center gap-2 font-medium">
@@ -18,14 +36,14 @@ export default function Navbar({ logout }: { logout: () => void }) {
         trigger={
           <Avatar
             user={{
-              name: "Tejas Nasa",
-              image:
-                "https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg",
+              name: name,
+              image: avatar || getAvatarForUser(id, avatars),
             }}
             classname="h-12 w-12"
           />
         }
         items={[
+          { label: name, disabled: true },
           { label: "Settings", icon: <Settings /> },
           {
             label: "Sign Out",

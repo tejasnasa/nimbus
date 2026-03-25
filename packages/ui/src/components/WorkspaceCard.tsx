@@ -10,8 +10,16 @@ import Delete from "./icons/Delete";
 import Clipboard from "./icons/Clipboard";
 import Duplicate from "./icons/Duplicate";
 import { Workspace } from "@nimbus/types";
+import pic1 from "../assets/avatars/picture1.png";
+import pic2 from "../assets/avatars/picture2.png";
+import pic3 from "../assets/avatars/picture3.png";
+import pic4 from "../assets/avatars/picture4.png";
+import pic5 from "../assets/avatars/picture5.png";
+import { getAvatarForUser } from "@nimbus/utils";
 
-export default function WorkspaceCard({workspace}: { workspace: Workspace }) {
+const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
+
+export default function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   return (
     <Link
       id={workspace.slugId.toString()}
@@ -53,21 +61,19 @@ export default function WorkspaceCard({workspace}: { workspace: Workspace }) {
           <Clock />
           <span className="ml-2">{timeAgo(workspace.updatedAt)}</span>
         </div>
-        {/* <AvatarGroup
+        <AvatarGroup
           users={
             workspace.members?.map((member) => ({
-              image: member.image,
+              image: member.image || getAvatarForUser(member.id, avatars),
               online: member.online,
             })) || []
           }
-        /> */}
+        />
       </div>
 
-      <div>
-        <p className="text-sm text-(--muted-foreground) mt-4">
-          {workspace.description}
-        </p>
-      </div>
+      <p className="text-sm text-(--muted-foreground) mt-4">
+        {workspace.description}
+      </p>
     </Link>
   );
 }

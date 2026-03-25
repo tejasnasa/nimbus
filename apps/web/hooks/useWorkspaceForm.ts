@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { workspaceSchema } from "@nimbus/types";
-import { redirect } from "next/navigation";
 import { useRouter } from "next/navigation";
 
 export function useWorkspaceForm() {

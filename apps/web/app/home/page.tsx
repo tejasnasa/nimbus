@@ -21,7 +21,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="min-h-dvh">
+    <main className="min-h-dvh mb-10">
       <Navbar
         logout={logoutAction}
         id={session.user.id}
@@ -30,7 +30,7 @@ export default async function Home() {
       />
       <h1 className="mx-28 mb-12 mt-28 text-8xl font-semibold">Workspaces</h1>
       <ToggleGroup options={["All Workspaces", "My Workspaces"]} />
-      <section className="mx-28 flex flex-wrap gap-5">
+      <section className="mx-28 flex flex-wrap gap-4">
         <CreateWorkspaceCard  />
         {workspaces.map((ws) => (
           <WorkspaceCard key={ws.id} workspace={ws} />

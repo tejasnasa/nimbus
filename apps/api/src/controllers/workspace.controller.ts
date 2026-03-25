@@ -5,7 +5,7 @@ import cuid from "cuid";
 
 export const createWorkspace = async (
   name: string,
-  description: string | undefined,
+  description: string,
   id: string,
 ) => {
   try {
@@ -82,8 +82,10 @@ export const getMyWorkspaces = async (id: string) => {
       workspaces.map((ws) => ({
         id: ws.id,
         name: ws.name,
+        description: ws.description ?? "",
         slug: ws.slug,
         slugId: ws.slugId,
+        updatedAt: ws.updatedAt.toISOString(),
         members: ws.members.map((m) => ({
           id: m.user.id,
           image: m.user.image,

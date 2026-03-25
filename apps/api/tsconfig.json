@@ -8,10 +8,6 @@
     "strict": true,
     "sourceMap": true,
     "outDir": "dist",
-    "baseUrl": ".",
-    "paths": {
-      "*": ["node_modules/*", "src/types/*"]
-    },
     "skipLibCheck": true
   },
   "include": ["./src/**/*"],

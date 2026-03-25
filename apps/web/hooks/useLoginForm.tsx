@@ -1,26 +1,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { signupSchema } from "@nimbus/types";
+import { loginSchema } from "@nimbus/types";
 import { authClient } from "../lib/auth-client";
 
-export function useSignupForm() {
-  const form = useForm<z.infer<typeof signupSchema>>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { name: "", email: "", password: "" },
+export function useLoginForm() {
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: "", password: "" },
   });
 
-  const { name, email, password, root } = form.formState.errors;
-  const firstError =
-    name?.message || email?.message || password?.message || root?.message;
+  const { email, password, root } = form.formState.errors;
+  const firstError = email?.message || password?.message || root?.message;
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
-      await authClient.signUp.email({
-        name: data.name,
+      await authClient.signIn.email({
         email: data.email,
         password: data.password,
-        callbackURL: "/home"
+        callbackURL: "/home",
       });
     } catch (error) {
       if (error) {

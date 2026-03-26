@@ -1,8 +1,8 @@
-import pic1 from "./assets/avatars/picture1.png";
-import pic2 from "./assets/avatars/picture2.png";
-import pic3 from "./assets/avatars/picture3.png";
-import pic4 from "./assets/avatars/picture4.png";
-import pic5 from "./assets/avatars/picture5.png";
+import pic1 from "../assets/avatars/picture1.png";
+import pic2 from "../assets/avatars/picture2.png";
+import pic3 from "../assets/avatars/picture3.png";
+import pic4 from "../assets/avatars/picture4.png";
+import pic5 from "../assets/avatars/picture5.png";
 
 const avatars = [pic1, pic2, pic3, pic4, pic5];
 

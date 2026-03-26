@@ -1,13 +1,22 @@
+import { Message } from "@nimbus/types";
 import Button from "./Button";
 import ChatMsgA from "./ChatMsgA";
 import ChatMsgB from "./ChatMsgB";
 import Textarea from "./Textarea";
 
-export default function Chat() {
+export default function Chat({
+  wsid,
+  userId,
+  messages,
+}: {
+  wsid: string;
+  userId: string;
+  messages: Message[];
+}) {
   return (
     <div className="bg-(--background) h-full min-h-0 rounded-lg flex flex-col justify-between">
       <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
-        <ChatMsgA
+        {/* <ChatMsgA
           name="Tejas Nasa"
           image="https://static.vecteezy.com/system/resources/thumbnails/009/292/244/small/default-avatar-icon-of-social-media-user-vector.jpg"
           message="Hi!"
@@ -34,7 +43,7 @@ export default function Chat() {
           message="lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.  Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
           time="10:05 AM"
           isOnline={false}
-        />
+        /> */}
       </div>
 
       <form className="w-[95%] mx-auto relative">

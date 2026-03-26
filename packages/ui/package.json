@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     "./*": "./src/components/*.tsx",
+    "./utils/*": "./src/utils/*.ts",
     "./globals.css": "./src/globals.css",
     "./tailwind.config": "./tailwind.config.ts",
     "./themes/*": "./src/themes/*.ts"

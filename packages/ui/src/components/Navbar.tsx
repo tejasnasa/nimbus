@@ -4,7 +4,7 @@ import Avatar from "./Avatar";
 import OptionMenu from "./OptionsMenu";
 import Settings from "./icons/Settings";
 import Logout from "./icons/Logout";
-import { getAvatarForUser } from "@nimbus/utils";
+import { getAvatarForUser } from "../utils/getAvatarForUser";
 
 export default function Navbar({
   logout,

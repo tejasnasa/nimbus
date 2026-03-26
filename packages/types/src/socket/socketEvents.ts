@@ -1,4 +1,4 @@
-import { SocketMessage } from "./messsage";
+import { Message } from "../api/message";
 
 export type ClientToServerEvents = {
   "workspace:join": (workspaceId: string) => void;
@@ -9,7 +9,7 @@ export type ClientToServerEvents = {
 }
 
 export type ServerToClientEvents = {
-  "message:new": (message: SocketMessage) => void;
+  "message:new": (message: Message) => void;
   "presence:joined": (data: { userId: string; name: string }) => void;
   "presence:left": (data: { userId: string }) => void;
   "presence:online_users": (userIds: string[]) => void;

@@ -6,9 +6,9 @@ import ChatMsgB from "@nimbus/ui/ChatMsgB";
 import Textarea from "@nimbus/ui/Textarea";
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
-import { SocketMessage } from "@nimbus/types";
-import { getAvatarForUser } from "@nimbus/utils";
-import { timeAgo } from "@nimbus/utils";
+import {  timeAgo } from "@nimbus/utils";
+import { Message } from "@nimbus/types";
+import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 
 export default function Chat({
   userId,
@@ -16,10 +16,10 @@ export default function Chat({
   wsid,
 }: {
   userId: string;
-  messages: SocketMessage[];
+  messages: Message[];
   wsid: string;
 }) {
-  const [messages, setMessages] = useState<SocketMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export default function Chat({
   }, [wsid]);
 
   useEffect(() => {
-    function onMessageNew(message: SocketMessage) {
+    function onMessageNew(message: Message) {
       setMessages((prev) => [...prev, message]);
     }
     socket.on("message:new", onMessageNew);

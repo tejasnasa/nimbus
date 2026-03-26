@@ -7,7 +7,6 @@ export { ServerResponse } from "./api/serverResponse";
 export type { Member, Workspace } from "./api/workspaces";
 export type { Message } from "./api/message";
 
-export type { SocketMessage } from "./socket/messsage";
 export type {
   ClientToServerEvents,
   ServerToClientEvents,

@@ -1,13 +1,9 @@
-export type Message = {
+export interface Message {
   id: string;
   content: string;
   userId: string;
   workspaceId: string;
-  createdAt: string;
-  user: {
-    id: string;
-    name: string;
-    image: string | null;
-		isOnline?: boolean;
-  };
-};
+  createdAt: Date;
+  name: string;
+  image?: string;
+}

@@ -23,7 +23,18 @@ export const getWorkspaceMessages = async (workspaceId: string, id: string) => {
       take: 50,
     });
 
-    return ServerResponse.ok(messages.reverse(), "Messages retrieved");
+    return ServerResponse.ok(
+      messages.map((msg) => ({
+        id: msg.id,
+        content: msg.content,
+        userId: msg.userId,
+        workspaceId: msg.workspaceId,
+        createdAt: msg.createdAt,
+        name: msg.user.name,
+        image: msg.user.image ?? undefined,
+      })),
+      "Messages retrieved",
+    );
   } catch (error) {
     return ServerResponse.internalError(error);
   }

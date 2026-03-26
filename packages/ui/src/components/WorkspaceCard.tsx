@@ -8,7 +8,7 @@ import Delete from "./icons/Delete";
 import Clipboard from "./icons/Clipboard";
 import Duplicate from "./icons/Duplicate";
 import { Workspace } from "@nimbus/types";
-import { getAvatarForUser } from "@nimbus/utils";
+import { getAvatarForUser } from "../utils/getAvatarForUser";
 
 export default function WorkspaceCard({
   workspace,

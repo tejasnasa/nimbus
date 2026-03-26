@@ -5,7 +5,6 @@ import CreateWorkspaceCard from "./CreateWorkspaceCard";
 import { Workspace } from "@nimbus/types";
 import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
 import { useState } from "react";
-import { deleteWorkspace } from "../api/workspace";
 
 export default function ViewWorkspaces({
   workspaces,

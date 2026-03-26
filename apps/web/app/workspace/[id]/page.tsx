@@ -16,7 +16,7 @@ export default async function Workspace({
   const { id } = await params;
   const data = await getWorkspace(id);
   const messages = await getMessages(data.id);
-  const { data: session, error } = await authClient.getSession({
+  const { data: session } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
     },
@@ -40,7 +40,7 @@ export default async function Workspace({
         <div className="text-sm text-(--muted-foreground) mb-2">
           {data.description}
         </div>
-        <Chat wsid={data.id} userId={session!.user?.id} messages={messages} />
+        <Chat userId={session!.user?.id} messages={messages} />
       </section>
       <DocEditor />
     </main>

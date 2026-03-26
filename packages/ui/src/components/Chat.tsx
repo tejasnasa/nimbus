@@ -5,11 +5,9 @@ import ChatMsgB from "./ChatMsgB";
 import Textarea from "./Textarea";
 
 export default function Chat({
-  wsid,
   userId,
   messages,
 }: {
-  wsid: string;
   userId: string;
   messages: Message[];
 }) {

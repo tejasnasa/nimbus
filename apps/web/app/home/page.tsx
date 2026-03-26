@@ -1,14 +1,12 @@
 import Navbar from "@nimbus/ui/Navbar";
-import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import { authClient } from "../../lib/auth-client";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { logoutAction } from "../../actions/auth";
 import { deleteWorkspace, getWorkspaces } from "../../api/workspace";
 import ViewWorkspaces from "../../components/ViewWorkspaces";
 
 export default async function Home() {
-  const { data: session, error } = await authClient.getSession({
+  const { data: session} = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
     },

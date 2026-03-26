@@ -2,7 +2,6 @@
 
 import { Editor } from "@monaco-editor/react";
 import DocTabs from "@nimbus/ui/DocTabs";
-import { customDarkTheme } from "@nimbus/ui/themes/dark";
 import { initializeTheme } from "@nimbus/ui/themes/theme";
 import { useState } from "react";
 

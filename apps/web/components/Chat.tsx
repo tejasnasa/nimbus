@@ -21,6 +21,7 @@ export default function Chat({
 }) {
   const [messages, setMessages] = useState<SocketMessage[]>(initialMessages);
   const [content, setContent] = useState("");
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,6 +59,32 @@ export default function Chat({
     }
   }
 
+  useEffect(() => {
+    function onOnlineUsers(userIds: string[]) {
+      setOnlineUsers(new Set(userIds));
+    }
+    function onPresenceJoined({ userId }: { userId: string }) {
+      setOnlineUsers((prev) => new Set([...prev, userId]));
+    }
+    function onPresenceLeft({ userId }: { userId: string }) {
+      setOnlineUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+
+    socket.on("presence:online_users", onOnlineUsers);
+    socket.on("presence:joined", onPresenceJoined);
+    socket.on("presence:left", onPresenceLeft);
+
+    return () => {
+      socket.off("presence:online_users", onOnlineUsers);
+      socket.off("presence:joined", onPresenceJoined);
+      socket.off("presence:left", onPresenceLeft);
+    };
+  }, []);
+
   return (
     <div className="bg-(--background) h-full min-h-0 rounded-lg flex flex-col justify-between">
       <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
@@ -77,6 +104,7 @@ export default function Chat({
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
               time={timeAgo(msg.createdAt)}
+              isOnline={onlineUsers.has(msg.userId)}
             />
           ),
         )}

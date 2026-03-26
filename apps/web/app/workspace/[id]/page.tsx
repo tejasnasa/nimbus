@@ -3,20 +3,8 @@ import Chat from "@nimbus/ui/Chat";
 import DocEditor from "../../../components/DocEditor";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import WorkspaceSettings from "@nimbus/ui/WorkspaceSettings";
-import { authClient } from "../../../lib/auth-client";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 export default async function Workspace() {
-  const { data: session, error } = await authClient.getSession({
-    fetchOptions: {
-      headers: await headers(),
-    },
-  });
-
-  if (error || !session) {
-    redirect("/login");
-  }
 
   return (
     <main className="h-dvh flex">

@@ -7,16 +7,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export default async function Home() {
-  const { data: session } = await authClient.getSession({
-    fetchOptions: {
-      headers: await headers(),
-    },
-  });
-
-  if (session) {
-    redirect("/home");
-  }
-
   return (
     <main className="h-dvh p-4 bg-(--background)">
       <Cloud />

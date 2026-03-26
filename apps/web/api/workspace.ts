@@ -28,11 +28,12 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace> {
       cache: "no-store",
     },
   );
+  console.log(res);
 
   if (!res.ok) throw new Error("Failed to fetch workspace");
 
   const data = await res.json();
-  console.log(data.responseObject);
+
 
   return data.responseObject;
 }

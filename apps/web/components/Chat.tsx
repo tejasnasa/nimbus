@@ -1,16 +1,31 @@
+"use client";
+
 import { Message } from "@nimbus/types";
-import Button from "./Button";
-import ChatMsgA from "./ChatMsgA";
-import ChatMsgB from "./ChatMsgB";
-import Textarea from "./Textarea";
+import Button from "@nimbus/ui/Button";
+import ChatMsgA from "@nimbus/ui/ChatMsgA";
+import ChatMsgB from "@nimbus/ui/ChatMsgB";
+import Textarea from "@nimbus/ui/Textarea";
+import { useEffect } from "react";
+import { socket } from "../lib/socket";
 
 export default function Chat({
   userId,
   messages,
+  wsid,
 }: {
   userId: string;
   messages: Message[];
+  wsid: string;
 }) {
+  useEffect(() => {
+    if (!wsid) return;
+    socket.emit("workspace:join", wsid);
+
+    return () => {
+      socket.emit("workspace:leave", wsid);
+    };
+  }, [wsid]);
+
   return (
     <div className="bg-(--background) h-full min-h-0 rounded-lg flex flex-col justify-between">
       <div className="flex-1 min-h-0 overflow-y-scroll pr-1">

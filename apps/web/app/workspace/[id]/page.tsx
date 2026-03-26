@@ -1,5 +1,5 @@
 import Settings from "@nimbus/ui/icons/Settings";
-import Chat from "@nimbus/ui/Chat";
+import Chat from "../../../components/Chat";
 import DocEditor from "../../../components/DocEditor";
 import { getWorkspace } from "../../../api/workspace";
 import AlertDialog from "@nimbus/ui/AlertDialog";
@@ -40,7 +40,7 @@ export default async function Workspace({
         <div className="text-sm text-(--muted-foreground) mb-2">
           {data.description}
         </div>
-        <Chat userId={session!.user?.id} messages={messages} />
+        <Chat userId={session!.user?.id} messages={messages} wsid={data.id}/>
       </section>
       <DocEditor />
     </main>

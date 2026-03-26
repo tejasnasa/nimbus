@@ -101,10 +101,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
 
         io.to(data.workspaceId).emit("message:new", {
           ...message,
-          user: {
-            id: user.id,
-            name: user.name,
-          },
+          name: user.name,
+          image: user.image,
         });
       } catch (err) {
         console.error(err);

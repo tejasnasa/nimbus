@@ -5,7 +5,7 @@ export default function ChatMsgA({
   image,
   message,
   time,
-  isOnline
+  isOnline,
 }: {
   name: string;
   image: string;
@@ -24,7 +24,7 @@ export default function ChatMsgA({
         classname="w-8 h-8 mr-2 self-start"
       />
       <div>
-        <div className="text-sm p-1.5 w-fit rounded-md border border-(--border)">
+        <div className="text-sm p-1.5 w-fit rounded-md border border-(--border) whitespace-pre-wrap">
           {message}
         </div>
         <p className="text-[10px] text-(--muted-foreground) m-px">{time}</p>

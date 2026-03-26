@@ -7,7 +7,8 @@ import Textarea from "@nimbus/ui/Textarea";
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 import { SocketMessage } from "@nimbus/types";
-import { getAvatarForUser } from "../../../packages/utils/src/getAvatarForUser";
+import { getAvatarForUser } from "@nimbus/utils";
+import { timeAgo } from "@nimbus/utils";
 
 export default function Chat({
   userId,
@@ -40,7 +41,6 @@ export default function Chat({
     };
   }, []);
 
-  // auto scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -68,7 +68,7 @@ export default function Chat({
               name={msg.name}
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
-              time={msg.createdAt.toString()}
+              time={timeAgo(msg.createdAt)}
             />
           ) : (
             <ChatMsgA
@@ -76,7 +76,7 @@ export default function Chat({
               name={msg.name}
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
-              time={msg.createdAt.toString()}
+              time={timeAgo(msg.createdAt)}
             />
           ),
         )}

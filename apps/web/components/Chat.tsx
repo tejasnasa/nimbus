@@ -7,6 +7,7 @@ import Textarea from "@nimbus/ui/Textarea";
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 import { SocketMessage } from "@nimbus/types";
+import { getAvatarForUser } from "../../../packages/utils/src/getAvatarForUser";
 
 export default function Chat({
   userId,
@@ -65,7 +66,7 @@ export default function Chat({
             <ChatMsgB
               key={msg.id}
               name={msg.name}
-              image={msg.image || ""}
+              image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
               time={msg.createdAt.toString()}
             />
@@ -73,7 +74,7 @@ export default function Chat({
             <ChatMsgA
               key={msg.id}
               name={msg.name}
-              image={msg.image || ""}
+              image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
               time={msg.createdAt.toString()}
             />

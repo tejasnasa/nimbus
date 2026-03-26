@@ -4,14 +4,7 @@ import Avatar from "./Avatar";
 import OptionMenu from "./OptionsMenu";
 import Settings from "./icons/Settings";
 import Logout from "./icons/Logout";
-import pic1 from "../assets/avatars/picture1.png";
-import pic2 from "../assets/avatars/picture2.png";
-import pic3 from "../assets/avatars/picture3.png";
-import pic4 from "../assets/avatars/picture4.png";
-import pic5 from "../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
-
-const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
 export default function Navbar({
   logout,
@@ -37,7 +30,7 @@ export default function Navbar({
           <Avatar
             user={{
               name: name,
-              image: avatar || getAvatarForUser(id, avatars),
+              image: avatar || getAvatarForUser(id),
             }}
             classname="h-12 w-12"
           />

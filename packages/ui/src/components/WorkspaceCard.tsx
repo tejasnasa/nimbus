@@ -8,14 +8,7 @@ import Delete from "./icons/Delete";
 import Clipboard from "./icons/Clipboard";
 import Duplicate from "./icons/Duplicate";
 import { Workspace } from "@nimbus/types";
-import pic1 from "../assets/avatars/picture1.png";
-import pic2 from "../assets/avatars/picture2.png";
-import pic3 from "../assets/avatars/picture3.png";
-import pic4 from "../assets/avatars/picture4.png";
-import pic5 from "../assets/avatars/picture5.png";
 import { getAvatarForUser } from "@nimbus/utils";
-
-const avatars = [pic1.src, pic2.src, pic3.src, pic4.src, pic5.src];
 
 export default function WorkspaceCard({
   workspace,
@@ -74,7 +67,7 @@ export default function WorkspaceCard({
         <AvatarGroup
           users={
             workspace.members?.map((member) => ({
-              image: member.image || getAvatarForUser(member.id, avatars),
+              image: member.image || getAvatarForUser(member.id),
               online: member.online,
             })) || []
           }

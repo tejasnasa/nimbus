@@ -3,10 +3,11 @@ export type Message = {
   content: string;
   userId: string;
   workspaceId: string;
-  createdAt: Date;
+  createdAt: string;
   user: {
     id: string;
     name: string;
     image: string | null;
+		isOnline?: boolean;
   };
 };

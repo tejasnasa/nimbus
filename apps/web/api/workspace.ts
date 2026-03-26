@@ -20,6 +20,23 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   return data.responseObject;
 }
 
+export async function getWorkspace(workspaceId: string): Promise<Workspace> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/${workspaceId}`,
+    {
+      headers: { cookie: (await headers()).get("cookie") ?? "" },
+      cache: "no-store",
+    },
+  );
+
+  if (!res.ok) throw new Error("Failed to fetch workspace");
+
+  const data = await res.json();
+  console.log(data.responseObject);
+
+  return data.responseObject;
+}
+
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/delete/${workspaceId}`,

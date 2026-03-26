@@ -27,7 +27,7 @@ export default function WorkspaceCard({
   return (
     <Link
       id={workspace.slugId.toString()}
-      href={`/workspace/${workspace.slugId}/${workspace.slug}`}
+      href={`/workspace/${workspace.slugId}`}
       className="w-[24%] p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
     >
       <div>

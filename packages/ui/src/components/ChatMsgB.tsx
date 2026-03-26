@@ -11,7 +11,7 @@ export default function ChatMsgB({
   image: string;
   message: string;
   time: string;
-  isOnline: boolean;
+  isOnline?: boolean;
 }) {
   return (
     <div className="flex items-center justify-end m-2">

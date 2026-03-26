@@ -11,7 +11,7 @@ export default function ChatMsgA({
   image: string;
   message: string;
   time: string;
-  isOnline: boolean;
+  isOnline?: boolean;
 }) {
   return (
     <div className="flex items-center m-2">

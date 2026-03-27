@@ -1,6 +1,6 @@
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
-import { docs } from "../socket/document";
+import { canvases } from "../socket/document";
 
 export const createDocument = async (
   title: string,
@@ -16,7 +16,7 @@ export const createDocument = async (
     if (!member) return ServerResponse.forbidden("Not a member");
 
     const document = await prisma.document.create({
-      data: { title, workspaceId },
+      data: { title, workspaceId, canvasData: [] },
     });
     return ServerResponse.ok(document);
   } catch (error) {
@@ -81,7 +81,7 @@ export const deleteDocument = async (docId: string, userId: string) => {
       );
 
     await prisma.document.delete({ where: { id: docId } });
-    docs.delete(docId);
+    canvases.delete(docId);
     return ServerResponse.ok("Document deleted");
   } catch (error) {
     return ServerResponse.internalError(error);

@@ -32,7 +32,7 @@ export default function ViewWorkspaces({
         options={["All Workspaces", "My Workspaces"]}
         onChange={(selected) => setFilter(selected)}
       />
-      <section className="mx-28 flex flex-wrap gap-4">
+      <section className="mx-28 flex flex-wrap gap-[1%]">
         <CreateWorkspaceCard />
         {filteredWorkspaces.map((ws) => (
           <WorkspaceCard key={ws.id} workspace={ws} deleteWorkspace={deleteWorkspace} />

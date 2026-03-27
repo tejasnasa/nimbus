@@ -21,7 +21,7 @@ export default function WorkspaceCard({
     <Link
       id={workspace.slugId.toString()}
       href={`/workspace/${workspace.slugId}`}
-      className="w-[24%] p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
+      className="w-[24%] mb-3 p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
     >
       <div>
         <div className="flex justify-between items-center mb-2">

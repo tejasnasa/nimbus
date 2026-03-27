@@ -24,15 +24,17 @@ export const getWorkspaceMessages = async (workspaceId: string, id: string) => {
     });
 
     return ServerResponse.ok(
-      messages.map((msg) => ({
-        id: msg.id,
-        content: msg.content,
-        userId: msg.userId,
-        workspaceId: msg.workspaceId,
-        createdAt: msg.createdAt,
-        name: msg.user.name,
-        image: msg.user.image ?? undefined,
-      })),
+      messages
+        .map((msg) => ({
+          id: msg.id,
+          content: msg.content,
+          userId: msg.userId,
+          workspaceId: msg.workspaceId,
+          createdAt: msg.createdAt,
+          name: msg.user.name,
+          image: msg.user.image ?? undefined,
+        }))
+        .reverse(),
       "Messages retrieved",
     );
   } catch (error) {

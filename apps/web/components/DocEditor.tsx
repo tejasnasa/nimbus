@@ -2,6 +2,7 @@
 
 import DocTabs from "@nimbus/ui/DocTabs";
 import { useState } from "react";
+import { Canvas } from "./Canvas";
 
 const docList = [
   { label: "Document1", content: "// Document 1 content" },
@@ -21,7 +22,7 @@ export default function DocEditor() {
         active={active}
         setActive={setActive}
       />
-      <div>{tabs[active]?.content ?? ""}</div>
+      <Canvas docId={tabs[active]?.label ?? ""} />
     </section>
   );
 }

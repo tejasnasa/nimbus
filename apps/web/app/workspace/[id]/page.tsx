@@ -24,7 +24,7 @@ export default async function Workspace({
 
   return (
     <main className="h-dvh flex">
-      <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden">
+      <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden border-r border-(--border) border-solid">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-4xl">{data.name}</h1>
           <AlertDialog
@@ -40,7 +40,7 @@ export default async function Workspace({
         <div className="text-sm text-(--muted-foreground) mb-2">
           {data.description}
         </div>
-        <Chat userId={session!.user?.id} messages={messages} wsid={data.id}/>
+        <Chat userId={session!.user?.id} messages={messages} wsid={data.id} />
       </section>
       <DocEditor />
     </main>

@@ -2,8 +2,6 @@
 
 import DocTabs from "@nimbus/ui/DocTabs";
 import { useState } from "react";
-import { Canvas } from "./Canvas";
-import { ReactFlow, ReactFlowProvider } from "@xyflow/react";
 
 const docList = [
   { label: "Document1", content: "// Document 1 content" },
@@ -23,9 +21,7 @@ export default function DocEditor() {
         active={active}
         setActive={setActive}
       />
-      <ReactFlowProvider>
-        <Canvas docId={tabs[active]?.label ?? ""} />
-      </ReactFlowProvider>
+      <div>{tabs[active]?.content ?? ""}</div>
     </section>
   );
 }

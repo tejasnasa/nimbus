@@ -15,7 +15,6 @@
     "@nimbus/types": "^1.0.0",
     "@nimbus/ui": "^0.0.0",
     "@tailwindcss/postcss": "^4.2.2",
-    "@xyflow/react": "^12.10.1",
     "better-auth": "^1.5.5",
     "nanoid": "^3.3.11",
     "next": "16.1.5",

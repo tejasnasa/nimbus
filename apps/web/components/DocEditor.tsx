@@ -3,21 +3,16 @@
 import DocTabs from "@nimbus/ui/DocTabs";
 import { useState } from "react";
 import Canvas from "./Canvas";
-import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { ClientDocument } from "../api/canvas";
 
-export type Doc = {
-  label: string;
-  elements: readonly OrderedExcalidrawElement[];
-};
-
-const initialDocs: Doc[] = [
-  { label: "Doc 1", elements: [] },
-  { label: "Doc 2", elements: [] },
-  { label: "Doc 3", elements: [] },
-];
-
-export default function DocEditor() {
-  const [tabs, setTabs] = useState(initialDocs);
+export default function DocEditor({
+  wsid,
+  documents,
+}: {
+  wsid: string;
+  documents: ClientDocument[];
+}) {
+  const [tabs, setTabs] = useState(documents);
   const [active, setActive] = useState(0);
 
   const current = tabs[active];
@@ -36,18 +31,18 @@ export default function DocEditor() {
         <Canvas
           key={active}
           initialElements={current.elements}
-          workspaceId={"testing"}
-          documentId={current.label}
+          workspaceId={wsid}
+          documentId={current.id}
           onChange={(elements) => {
             setTabs((prev) => {
               const doc = prev[active];
               if (!doc) return prev;
 
-              // 🔥 prevent useless updates
               if (doc.elements === elements) return prev;
 
               const next = [...prev];
               next[active] = {
+                id: doc.id,
                 label: doc.label,
                 elements,
               };

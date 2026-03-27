@@ -4,7 +4,7 @@ import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
 type CanvasState = readonly OrderedExcalidrawElement[];
 
-const canvases = new Map<string, CanvasState>();
+export const canvases = new Map<string, CanvasState>();
 
 const DOC_ROOM = (docId: string) => `doc:${docId}`;
 

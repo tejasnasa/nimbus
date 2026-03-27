@@ -7,6 +7,7 @@ import WorkspaceSettings from "@nimbus/ui/WorkspaceSettings";
 import { authClient } from "../../../lib/auth-client";
 import { headers } from "next/headers";
 import { getMessages } from "../../../api/message";
+import { getDocuments } from "../../../api/canvas";
 
 export default async function Workspace({
   params,
@@ -14,8 +15,9 @@ export default async function Workspace({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getWorkspace(id);
-  const messages = await getMessages(data.id);
+  const workspaceData = await getWorkspace(id);
+  const messages = await getMessages(workspaceData.id);
+  const documents = await getDocuments(workspaceData.id);
   const { data: session } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
@@ -26,7 +28,7 @@ export default async function Workspace({
     <main className="h-dvh flex">
       <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden">
         <div className="flex justify-between items-center mb-2">
-          <h1 className="text-4xl">{data.name}</h1>
+          <h1 className="text-4xl">{workspaceData.name}</h1>
           <AlertDialog
             trigger={
               <button className="p-1.5 w-9 h-9 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
@@ -38,11 +40,15 @@ export default async function Workspace({
           </AlertDialog>
         </div>
         <div className="text-sm text-(--muted-foreground) mb-2">
-          {data.description}
+          {workspaceData.description}
         </div>
-        <Chat userId={session!.user?.id} messages={messages} wsid={data.id}/>
+        <Chat
+          userId={session!.user?.id}
+          messages={messages}
+          wsid={workspaceData.id}
+        />
       </section>
-      <DocEditor />
+      <DocEditor wsid={workspaceData.id} documents={documents} />
     </main>
   );
 }

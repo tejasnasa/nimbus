@@ -1,41 +1,44 @@
-import * as Y from "yjs";
 import { Server, Socket } from "socket.io";
 import { prisma } from "@nimbus/db";
+import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
-export const docs = new Map<string, Y.Doc>();
+type CanvasState = readonly OrderedExcalidrawElement[];
+
+const canvases = new Map<string, CanvasState>();
 
 const DOC_ROOM = (docId: string) => `doc:${docId}`;
 
-const getDoc = async (docId: string) => {
-  if (docs.has(docId)) return docs.get(docId)!;
-
-  const doc = new Y.Doc();
+const getCanvas = async (docId: string) => {
+  if (canvases.has(docId)) return canvases.get(docId)!;
 
   const document = await prisma.document.findUnique({
     where: { id: docId },
-    select: { yjsState: true },
+    select: { canvasData: true },
   });
 
-  if (document?.yjsState) {
-    Y.applyUpdate(doc, document.yjsState);
+  let elements: CanvasState = [];
+
+  if (Array.isArray(document?.canvasData)) {
+    elements = document.canvasData as unknown as CanvasState;
   }
 
-  docs.set(docId, doc);
-  return doc;
+  canvases.set(docId, elements);
+  return elements;
 };
 
+// 🔥 save snapshot
 const saveSnapshot = async (docId: string) => {
-  const doc = docs.get(docId);
-  if (!doc) return;
-
-  const state = Y.encodeStateAsUpdate(doc);
+  const elements = canvases.get(docId);
+  if (!elements) return;
 
   await prisma.document.update({
     where: { id: docId },
-    data: { yjsState: Buffer.from(state) },
+    data: {
+      canvasData: elements,
+    },
   });
 
-  console.log("snapshot saved for doc:", docId);
+  console.log("canvas snapshot saved:", docId);
 };
 
 const saveTimers = new Map<string, NodeJS.Timeout>();
@@ -46,7 +49,7 @@ const debouncedSave = (docId: string) => {
   const timer = setTimeout(() => {
     saveSnapshot(docId);
     saveTimers.delete(docId);
-  }, 5000);
+  }, 3000);
 
   saveTimers.set(docId, timer);
 };
@@ -69,31 +72,45 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
       if (!isMember) return socket.emit("doc:error", "Not a member");
 
       socket.join(DOC_ROOM(docId));
-      const doc = await getDoc(docId);
 
-      const state = Y.encodeStateAsUpdate(doc);
-      socket.emit("doc:state", Array.from(state));
+      const elements = await getCanvas(docId);
 
-      console.log(`${user.name} joined doc: ${docId}`);
+      socket.emit("canvas:state", {
+        documentId: docId,
+        elements,
+      });
+
+      console.log(`${user.name} joined canvas doc: ${docId}`);
     } catch (error) {
       console.error("Error joining doc:", error);
       socket.emit("doc:error", "Something went wrong");
     }
   });
 
-  socket.on("doc:update", (docId: string, update: number[]) => {
-    try {
-      const doc = docs.get(docId);
-      if (!doc) return;
+  socket.on(
+    "canvas:update",
+    ({
+      documentId,
+      elements,
+    }: {
+      documentId: string;
+      elements: CanvasState;
+    }) => {
+      try {
+        canvases.set(documentId, elements);
 
-      Y.applyUpdate(doc, Uint8Array.from(update));
-      socket.to(DOC_ROOM(docId)).emit("doc:update", update);
-      debouncedSave(docId);
-    } catch (error) {
-      console.error("Error applying update:", error);
-      socket.emit("doc:error", "Something went wrong");
-    }
-  });
+        socket.to(DOC_ROOM(documentId)).emit("canvas:update", {
+          documentId,
+          elements,
+        });
+
+        debouncedSave(documentId);
+      } catch (error) {
+        console.error("Error updating canvas:", error);
+        socket.emit("doc:error", "Something went wrong");
+      }
+    },
+  );
 
   socket.on("doc:leave", async (docId: string) => {
     try {
@@ -102,8 +119,8 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
       const room = io.sockets.adapter.rooms.get(DOC_ROOM(docId));
       if (!room || room.size === 0) {
         await saveSnapshot(docId);
-        docs.delete(docId);
-        console.log("doc removed from memory:", docId);
+        canvases.delete(docId);
+        console.log("canvas removed from memory:", docId);
       }
     } catch (error) {
       console.error("Error leaving doc:", error);
@@ -115,16 +132,18 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
     try {
       for (const room of socket.rooms) {
         if (!room.startsWith("doc:")) continue;
+
         const docId = room.replace("doc:", "");
         const roomSockets = io.sockets.adapter.rooms.get(room);
+
         if (roomSockets && roomSockets.size === 1) {
           await saveSnapshot(docId);
-          docs.delete(docId);
-          console.log("doc saved and removed from memory:", docId);
+          canvases.delete(docId);
+          console.log("canvas saved & cleaned:", docId);
         }
       }
     } catch (error) {
-      console.error("disconnecting handler error:", error);
+      console.error("disconnect error:", error);
     }
   });
 };

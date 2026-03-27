@@ -28,7 +28,7 @@ model User {
 
   @@unique([email])
   @@map("user")
-}  
+}
 
 model Session {
   id        String   @id
@@ -83,7 +83,7 @@ model Workspace {
   name      String
   description String?
   slugId    Int      @unique @default(autoincrement())
-  slug      String   
+  slug      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   inviteCode String @unique @default(cuid())
@@ -127,7 +127,7 @@ model Document {
   workspaceId String
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  yjsState    Bytes?
+  canvasData  Json?
 
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

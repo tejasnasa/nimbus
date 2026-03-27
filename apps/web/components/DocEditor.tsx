@@ -1,8 +1,6 @@
 "use client";
 
-import { Editor } from "@monaco-editor/react";
 import DocTabs from "@nimbus/ui/DocTabs";
-import { initializeTheme } from "@nimbus/ui/themes/theme";
 import { useState } from "react";
 
 const docList = [
@@ -23,20 +21,7 @@ export default function DocEditor() {
         active={active}
         setActive={setActive}
       />
-      <Editor
-        width="100%"
-        height="100%"
-        language="cpp"
-        value={tabs[active]?.content ?? ""}
-        theme={"customDarkTheme"}
-        options={{
-          fontSize: 20,
-          fontFamily: "JetBrains Mono, Fira Code, monospace",
-        }}
-        beforeMount={(monaco) => {
-          initializeTheme(monaco);
-        }}
-      />
+      <div>{tabs[active]?.content ?? ""}</div>
     </section>
   );
 }

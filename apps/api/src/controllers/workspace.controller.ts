@@ -28,6 +28,14 @@ export const createWorkspace = async (
         },
       });
 
+      await tx.document.create({
+        data: {
+          title: "New Document",
+          canvasData: [],
+          workspaceId: ws.id,
+        },
+      });
+
       return {
         workspaceId: ws.id,
         name: ws.name,

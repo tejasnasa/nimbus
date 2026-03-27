@@ -1,18 +1,18 @@
 import { useState, useRef, Dispatch, SetStateAction } from "react";
 
-interface DocTabsProps {
-  tabs: { label: string; content: string }[];
-  setTabs: Dispatch<SetStateAction<{ label: string; content: string }[]>>;
+interface DocTabsProps<T extends { label: string }> {
+  tabs: T[];
+  setTabs: Dispatch<SetStateAction<T[]>>;
   active: number;
   setActive: Dispatch<SetStateAction<number>>;
 }
 
-export default function DocTabs({
+export default function DocTabs<T extends { label: string }>({
   tabs,
   setTabs,
   active,
   setActive,
-}: DocTabsProps) {
+}: DocTabsProps<T>) {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
 
@@ -54,7 +54,7 @@ export default function DocTabs({
                 dragIndex.current = null;
               }}
               onClick={() => setActive(i)}
-              className={`py-2 text-md font-medium transition-colors -mb-px border-b-2 ${
+              className={`py-2 px-3 text-md font-medium transition-colors -mb-px border-b-2 ${
                 dragOver === i
                   ? "border-(--primary) opacity-50"
                   : active === i

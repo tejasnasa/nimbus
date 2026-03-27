@@ -1,32 +1,35 @@
 "use client";
 
 import "@excalidraw/excalidraw/index.css";
-import { useState } from "react";
-import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import dynamic from "next/dynamic";
+import { useRef } from "react";
+import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
   { ssr: false },
 );
 
-export default function Canvas() {
-  const [elements, setElements] = useState<readonly OrderedExcalidrawElement[]>(
-    [],
-  );
+interface CanvasProps {
+  initialElements: readonly OrderedExcalidrawElement[];
+  onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
+}
+
+export default function Canvas({ initialElements, onChange }: CanvasProps) {
+  const hasMounted = useRef(false);
 
   return (
-    <div className="h-full min-h-0 min-w-0 w-full">
+    <div className="h-full w-full">
       <Excalidraw
-        initialData={{
-          elements,
-          appState: {
-            viewBackgroundColor: "#09090C",
-            gridSize: 20,
-          },
-        }}
-        onChange={(elements) => {
-          setElements(elements);
-          console.log("canvas updated", elements);
+        theme="dark"
+        initialData={{ elements: initialElements }}
+        onChange={(els) => {
+          if (!hasMounted.current) {
+            hasMounted.current = true;
+            return;
+          }
+
+          onChange(els);
         }}
       />
     </div>

@@ -14,12 +14,14 @@ interface CanvasProps {
   initialElements: readonly OrderedExcalidrawElement[];
   workspaceId: string;
   documentId: string;
+  onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
 }
 
 export default function Canvas({
   initialElements,
   workspaceId,
   documentId,
+	onChange
 }: CanvasProps) {
   const excalidrawAPI = useRef<any>(null);
   const isRemoteUpdate = useRef(false);
@@ -45,7 +47,7 @@ export default function Canvas({
     <div className="h-full w-full">
       <Excalidraw
         initialData={{ elements: initialElements }}
-				theme="dark"
+        theme="dark"
         excalidrawAPI={(api) => {
           excalidrawAPI.current = api;
         }}
@@ -55,6 +57,10 @@ export default function Canvas({
             return;
           }
 
+          // ✅ save locally
+          onChange(elements);
+
+          // ✅ send to others
           socket.emit("canvas:update", {
             workspaceId,
             documentId,

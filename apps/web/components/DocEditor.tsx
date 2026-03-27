@@ -38,6 +38,23 @@ export default function DocEditor() {
           initialElements={current.elements}
           workspaceId={"testing"}
           documentId={current.label}
+          onChange={(elements) => {
+            setTabs((prev) => {
+              const doc = prev[active];
+              if (!doc) return prev;
+
+              // 🔥 prevent useless updates
+              if (doc.elements === elements) return prev;
+
+              const next = [...prev];
+              next[active] = {
+                label: doc.label,
+                elements,
+              };
+
+              return next;
+            });
+          }}
         />
       </div>
     </section>

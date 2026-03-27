@@ -12,23 +12,23 @@ import {
   Edge,
   OnConnect,
   BackgroundVariant,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { nanoid } from "nanoid";
+import { useCallback } from "react";
+import { CanvasToolbar } from "./CanvasToolbar";
 
 export type FlowNodeData = {
   label: string;
 };
-export type FlowNode = Node<FlowNodeData, "flow">;
-export type FlowEdge = Edge;
 
-const initialNodes: FlowNode[] = [
-  {
-    id: "1",
-    type: "flow",
-    position: { x: 0, y: 0 },
-    data: { label: "Start" },
-  },
-];
+export type FlowEdge = Edge;
+export const NODE_TYPES = ["flow", "decision", "database", "server"];
+export type NodeType = (typeof NODE_TYPES)[number];
+export type FlowNode = Node<FlowNodeData, NodeType>;
+
+const initialNodes: FlowNode[] = [];
 
 const initialEdges: FlowEdge[] = [];
 
@@ -36,27 +36,51 @@ interface CanvasProps {
   docId: string;
 }
 
-export function Canvas({ docId }: CanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+export function Canvas({ docId }: { docId: string }) {
+  const [nodes, setNodes, onNodesChange] =
+    useNodesState<FlowNode>(initialNodes);
+  const [edges, setEdges, onEdgesChange] =
+    useEdgesState<FlowEdge>(initialEdges);
+  const { screenToFlowPosition, getViewport } = useReactFlow();
 
-  const onConnect: OnConnect = (connection) => {
-    setEdges((eds) => addEdge(connection, eds));
-  };
+  const onConnect: OnConnect = useCallback(
+    (connection) => setEdges((eds) => addEdge(connection, eds)),
+    [setEdges],
+  );
+
+  const onAddNode = useCallback(
+    (nodeType: NodeType, label: string) => {
+      const { x, y, zoom } = getViewport();
+      const centerX = (window.innerWidth / 2 - x) / zoom;
+      const centerY = (window.innerHeight / 2 - y) / zoom;
+
+      const newNode: FlowNode = {
+        id: nanoid(),
+        type: nodeType,
+        position: { x: centerX, y: centerY },
+        data: { label },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+    },
+    [getViewport, setNodes],
+  );
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onConnect={onConnect}
-      fitView
-      className="text-(--primary)"
-    >
-      <Background />
-      <Controls />
-      <MiniMap />
-    </ReactFlow>
+    <div className="w-full h-full relative text-(--primary)">
+      <CanvasToolbar onAddNode={onAddNode} />
+      <ReactFlow<FlowNode, FlowEdge>
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        fitView
+      >
+        <Background />
+        <Controls />
+        <MiniMap />
+      </ReactFlow>
+    </div>
   );
 }

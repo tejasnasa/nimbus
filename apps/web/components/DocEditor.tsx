@@ -2,6 +2,7 @@
 
 import DocTabs from "@nimbus/ui/DocTabs";
 import { useState } from "react";
+import Canvas from "./Canvas";
 
 const docList = [
   { label: "Document1", content: "// Document 1 content" },
@@ -14,14 +15,16 @@ export default function DocEditor() {
   const [active, setActive] = useState(0);
 
   return (
-    <section className="w-3/4">
+    <section className="w-3/4 flex-1 min-w-0 min-h-0 flex flex-col">
       <DocTabs
         tabs={tabs}
         setTabs={setTabs}
         active={active}
         setActive={setActive}
       />
-      <div>{tabs[active]?.content ?? ""}</div>
+      <div className="flex-1 min-h-0 min-w-0">
+        <Canvas />
+      </div>
     </section>
   );
 }

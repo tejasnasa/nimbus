@@ -2,9 +2,9 @@
 
 import "@excalidraw/excalidraw/index.css";
 import dynamic from "next/dynamic";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-
+import { socket } from "../lib/socket";
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
   { ssr: false },
@@ -12,24 +12,54 @@ const Excalidraw = dynamic(
 
 interface CanvasProps {
   initialElements: readonly OrderedExcalidrawElement[];
-  onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
+  workspaceId: string;
+  documentId: string;
 }
 
-export default function Canvas({ initialElements, onChange }: CanvasProps) {
-  const hasMounted = useRef(false);
+export default function Canvas({
+  initialElements,
+  workspaceId,
+  documentId,
+}: CanvasProps) {
+  const excalidrawAPI = useRef<any>(null);
+  const isRemoteUpdate = useRef(false);
+
+  // receive updates
+  useEffect(() => {
+    socket.on("canvas:update", (data) => {
+      if (data.documentId !== documentId) return;
+
+      isRemoteUpdate.current = true;
+
+      excalidrawAPI.current?.updateScene({
+        elements: data.elements,
+      });
+    });
+
+    return () => {
+      socket.off("canvas:update");
+    };
+  }, [documentId]);
 
   return (
     <div className="h-full w-full">
       <Excalidraw
-        theme="dark"
         initialData={{ elements: initialElements }}
-        onChange={(els) => {
-          if (!hasMounted.current) {
-            hasMounted.current = true;
+				theme="dark"
+        excalidrawAPI={(api) => {
+          excalidrawAPI.current = api;
+        }}
+        onChange={(elements) => {
+          if (isRemoteUpdate.current) {
+            isRemoteUpdate.current = false;
             return;
           }
 
-          onChange(els);
+          socket.emit("canvas:update", {
+            workspaceId,
+            documentId,
+            elements,
+          });
         }}
       />
     </div>

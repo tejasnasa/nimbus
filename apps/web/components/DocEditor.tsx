@@ -36,22 +36,8 @@ export default function DocEditor() {
         <Canvas
           key={active}
           initialElements={current.elements}
-          onChange={(elements) => {
-            setTabs((prev) => {
-              const doc = prev[active];
-              if (!doc) return prev;
-
-              if (doc.elements === elements) return prev;
-
-              const next = [...prev];
-              next[active] = {
-                label: doc.label,
-                elements,
-              };
-
-              return next;
-            });
-          }}
+          workspaceId={"testing"}
+          documentId={current.label}
         />
       </div>
     </section>

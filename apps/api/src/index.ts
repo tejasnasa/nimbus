@@ -48,6 +48,9 @@ applySocketAuth(io);
 io.on("connection", (socket) => {
   registerChatHandlers(io, socket);
   registerDocumentHandlers(io, socket);
+  socket.on("canvas:update", (elements) => {
+    socket.broadcast.emit("canvas:update", elements);
+  });
 });
 
 httpServer.listen(3001, () => {

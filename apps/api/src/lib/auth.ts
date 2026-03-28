@@ -10,6 +10,17 @@ export const auth = betterAuth({
     enabled: true,
   },
   experimental: { joins: true },
-  trustedOrigins: ["http://localhost:3000"],
-  baseURL: "http://localhost:3001",
+  trustedOrigins: [
+    `${process.env.FRONTEND_URL}`,
+    `${process.env.FRONTEND_URL_2}`,
+    `${process.env.FRONTEND_URL_3}`,
+  ],
+  baseURL: `${process.env.BETTER_AUTH_URL}`,
+  socialProviders: {
+    google: {
+      prompt: "select_account",
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    },
+  },
 });

@@ -6,6 +6,7 @@ import google from "../assets/google.svg";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
 import { loginSchema } from "@nimbus/types";
+import { authClient } from "../lib/auth-client";
 
 interface LoginFormProps {
   register: UseFormRegister<z.infer<typeof loginSchema>>;
@@ -75,7 +76,16 @@ export default function LoginForm({
       </form>
       <div className="flex flex-col items-center justify-center gap-4">
         <OrContinueWith />
-        <Button size="sm" className="bg-white text-black hover:bg-gray-200">
+        <Button
+          size="sm"
+          className="bg-white text-black hover:bg-gray-200"
+          onClick={async () => {
+            await authClient.signIn.social({
+              provider: "google",
+              callbackURL: "/home",
+            });
+          }}
+        >
           Login with
           <Image
             src={google}

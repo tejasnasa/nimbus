@@ -20,8 +20,8 @@ export default function SettingTabs({ tabs }: SettingTabsProps) {
             onClick={() => setActive(i)}
             className={`text-left px-3 py-1.5 rounded-md text-md font-medium transition-colors cursor-pointer ${
               active === i
-                ? "bg-(--accent) text-(--accent-foreground)"
-                : "text-(--muted-foreground) hover:bg-(--accent)"
+                ? "bg-(--accent) text-(--accent-foreground) hover:bg-(--accent)"
+                : "text-(--muted-foreground) hover:text-(--foreground)"
             }`}
           >
             {tab.label}

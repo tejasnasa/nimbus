@@ -3,11 +3,11 @@ import Chat from "../../../components/Chat";
 import DocEditor from "../../../components/DocEditor";
 import { getWorkspace } from "../../../api/workspace";
 import AlertDialog from "@nimbus/ui/AlertDialog";
-import WorkspaceSettings from "@nimbus/ui/WorkspaceSettings";
 import { authClient } from "../../../lib/auth-client";
 import { headers } from "next/headers";
 import { getMessages } from "../../../api/message";
 import { getDocuments } from "../../../api/document";
+import WorkspaceSettings from "../../../components/WorkspaceSettings";
 
 export default async function Workspace({
   params,
@@ -36,7 +36,10 @@ export default async function Workspace({
               </button>
             }
           >
-            <WorkspaceSettings />
+            <WorkspaceSettings
+              workspace={workspaceData}
+              documents={documents}
+            />
           </AlertDialog>
         </div>
         <div className="text-sm text-(--muted-foreground) mb-2">

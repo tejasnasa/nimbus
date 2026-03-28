@@ -49,7 +49,7 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
     socket.on("doc:state", handleState);
     socket.on("doc:update", handleUpdate);
 
-    const onDocUpdate = (update: Uint8Array, origin: any) => {
+    const onDocUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin !== "socket") {
         socket.emit("doc:update", documentId, Array.from(update));
       }

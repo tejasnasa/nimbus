@@ -4,6 +4,7 @@ import "@excalidraw/excalidraw/index.css";
 import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { socket } from "../lib/socket";
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
@@ -21,7 +22,7 @@ export default function Canvas({
   documentId,
   onChange,
 }: CanvasProps) {
-  const excalidrawAPI = useRef<any>(null);
+  const excalidrawAPI = useRef<ExcalidrawImperativeAPI | null>(null);
   const isRemoteUpdate = useRef(false);
   const isInitialized = useRef(false);
 

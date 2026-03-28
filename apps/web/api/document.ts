@@ -4,13 +4,17 @@ import { headers } from "next/headers";
 export type DocumentDTO = {
   id: string;
   title: string;
+  type: "CANVAS" | "MARKDOWN";
   canvasData: unknown;
+  yjsState: unknown;
 };
 
 export type ClientDocument = {
   id: string;
   label: string;
+  type: "CANVAS" | "MARKDOWN";
   elements: readonly OrderedExcalidrawElement[];
+  yjsState: unknown;
 };
 
 export async function getDocuments(
@@ -34,8 +38,10 @@ export async function getDocuments(
   return data.map((doc) => ({
     id: doc.id,
     label: doc.title,
+    type: doc.type,
     elements: Array.isArray(doc.canvasData)
       ? (doc.canvasData as unknown as readonly OrderedExcalidrawElement[])
       : [],
+    yjsState: doc.yjsState,
   }));
 }

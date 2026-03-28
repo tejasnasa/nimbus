@@ -7,7 +7,7 @@ import WorkspaceSettings from "@nimbus/ui/WorkspaceSettings";
 import { authClient } from "../../../lib/auth-client";
 import { headers } from "next/headers";
 import { getMessages } from "../../../api/message";
-import { getDocuments } from "../../../api/canvas";
+import { getDocuments } from "../../../api/document";
 
 export default async function Workspace({
   params,
@@ -48,7 +48,7 @@ export default async function Workspace({
           wsid={workspaceData.id}
         />
       </section>
-      <DocEditor wsid={workspaceData.id} documents={documents} />
+      <DocEditor documents={documents} />
     </main>
   );
 }

@@ -25,7 +25,7 @@ export const createDocument = async (
       });
     } else {
       document = await prisma.document.create({
-        data: { title, workspaceId, yjsState: Buffer.from("", "utf-8"), type },
+        data: { title, workspaceId, type },
       });
     }
 

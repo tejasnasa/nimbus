@@ -40,7 +40,6 @@ export const createWorkspace = async (
       await tx.document.create({
         data: {
           title: "New Document",
-          yjsState: Buffer.from("", "utf-8"),
           workspaceId: ws.id,
           type: "MARKDOWN",
         },

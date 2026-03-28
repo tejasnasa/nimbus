@@ -54,12 +54,12 @@ export default function DocTabs<T extends { label: string }>({
                 dragIndex.current = null;
               }}
               onClick={() => setActive(i)}
-              className={`py-2 px-3 text-md font-medium transition-colors -mb-px border-b-2 ${
+              className={`py-2 px-4 text-md font-medium transition-colors -mb-px border-b-2 ${
                 dragOver === i
                   ? "border-(--primary) opacity-50"
                   : active === i
                     ? "border-(--primary) text-(--foreground)"
-                    : "border-transparent text-(--muted-foreground) hover:text-(--foreground) hover:border-(--border)"
+                    : "border-transparent text-(--muted-foreground) hover:text-(--foreground) hover:border-(--border) hover:cursor-pointer"
               }`}
             >
               {tab.label}

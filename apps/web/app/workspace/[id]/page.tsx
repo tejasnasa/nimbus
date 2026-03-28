@@ -26,7 +26,7 @@ export default async function Workspace({
 
   return (
     <main className="h-dvh flex">
-      <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden">
+      <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden border-r border-(--border)">
         <div className="flex justify-between items-center mb-2">
           <h1 className="text-4xl">{workspaceData.name}</h1>
           <AlertDialog

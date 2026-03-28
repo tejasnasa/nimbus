@@ -127,7 +127,9 @@ model Document {
   workspaceId String
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  type        DocumentType @default(CANVAS)
   canvasData  Json?
+  yjsState    Bytes?
 
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -138,4 +140,9 @@ enum MemberRole {
   OWNER
   ADMIN
   MEMBER
+}
+
+enum DocumentType {
+  CANVAS
+  MARKDOWN
 }

@@ -6,6 +6,7 @@ export const createDocument = async (
   title: string,
   workspaceId: string,
   userId: string,
+  type: "CANVAS" | "MARKDOWN",
 ) => {
   try {
     const member = await prisma.workspaceMember.findUnique({
@@ -15,9 +16,18 @@ export const createDocument = async (
     });
     if (!member) return ServerResponse.forbidden("Not a member");
 
-    const document = await prisma.document.create({
-      data: { title, workspaceId, canvasData: [] },
-    });
+    let document;
+
+    if (type == "CANVAS") {
+      document = await prisma.document.create({
+        data: { title, workspaceId, canvasData: [], type },
+      });
+    } else {
+      document = await prisma.document.create({
+        data: { title, workspaceId, yjsState: Buffer.from("", "utf-8"), type },
+      });
+    }
+
     return ServerResponse.ok(document);
   } catch (error) {
     return ServerResponse.internalError(error);

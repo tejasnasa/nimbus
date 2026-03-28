@@ -124,25 +124,60 @@ export const getMyWorkspaces = async (id: string) => {
 
 export const getWorkspaceBySlugId = async (slugId: string, id: string) => {
   try {
-    const workspace = await prisma.workspace.findUnique({
+    const workspace = await prisma.workspace.findFirst({
       where: {
         slugId: parseInt(slugId),
+        members: {
+          some: {
+            userId: id,
+          },
+        },
       },
-      include: {
-        members: true,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        slug: true,
+        slugId: true,
+        inviteCode: true,
+        updatedAt: true,
+        members: {
+          select: {
+            role: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                image: true,
+              },
+            },
+          },
+        },
       },
     });
 
     if (!workspace) {
-      return ServerResponse.notFound("Workspace not found");
+      return ServerResponse.notFound("Workspace not found or access denied");
     }
 
-    const isMember = workspace.members.some((member) => member.userId === id);
-    if (!isMember) {
-      return ServerResponse.forbidden("Access denied");
-    }
-
-    return ServerResponse.ok(workspace, "Workspace retrieved");
+    return ServerResponse.ok(
+      {
+        id: workspace.id,
+        name: workspace.name,
+        description: workspace.description ?? "",
+        slug: workspace.slug,
+        slugId: workspace.slugId,
+        inviteCode: workspace.inviteCode,
+        updatedAt: workspace.updatedAt.toISOString(),
+        members: workspace.members.map((m) => ({
+          id: m.user.id,
+          name: m.user.name,
+          image: m.user.image,
+          role: m.role,
+        })),
+      },
+      "Workspace retrieved",
+    );
   } catch (error) {
     return ServerResponse.internalError(error);
   }

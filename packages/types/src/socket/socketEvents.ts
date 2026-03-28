@@ -7,11 +7,15 @@ export type ClientToServerEvents = {
   "message:send": (data: { workspaceId: string; content: string }) => void;
   "typing:start": (workspaceId: string) => void;
   "typing:stop": (workspaceId: string) => void;
+  "canvas:join": (canvasId: string) => void;
+  "canvas:leave": (canvasId: string) => void;
   "canvas:update": (data: {
-    workspaceId: string;
     documentId: string;
     elements: readonly OrderedExcalidrawElement[];
   }) => void;
+  "doc:join": (docId: string) => void;
+  "doc:update": (docId: string, update: number[]) => void;
+  "doc:leave": (docId: string) => void;
 };
 
 export type ServerToClientEvents = {
@@ -21,9 +25,16 @@ export type ServerToClientEvents = {
   "presence:online_users": (userIds: string[]) => void;
   "typing:start": (data: { userId: string; name: string }) => void;
   "typing:stop": (data: { userId: string; name: string }) => void;
-  "canvas:update": (data: {
-    workspaceId: string;
+  "canvas:state": (data: {
     documentId: string;
     elements: readonly OrderedExcalidrawElement[];
   }) => void;
+  "canvas:update": (data: {
+    documentId: string;
+    elements: readonly OrderedExcalidrawElement[];
+  }) => void;
+  "canvas:error": (message: string) => void;
+  "doc:state": (update: number[]) => void;
+  "doc:update": (update: number[]) => void;
+  "doc:error": (message: string) => void;
 };

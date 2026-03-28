@@ -16,9 +16,7 @@ export default function ChatMsgB({
   return (
     <div className="flex items-center justify-end m-2">
       <div className="flex flex-col items-end">
-        <div className="text-sm p-1.5 w-fit rounded-md border border-(--border) whitespace-pre-wrap">
-          {message}
-        </div>
+        <div className="text-sm p-1.5 w-fit whitespace-pre-wrap">{message}</div>
         <p className="text-[10px] text-(--muted-foreground) m-px">{time}</p>
       </div>
       <Avatar

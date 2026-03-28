@@ -110,7 +110,10 @@ export default function Chat({
         )}
         <div ref={bottomRef} />
       </div>
-      <form className="w-[95%] mx-auto relative">
+      <form
+        className="w-[95%] mx-auto relative"
+        onSubmit={(e) => e.preventDefault()}
+      >
         <Button
           size="xs"
           onClick={handleSend}

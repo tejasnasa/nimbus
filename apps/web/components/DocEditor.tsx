@@ -31,7 +31,6 @@ export default function DocEditor({
         <Canvas
           key={active}
           initialElements={current.elements}
-          workspaceId={wsid}
           documentId={current.id}
           onChange={(elements) => {
             setTabs((prev) => {

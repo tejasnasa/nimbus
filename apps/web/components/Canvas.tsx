@@ -12,34 +12,49 @@ const Excalidraw = dynamic(
 
 interface CanvasProps {
   initialElements: readonly OrderedExcalidrawElement[];
-  workspaceId: string;
   documentId: string;
   onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
 }
 
 export default function Canvas({
   initialElements,
-  workspaceId,
   documentId,
-	onChange
+  onChange,
 }: CanvasProps) {
   const excalidrawAPI = useRef<any>(null);
   const isRemoteUpdate = useRef(false);
+  const isInitialized = useRef(false);
 
-  // receive updates
   useEffect(() => {
-    socket.on("canvas:update", (data) => {
+    if (!documentId) return;
+
+    socket.emit("canvas:join", documentId);
+
+    socket.on("canvas:state", (data) => {
       if (data.documentId !== documentId) return;
-
       isRemoteUpdate.current = true;
-
-      excalidrawAPI.current?.updateScene({
-        elements: data.elements,
-      });
+      excalidrawAPI.current?.updateScene({ elements: data.elements });
+      isInitialized.current = true;
+      setTimeout(() => (isRemoteUpdate.current = false), 200);
     });
 
+    socket.on("canvas:update", (data) => {
+      if (data.documentId !== documentId) return;
+      isRemoteUpdate.current = true;
+      excalidrawAPI.current?.updateScene({ elements: data.elements });
+      setTimeout(() => (isRemoteUpdate.current = false), 200);
+    });
+
+    // Fallback in case we are the first user (no canvas:state received)
+    const initTimeout = setTimeout(() => {
+      isInitialized.current = true;
+    }, 2000);
+
     return () => {
+      socket.emit("canvas:leave", documentId);
       socket.off("canvas:update");
+      socket.off("canvas:state");
+      clearTimeout(initTimeout);
     };
   }, [documentId]);
 
@@ -52,17 +67,13 @@ export default function Canvas({
           excalidrawAPI.current = api;
         }}
         onChange={(elements) => {
-          if (isRemoteUpdate.current) {
-            isRemoteUpdate.current = false;
+          if (isRemoteUpdate.current || !isInitialized.current) {
             return;
           }
 
-          // ✅ save locally
           onChange(elements);
 
-          // ✅ send to others
           socket.emit("canvas:update", {
-            workspaceId,
             documentId,
             elements,
           });

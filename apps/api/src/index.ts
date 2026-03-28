@@ -10,6 +10,7 @@ import applySocketAuth from "./middleware/socket.middleware";
 import registerChatHandlers from "./socket/chat";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { pubClient, subClient } from "./lib/redis";
+import { registerCanvasHandlers } from "./socket/canvas";
 import { registerDocumentHandlers } from "./socket/document";
 
 const app = express();
@@ -48,9 +49,7 @@ applySocketAuth(io);
 io.on("connection", (socket) => {
   registerChatHandlers(io, socket);
   registerDocumentHandlers(io, socket);
-  socket.on("canvas:update", (elements) => {
-    socket.broadcast.emit("canvas:update", elements);
-  });
+  registerCanvasHandlers(io, socket);
 });
 
 httpServer.listen(3001, () => {

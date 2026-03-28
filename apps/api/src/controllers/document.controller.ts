@@ -1,6 +1,7 @@
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
-import { canvases } from "../socket/document";
+import { canvases } from "../socket/canvas";
+import { docs } from "../socket/document";
 
 export const createDocument = async (
   title: string,
@@ -92,6 +93,7 @@ export const deleteDocument = async (docId: string, userId: string) => {
 
     await prisma.document.delete({ where: { id: docId } });
     canvases.delete(docId);
+    docs.delete(docId);
     return ServerResponse.ok("Document deleted");
   } catch (error) {
     return ServerResponse.internalError(error);

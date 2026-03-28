@@ -10,9 +10,9 @@ const documentRouter = express.Router();
 
 documentRouter.post("/create", async (req, res) => {
   const { id } = req.user!;
-  const { title, workspaceId } = req.body;
+  const { title, workspaceId, type } = req.body;
 
-  const response = await createDocument(title, workspaceId, id);
+  const response = await createDocument(title, workspaceId, id, type);
 
   return res.status(response.statusCode).json(response);
 });

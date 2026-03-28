@@ -54,7 +54,7 @@ export default function DocEditor({
           />
         )}
         {current.type == "MARKDOWN" && (
-          <MarkdownEditor key={active} initialContent={"# Hello World"} />
+          <MarkdownEditor key={active} documentId={current.id} />
         )}
       </div>
     </section>

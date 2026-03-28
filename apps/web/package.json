@@ -13,6 +13,10 @@
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",
     "@hookform/resolvers": "^5.2.2",
+    "@milkdown/kit": "^7.19.2",
+    "@milkdown/plugin-collab": "^7.19.2",
+    "@milkdown/react": "^7.19.2",
+    "@milkdown/theme-nord": "^7.19.2",
     "@nimbus/types": "^1.0.0",
     "@nimbus/ui": "^0.0.0",
     "@tailwindcss/postcss": "^4.2.2",
@@ -25,6 +29,7 @@
     "react-hook-form": "^7.72.0",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.2.2",
+    "yjs": "^13.6.30",
     "zod": "^4.3.6"
   },
   "devDependencies": {

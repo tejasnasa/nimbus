@@ -9,6 +9,7 @@ import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import Flow from "@nimbus/ui/icons/Flow";
 import Markdown from "@nimbus/ui/icons/Markdown";
 import Delete from "@nimbus/ui/icons/Delete";
+import Edit from "@nimbus/ui/icons/Edit";
 
 export default function WorkspaceSettings({
   workspace,
@@ -105,8 +106,9 @@ export default function WorkspaceSettings({
                       )}
                       <div>{document.label}</div>
                     </div>
-
-                    <Delete className="w-4 h-4 mr-4 text-(--destructive)" />
+                    <div className="flex">
+                      <Delete className="w-4 h-4 mr-4 text-(--destructive)" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -114,7 +116,17 @@ export default function WorkspaceSettings({
           },
           {
             label: "Permissions",
-            content: "Delete",
+            content: (
+              <div>
+                <Button className="hover:cursor-pointer">
+                  Regenerate Invite Code
+                </Button>
+                <Button className="hover:cursor-pointer">
+                  <Delete className="w-6 h-6" />
+                  Delete Workspace
+                </Button>
+              </div>
+            ),
           },
         ]}
       />

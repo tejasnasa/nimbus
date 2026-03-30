@@ -10,6 +10,13 @@ export const auth = betterAuth({
     enabled: true,
   },
   experimental: { joins: true },
+  advanced: {
+    trustHost: true,
+    defaultCookieAttributes: {
+      sameSite: "none",
+      secure: true,
+    },
+  },
   trustedOrigins: [
     `${process.env.FRONTEND_URL}`,
     `${process.env.FRONTEND_URL_2}`,

@@ -254,6 +254,164 @@ export const regenerateInviteCode = async (wsid: string, id: string) => {
   }
 };
 
+export const updateMemberRole = async (
+  wsid: string,
+  id: string,
+  memberId: string,
+  role: "OWNER" | "ADMIN" | "MEMBER",
+) => {
+  try {
+    const loggedInUser = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: id,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    if (loggedInUser?.role !== "ADMIN" && loggedInUser?.role !== "OWNER") {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    if (role === "OWNER") {
+      return ServerResponse.forbidden("You cannot make someone owner");
+    }
+
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: memberId,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    if (member?.role === "OWNER") {
+      return ServerResponse.forbidden("You cannot change owner's role");
+    }
+
+    if (loggedInUser.role === "ADMIN" && role === "ADMIN") {
+      return ServerResponse.forbidden("You cannot make someone admin");
+    }
+
+    await prisma.workspaceMember.update({
+      where: {
+        userId_workspaceId: {
+          userId: memberId,
+          workspaceId: wsid,
+        },
+      },
+      data: {
+        role,
+      },
+    });
+
+    return ServerResponse.ok({ role }, "Member role updated");
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+};
+
+export const removeMember = async (
+  wsid: string,
+  id: string,
+  memberId: string,
+) => {
+  try {
+    const loggedInUser = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: id,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    if (loggedInUser?.role !== "ADMIN" && loggedInUser?.role !== "OWNER") {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        userId_workspaceId: {
+          userId: memberId,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    if (member?.role === "OWNER") {
+      return ServerResponse.forbidden("You cannot remove owner");
+    }
+
+    await prisma.workspaceMember.delete({
+      where: {
+        userId_workspaceId: {
+          userId: memberId,
+          workspaceId: wsid,
+        },
+      },
+    });
+
+    return ServerResponse.ok({}, "Member removed");
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+};
+
+export const updateWorkspace = async (
+  wsid: string,
+  id: string,
+  name: string,
+  description: string,
+) => {
+  try {
+    const workspace = await prisma.workspace.findUnique({
+      where: {
+        id: wsid,
+      },
+      include: {
+        members: true,
+      },
+    });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const isMember = workspace.members.some((member) => member.userId === id);
+
+    if (!isMember) {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    const isOwner = workspace.members.some(
+      (member) =>
+        member.userId === id &&
+        (member.role === "OWNER" || member.role === "ADMIN"),
+    );
+
+    if (!isOwner) {
+      return ServerResponse.forbidden("Access denied");
+    }
+
+    const updatedWorkspace = await prisma.workspace.update({
+      where: {
+        id: wsid,
+      },
+      data: {
+        name,
+        description,
+      },
+    });
+
+    return ServerResponse.ok(updatedWorkspace, "Workspace updated");
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+};
+
 export const deleteWorkspace = async (wsid: string, id: string) => {
   try {
     const workspace = await prisma.workspace.findUnique({
@@ -280,14 +438,7 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
     );
 
     if (!isOwner) {
-      await prisma.workspaceMember.delete({
-        where: {
-          userId_workspaceId: {
-            userId: id,
-            workspaceId: wsid,
-          },
-        },
-      });
+      return ServerResponse.forbidden("Access denied");
     }
 
     await prisma.workspace.delete({

@@ -8,6 +8,9 @@ import {
   getWorkspaceBySlugId,
   joinWorkspace,
   regenerateInviteCode,
+  removeMember,
+  updateMemberRole,
+  updateWorkspace,
 } from "../controllers/workspace.controller";
 
 const workspaceRouter = express.Router();
@@ -43,6 +46,36 @@ workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
   const { id } = req.user!;
 
   const response = await regenerateInviteCode(wsid, id);
+
+  return res.status(response.statusCode).json(response);
+});
+
+workspaceRouter.put("/role/:wsid", async (req, res) => {
+  const { wsid } = req.params;
+  const { id } = req.user!;
+  const { memberId, role } = req.body;
+
+  const response = await updateMemberRole(wsid, id, memberId, role);
+
+  return res.status(response.statusCode).json(response);
+});
+
+workspaceRouter.delete("/leave/:wsid", async (req, res) => {
+  const { wsid } = req.params;
+  const { id } = req.user!;
+  const { memberId } = req.body;
+
+  const response = await removeMember(wsid, id, memberId);
+
+  return res.status(response.statusCode).json(response);
+});
+
+workspaceRouter.put("/update/:wsid", async (req, res) => {
+  const { wsid } = req.params;
+  const { id } = req.user!;
+  const { name, description } = req.body;
+
+  const response = await updateWorkspace(wsid, id, name, description);
 
   return res.status(response.statusCode).json(response);
 });

@@ -2,6 +2,7 @@
 
 import { Workspace } from "@nimbus/types";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 
 export async function getWorkspaces(): Promise<Workspace[]> {
   const res = await fetch(
@@ -15,7 +16,6 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   if (!res.ok) throw new Error("Failed to fetch workspaces");
 
   const data = await res.json();
-  console.log(data.responseObject);
 
   return data.responseObject;
 }
@@ -28,12 +28,12 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace> {
       cache: "no-store",
     },
   );
-  console.log(res);
 
-  if (!res.ok) throw new Error("Failed to fetch workspace");
+  if (!res.ok) {
+    notFound();
+  }
 
   const data = await res.json();
-
 
   return data.responseObject;
 }

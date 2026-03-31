@@ -16,6 +16,7 @@ export default async function Workspace({
 }) {
   const { id } = await params;
   const workspaceData = await getWorkspace(id);
+  console.log(workspaceData);
   const messages = await getMessages(workspaceData.id);
   const documents = await getDocuments(workspaceData.id);
   const { data: session } = await authClient.getSession({

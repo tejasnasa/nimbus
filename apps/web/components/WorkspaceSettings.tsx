@@ -18,6 +18,7 @@ import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
 import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
 import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
+import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
 
 export default function WorkspaceSettings({
   workspace,
@@ -41,6 +42,13 @@ export default function WorkspaceSettings({
   } = useWorkspaceDocumentForm(workspace.id);
 
   const { handleDeleteDocument, loading: docLoading } = useWorkspaceDocuments();
+
+  const {
+    handleRegenerateInviteCode,
+    handleDeleteWorkspace,
+    handleCopyInviteCode,
+    loading: permissionLoading,
+  } = useWorkspacePermissions(workspace.id);
 
   return (
     <div className=" relative z-50 w-200 h-150 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
@@ -290,17 +298,54 @@ export default function WorkspaceSettings({
           {
             label: "Permissions",
             content: (
-              <div>
-                <Button className="hover:cursor-pointer">
+              <div className="flex flex-col gap-4 m-4">
+                <Button
+                  type="button"
+                  className="hover:cursor-pointer w-fit"
+                  onClick={handleRegenerateInviteCode}
+                  loading={permissionLoading === "regenerate"}
+                >
                   Regenerate Invite Code
                 </Button>
-                <Button className="hover:cursor-pointer">
+                <Button
+                  type="button"
+                  className="hover:cursor-pointer w-fit"
+                  onClick={() => handleCopyInviteCode(workspace.inviteCode)}
+                >
                   Copy Invite Code
                 </Button>
-                <Button className="hover:cursor-pointer">
-                  <Delete className="w-6 h-6" />
-                  Delete Workspace
-                </Button>
+                <AlertDialog
+                  trigger={
+                    <Button
+                      type="button"
+                      className="hover:cursor-pointer w-fit"
+                    >
+                      <Delete className="w-6 h-6 mr-2" />
+                      Delete Workspace
+                    </Button>
+                  }
+                >
+                  <div className=" relative z-50 w-120 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
+                    <h3 className="mb-8">
+                      Are you sure you want to delete this workspace? This
+                      action cannot be undone.
+                    </h3>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" size="sm" data-alert-dialog-close>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleDeleteWorkspace}
+                        loading={permissionLoading === "delete"}
+                        data-alert-dialog-close
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDialog>
               </div>
             ),
           },

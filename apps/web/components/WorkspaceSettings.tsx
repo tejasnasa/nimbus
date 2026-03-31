@@ -12,6 +12,9 @@ import Flow from "@nimbus/ui/icons/Flow";
 import Markdown from "@nimbus/ui/icons/Markdown";
 import Delete from "@nimbus/ui/icons/Delete";
 import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
+import AlertDialog from "@nimbus/ui/AlertDialog";
+import OptionMenu from "@nimbus/ui/OptionsMenu";
+import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
 
 export default function WorkspaceSettings({
   workspace,
@@ -22,6 +25,9 @@ export default function WorkspaceSettings({
 }) {
   const { register, firstError, isSubmitting, isDirty, onSubmit } =
     useUpdateWorkspaceSettingsForm(workspace);
+
+  const { handleUpdateRole, handleRemoveMember, loading } =
+    useWorkspaceMembers(workspace.id);
 
   return (
     <div className=" relative z-50 w-200 h-150 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
@@ -94,7 +100,59 @@ export default function WorkspaceSettings({
                       <div>{member.name}</div>
                     </div>
 
-                    <div>{member.role}</div>
+                    <div className="flex items-center gap-2">
+                      <OptionMenu
+                        trigger={
+                          <Button
+                            size="sm"
+                            className="bg-transparent text-(--foreground) hover:bg-(--muted) border border-(--border) uppercase text-[10px]"
+                            loading={loading === member.id}
+                          >
+                            {member.role}
+                          </Button>
+                        }
+                        size="sm"
+                        direction="left"
+                        items={[
+                          {
+                            label: "OWNER",
+                            onClick: () => handleUpdateRole(member.id, "OWNER"),
+                          },
+                          {
+                            label: "ADMIN",
+                            onClick: () => handleUpdateRole(member.id, "ADMIN"),
+                          },
+                          {
+                            label: "MEMBER",
+                            onClick: () => handleUpdateRole(member.id, "MEMBER"),
+                          },
+                        ]}
+                      />
+                      <AlertDialog
+                        trigger={
+                          <Delete className="w-5 h-5 m-2 text-(--destructive) hover:cursor-pointer" />
+                        }
+                      >
+                        <div className=" relative z-50 w-120 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
+                          <h3 className="mb-8">
+                            Are you sure you want to remove this member?
+                          </h3>
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" data-alert-dialog-close>
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRemoveMember(member.id)}
+                              loading={loading === member.id}
+                              data-alert-dialog-close
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -26,10 +26,183 @@ html {
   }
 }
 
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes border-glow {
+  0%, 100% {
+    border-color: var(--primary);
+    box-shadow: 0 0 8px oklch(0.438 0.218 303.724 / 0.2);
+  }
+  50% {
+    border-color: var(--sidebar-primary);
+    box-shadow: 0 0 16px oklch(0.627 0.265 303.9 / 0.3);
+  }
+}
+
 @utility animate-fade-in {
   animation: fade-in 0.6s ease-out both;
 }
 
 @utility animate-slide-up {
   animation: slide-up 0.6s ease-out both;
+}
+
+@utility animate-slide-down {
+  animation: slide-down 0.5s ease-out both;
+}
+
+@utility animate-slide-in-right {
+  animation: slide-in-right 0.5s ease-out both;
+}
+
+@utility animate-scale-in {
+  animation: scale-in 0.4s ease-out both;
+}
+
+@utility animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@utility animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+@utility animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@utility animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+@utility animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+@utility animate-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+
+.glass-card {
+  background: oklch(0.212 0.019 322.12 / 0.4);
+  backdrop-filter: blur(16px);
+  border: 1px solid oklch(1 0 0 / 8%);
+}
+
+.glass-card-hover:hover {
+  background: oklch(0.212 0.019 322.12 / 0.6);
+  border-color: oklch(0.438 0.218 303.724 / 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px oklch(0.438 0.218 303.724 / 0.1);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary), var(--chart-2), var(--sidebar-primary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 3%) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 10%);
+  border-radius: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 20%);
 }

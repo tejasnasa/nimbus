@@ -1,5 +1,7 @@
 "use client";
+
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   trigger: React.ReactNode;
@@ -8,6 +10,11 @@ type Props = {
 
 export default function AlertDialog({ trigger, children }: Props) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
@@ -19,30 +26,41 @@ export default function AlertDialog({ trigger, children }: Props) {
 
   return (
     <>
-      <div onClick={() => setOpen(true)} className="inline-block w-fit mx-auto">
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className="inline-flex w-full sm:w-auto h-full"
+      >
         {trigger}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-(--background)/30 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-          />
+      {open &&
+        mounted &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-(--background)/60 backdrop-blur-md"
+              onClick={() => setOpen(false)}
+              style={{ animation: "fade-in 0.2s ease-out" }}
+            />
 
-          <div
-            className="relative z-50"
-            onClick={(e) => {
-              const target = e.target as HTMLElement | null;
-              if (target?.closest("[data-alert-dialog-close]")) {
-                setOpen(false);
-              }
-            }}
-          >
-            {children}
-          </div>
-        </div>
-      )}
+            <div
+              className="relative z-[51]"
+              style={{ animation: "scale-in 0.3s ease-out" }}
+              onClick={(e) => {
+                const target = e.target as HTMLElement | null;
+                if (target?.closest("[data-alert-dialog-close]")) {
+                  setOpen(false);
+                }
+              }}
+            >
+              {children}
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

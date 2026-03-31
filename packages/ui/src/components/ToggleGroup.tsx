@@ -15,16 +15,16 @@ export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
   }
 
   return (
-    <div className="flex items-center gap-1 border border-(--border) mx-28 my-4 p-0 w-fit">
+    <div className="flex items-center gap-1 p-1 rounded-xl bg-(--card)/40 backdrop-blur-sm border border-(--border) w-fit">
       {options.map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => toggle(option)}
-          className={`px-6 py-2 text-sm font-medium transition-all
+          className={`px-5 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer
             ${
               selected === option
-                ? "bg-(--primary) text-(--primary-foreground)"
+                ? "bg-(--primary) text-(--primary-foreground) shadow-md shadow-(--primary)/20"
                 : "hover:bg-(--muted) text-(--muted-foreground) hover:text-(--foreground)"
             }`}
         >

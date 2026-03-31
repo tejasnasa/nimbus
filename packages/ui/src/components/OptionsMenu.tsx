@@ -43,7 +43,8 @@ export default function OptionMenu({
 
       {open && (
         <div
-          className={`absolute z-50 rounded-md border border-(--border) bg-(--card) shadow-md p-1 animate-in fade-in-0 zoom-in-95 ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
+          className={`absolute z-50 mt-1 rounded-xl border border-(--border) bg-(--card) shadow-xl shadow-(--primary)/5 p-1.5 backdrop-blur-xl ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
+          style={{ animation: "scale-in 0.15s ease-out" }}
         >
           {items.map((item, i) => (
             <button
@@ -53,18 +54,18 @@ export default function OptionMenu({
                 item.onClick?.();
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 rounded-sm px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:cursor-pointer
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40 hover:cursor-pointer
                 ${size === "sm" && "text-xs"}
-                ${size === "lg" && "text-md"}
+                ${size === "lg" && "text-sm"}
                 ${
                   item.destructive
-                    ? "text-(--destructive) hover:bg-(--muted) "
-                    : "text-(--foreground) hover:bg-(--muted)"
+                    ? "text-(--destructive) hover:bg-(--destructive)/10"
+                    : "text-(--foreground) hover:bg-(--muted)/60"
                 }`}
             >
               {item.icon && (
                 <span
-                  className={`
+                  className={`shrink-0
                     ${size === "sm" && "w-4 h-4"}
                     ${size === "lg" && "w-5 h-5"}`}
                 >

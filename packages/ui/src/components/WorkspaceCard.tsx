@@ -21,11 +21,13 @@ export default function WorkspaceCard({
     <Link
       id={workspace.slugId.toString()}
       href={`/workspace/${workspace.slugId}`}
-      className="w-[24%] mb-3 p-6 bg-(--card) rounded-lg flex flex-col justify-between hover:shadow-lg hover:border-(--primary) hover:-translate-y-0.5 transition-all duration-200"
+      className="group p-6 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm flex flex-col justify-between hover:border-(--primary)/50 hover:bg-(--card)/70 hover:-translate-y-1 hover:shadow-xl hover:shadow-(--primary)/5 transition-all duration-300"
     >
       <div>
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-3xl">{workspace.name}</h2>
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-2xl font-semibold tracking-tight group-hover:text-(--primary) transition-colors duration-300">
+            {workspace.name}
+          </h2>
           <div
             onClick={(e) => {
               e.preventDefault();
@@ -34,7 +36,7 @@ export default function WorkspaceCard({
           >
             <OptionMenu
               trigger={
-                <button className="p-1.5 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
+                <button className="p-1.5 hover:cursor-pointer text-(--muted-foreground) rounded-lg hover:bg-(--muted) transition-colors opacity-0 group-hover:opacity-100">
                   <Options />
                 </button>
               }
@@ -60,9 +62,9 @@ export default function WorkspaceCard({
           </div>
         </div>
 
-        <div className="text-sm text-(--muted-foreground) flex items-center mb-6">
+        <div className="text-xs text-(--muted-foreground) flex items-center mb-5 gap-1.5">
           <Clock />
-          <span className="ml-2">{timeAgo(workspace.updatedAt)}</span>
+          <span>{timeAgo(workspace.updatedAt)}</span>
         </div>
         <AvatarGroup
           users={
@@ -74,7 +76,7 @@ export default function WorkspaceCard({
         />
       </div>
 
-      <p className="text-sm text-(--muted-foreground) mt-4">
+      <p className="text-sm text-(--muted-foreground) mt-5 leading-relaxed line-clamp-2">
         {workspace.description}
       </p>
     </Link>

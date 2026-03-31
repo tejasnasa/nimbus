@@ -6,6 +6,9 @@ import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
 import { useWorkspaceForm } from "../hooks/useWorkspaceForm";
 import { useWorkspaceJoinForm } from "../hooks/useWorkspaceJoinForm";
+import Plus from "@nimbus/ui/icons/Plus";
+import Error from "@nimbus/ui/icons/Error";
+import Signup from "@nimbus/ui/icons/Signup";
 
 export default function CreateWorkspaceCard() {
   const {
@@ -22,31 +25,48 @@ export default function CreateWorkspaceCard() {
   } = useWorkspaceJoinForm();
 
   return (
-    <div className="w-[49%] mb-3 p-6 bg-(--card) rounded-lg flex flex-col justify-between text-center">
-      <div>
-        <h2 className="text-3xl font-semibold m-4">Create New Workspace</h2>
-        <p className="text-sm text-(--muted-foreground) text-center mb-4">
-          Organise your docs, team, and projects in one place
+    <div className="group p-6 rounded-2xl border-4 border-dotted border-(--border) bg-(--card)/40 backdrop-blur-sm flex flex-col justify-between text-center hover:border-(--primary)/50 hover:bg-(--card)/40 transition-all duration-300">
+      <div className="flex-1 flex flex-col items-center justify-center py-6">
+        <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-(--primary)/20 to-(--sidebar-primary)/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+          <Plus className="w-7 h-7 text-(--primary-foreground)" />
+        </div>
+        <h2 className="text-xl font-semibold mb-2 tracking-tight">
+          New Workspace
+        </h2>
+        <p className="text-sm text-(--muted-foreground) leading-relaxed max-w-50">
+          Organise your docs, team, and projects
         </p>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex flex-col gap-2 mt-4">
         <AlertDialog
           trigger={
-            <Button className="hover:cursor-pointer my-1 w-full" size="lg">
-              + Create Workspace
+            <Button
+              className="hover:cursor-pointer w-full rounded-xl"
+              size="md"
+            >
+              Create Workspace
             </Button>
           }
         >
-          <div className=" relative z-50 w-150 rounded-xl border border-(--border) bg-(--card) p-3 shadow-lg animate-in fade-in zoom-in-95">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-semibold text-(--foreground) m-4">
-                Create Workspace
-              </h2>
+          <div className="relative z-50 w-120 rounded-2xl border border-(--border) bg-(--card) p-6 shadow-2xl shadow-(--primary)/10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-(--primary) to-(--sidebar-primary) flex items-center justify-center shrink-0">
+                <Plus className="w-5 h-5 text-(--primary-foreground)" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Create Workspace</h2>
+                <p className="text-xs text-(--muted-foreground)">
+                  Set up a new space for your team
+                </p>
+              </div>
             </div>
             <form onSubmit={creationOnSubmit}>
-              <div className="flex flex-col text-left m-4">
-                <label htmlFor="title" className="m-1 text-sm">
+              <div className="flex flex-col gap-2 mb-4">
+                <label
+                  htmlFor="title"
+                  className="text-sm font-medium text-(--muted-foreground)"
+                >
                   Title
                 </label>
                 <Input
@@ -54,10 +74,13 @@ export default function CreateWorkspaceCard() {
                   id="title"
                   className="w-full"
                   {...creationRegister("name")}
-                ></Input>
+                />
               </div>
-              <div className="flex flex-col text-left m-4">
-                <label htmlFor="description" className="m-1 text-sm">
+              <div className="flex flex-col gap-2 mb-4">
+                <label
+                  htmlFor="description"
+                  className="text-sm font-medium text-(--muted-foreground)"
+                >
                   Description
                 </label>
                 <Textarea
@@ -69,26 +92,28 @@ export default function CreateWorkspaceCard() {
               </div>
 
               {creationFirstError && (
-                <span className="text-xs text-red-500 self-start ml-0.5">
-                  {creationFirstError}
-                </span>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20 mb-4">
+                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+                  <span className="text-xs text-(--destructive)">
+                    {creationFirstError}
+                  </span>
+                </div>
               )}
 
-              <div className="m-4 flex justify-end gap-2">
+              <div className="flex justify-end gap-3 mt-6">
                 <Button
                   data-alert-dialog-close
-                  className="bg-transparent hover:bg-white/10 border border-(--border) hover:border-white/10 hover:cursor-pointer"
+                  className="bg-transparent hover:bg-(--muted) border border-(--border) text-(--foreground) hover:cursor-pointer rounded-xl"
                   size="sm"
                 >
                   Cancel
                 </Button>
-
                 <Button
                   size="sm"
-                  className="hover:cursor-pointer"
+                  className="hover:cursor-pointer rounded-xl"
                   loading={creationIsSubmitting}
                 >
-                  Continue
+                  Create
                 </Button>
               </div>
             </form>
@@ -97,48 +122,54 @@ export default function CreateWorkspaceCard() {
 
         <AlertDialog
           trigger={
-            <button className="text-(--muted-foreground) text-sm hover:underline w-fit mx-auto hover:cursor-pointer">
-              or join one
+            <button className="text-(--muted-foreground) text-sm hover:underline transition-colors hover:cursor-pointer mx-auto">
+              or join with invite code
             </button>
           }
         >
-          <div className=" relative z-50 w-120 rounded-xl border border-(--border) bg-(--card) p-3 shadow-lg animate-in fade-in zoom-in-95">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-semibold text-(--foreground) m-4">
-                Join Workspace
-              </h2>
+          <div className="relative z-50 w-100 rounded-2xl border border-(--border) bg-(--card) p-6 shadow-2xl shadow-(--primary)/10">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-(--chart-2) to-(--primary) flex items-center justify-center shrink-0">
+                <Signup className="w-5 h-5 text-(--primary-foreground)" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">Join Workspace</h2>
+                <p className="text-xs text-(--muted-foreground)">
+                  Enter the invite code to join
+                </p>
+              </div>
             </div>
             <form onSubmit={joinOnSubmit}>
-              <div className="flex flex-col text-left m-4">
-                <Input
-                  placeholder="Invite Code"
-                  id="inviteCode"
-                  className="w-4/5 mx-auto text-center my-4"
-                  {...joinRegister("inviteCode")}
-                ></Input>
-              </div>
+              <Input
+                placeholder="Paste invite code here"
+                id="inviteCode"
+                className="w-full text-center tracking-wider my-2"
+                {...joinRegister("inviteCode")}
+              />
 
               {joinFirstError && (
-                <span className="text-xs text-red-500 self-start ml-0.5">
-                  {joinFirstError}
-                </span>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20 mt-3">
+                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+                  <span className="text-xs text-(--destructive)">
+                    {joinFirstError}
+                  </span>
+                </div>
               )}
 
-              <div className="m-4 flex justify-end gap-2">
+              <div className="flex justify-end gap-3 mt-6">
                 <Button
                   data-alert-dialog-close
-                  className="bg-transparent hover:bg-white/10 border border-(--border) hover:border-white/10 hover:cursor-pointer"
+                  className="bg-transparent hover:bg-(--muted) border border-(--border) text-(--foreground) hover:cursor-pointer rounded-xl"
                   size="sm"
                 >
                   Cancel
                 </Button>
-
                 <Button
                   size="sm"
-                  className="hover:cursor-pointer"
+                  className="hover:cursor-pointer rounded-xl"
                   loading={joinIsSubmitting}
                 >
-                  Continue
+                  Join
                 </Button>
               </div>
             </form>

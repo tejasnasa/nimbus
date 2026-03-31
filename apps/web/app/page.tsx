@@ -10,6 +10,11 @@ import Star from "@nimbus/ui/icons/Star";
 import Github from "@nimbus/ui/icons/Github";
 import Twitter from "@nimbus/ui/icons/Twitter";
 import Linkedin from "@nimbus/ui/icons/Linkedin";
+import canvas from "../assets/canvas.png";
+import canvas_copy from "../assets/canvas-copy.png";
+import message from "../assets/message.png";
+import markdown from "../assets/markdown.png";
+import Image from "next/image";
 
 export default function LandingPage() {
   return (
@@ -160,13 +165,7 @@ export default function LandingPage() {
               className="w-full aspect-video bg-(--secondary)/30 flex items-center justify-center"
               id="hero-image-placeholder"
             >
-              <div className="text-center text-(--muted-foreground)">
-                <div className="text-5xl mb-3 opacity-40">📸</div>
-                <p className="text-sm font-medium">App Screenshot</p>
-                <p className="text-xs opacity-60 mt-1">
-                  Replace with actual workspace screenshot (1920×1080)
-                </p>
-              </div>
+              <Image src={canvas} alt="App Screenshot" />
             </div>
           </div>
           <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
@@ -309,34 +308,55 @@ export default function LandingPage() {
               className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden"
               id="chat-feature-image-placeholder"
             >
-              <div className="w-full aspect-4/3 bg-(--secondary)/30 flex items-center justify-center">
-                <div className="text-center text-(--muted-foreground)">
-                  <div className="text-4xl mb-3 opacity-40">💬</div>
-                  <p className="text-sm font-medium">Chat Feature Screenshot</p>
-                  <p className="text-xs opacity-60 mt-1">
-                    Replace with messaging UI screenshot
-                  </p>
+              <div className="max-w-6xl mx-auto">
+                <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-(--destructive)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-1)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-2)/60" />
+                    </div>
+                    <div className="flex-1 flex justify-center">
+                      <div className="px-4 py-1 rounded-lg bg-(--secondary) text-xs text-(--muted-foreground)">
+                        nimbus.app/workspace
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className="w-full aspect-video bg-(--secondary)/30 flex items-center justify-center"
+                    id="hero-image-placeholder"
+                  >
+                    <Image src={message} alt="App Screenshot" />
+                  </div>
                 </div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
               </div>
             </div>
           </div>
 
           <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div
-              className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden order-2 lg:order-1"
-              id="doc-feature-image-placeholder"
-            >
-              <div className="w-full aspect-4/3 bg-(--secondary)/30 flex items-center justify-center">
-                <div className="text-center text-(--muted-foreground)">
-                  <div className="text-4xl mb-3 opacity-40">📝</div>
-                  <p className="text-sm font-medium">
-                    Markdown Editor Screenshot
-                  </p>
-                  <p className="text-xs opacity-60 mt-1">
-                    Replace with markdown UI screenshot
-                  </p>
+            <div className="max-w-6xl mx-auto">
+              <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-(--destructive)/60" />
+                    <div className="w-3 h-3 rounded-full bg-(--chart-1)/60" />
+                    <div className="w-3 h-3 rounded-full bg-(--chart-2)/60" />
+                  </div>
+                  <div className="flex-1 flex justify-center">
+                    <div className="px-4 py-1 rounded-lg bg-(--secondary) text-xs text-(--muted-foreground)">
+                      nimbus.app/workspace
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="w-full aspect-video bg-(--secondary)/30 flex items-center justify-center"
+                  id="hero-image-placeholder"
+                >
+                  <Image src={markdown} alt="App Screenshot" />
                 </div>
               </div>
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
             </div>
             <div className="order-1 lg:order-2">
               <span className="inline-block px-3 py-1 mb-4 text-xs font-medium tracking-widest uppercase text-(--chart-2) border border-(--chart-2)/30 rounded-full">
@@ -411,16 +431,28 @@ export default function LandingPage() {
               className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden"
               id="canvas-feature-image-placeholder"
             >
-              <div className="w-full aspect-4/3 bg-(--secondary)/30 flex items-center justify-center">
-                <div className="text-center text-(--muted-foreground)">
-                  <div className="text-4xl mb-3 opacity-40">🎨</div>
-                  <p className="text-sm font-medium">
-                    Canvas Editor Screenshot
-                  </p>
-                  <p className="text-xs opacity-60 mt-1">
-                    Replace with Excalidraw UI screenshot
-                  </p>
+              <div className="max-w-6xl mx-auto">
+                <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-(--destructive)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-1)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-2)/60" />
+                    </div>
+                    <div className="flex-1 flex justify-center">
+                      <div className="px-4 py-1 rounded-lg bg-(--secondary) text-xs text-(--muted-foreground)">
+                        nimbus.app/workspace
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className="w-full aspect-video bg-(--secondary)/30 flex items-center justify-center"
+                    id="hero-image-placeholder"
+                  >
+                    <Image src={canvas_copy} alt="App Screenshot" />
+                  </div>
                 </div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
               </div>
             </div>
           </div>

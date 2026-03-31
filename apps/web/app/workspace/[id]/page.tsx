@@ -27,9 +27,9 @@ export default async function Workspace({
 
   return (
     <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden">
-      <section className="w-[320px] min-w-[320px] flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
+      <section className="w-90 flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
         <div className="flex justify-between items-center p-4 pb-2">
-          <h1 className="text-2xl font-semibold tracking-tight truncate">
+          <h1 className="text-2xl font-semibold tracking-tight">
             {workspaceData.name}
           </h1>
           <AlertDialog

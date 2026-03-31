@@ -106,7 +106,7 @@ export default function SignupForm({
           onClick={async () => {
             await authClient.signIn.social({
               provider: "google",
-              callbackURL: "/home",
+              callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/home`,
             });
           }}
         >

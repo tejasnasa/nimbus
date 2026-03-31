@@ -1,7 +1,6 @@
-import Navbar from "@nimbus/ui/Navbar";
+import UserNavbar from "../../components/UserNavbar";
 import { authClient } from "../../lib/auth-client";
 import { headers } from "next/headers";
-import { logoutAction } from "../../actions/auth";
 import { deleteWorkspace, getWorkspaces } from "../../api/workspace";
 import ViewWorkspaces from "../../components/ViewWorkspaces";
 
@@ -16,8 +15,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-dvh mb-10">
-      <Navbar
-        logout={logoutAction}
+      <UserNavbar
         id={session!.user.id}
         avatar={session!.user.image}
         name={session!.user.name}

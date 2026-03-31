@@ -1,4 +1,5 @@
 export { workspaceSchema, workspaceJoinSchema } from "./validations/workspace";
+export { documentSchema } from "./validations/document";
 export { signupSchema } from "./validations/signup";
 export { loginSchema } from "./validations/login";
 

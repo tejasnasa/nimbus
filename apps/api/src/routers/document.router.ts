@@ -1,4 +1,6 @@
+import { documentSchema } from "@nimbus/types";
 import express from "express";
+import validate from "../middleware/validate.middleware";
 import {
   createDocument,
   deleteDocument,
@@ -8,7 +10,7 @@ import {
 
 const documentRouter = express.Router();
 
-documentRouter.post("/create", async (req, res) => {
+documentRouter.post("/create", validate(documentSchema), async (req, res) => {
   const { id } = req.user!;
   const { title, workspaceId, type } = req.body;
 

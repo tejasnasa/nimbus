@@ -19,6 +19,7 @@ export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
       {options.map((option) => (
         <button
           key={option}
+          type="button"
           onClick={() => toggle(option)}
           className={`px-6 py-2 text-sm font-medium transition-all
             ${

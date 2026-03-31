@@ -6,5 +6,5 @@ export const documentSchema = z.object({
     .min(3, "Title must be at least 3 characters")
     .max(50, "Title must be at most 50 characters"),
   type: z.enum(["CANVAS", "MARKDOWN"]),
-  workspaceId: z.string().uuid().optional(),
+  workspaceId: z.cuid(),
 });

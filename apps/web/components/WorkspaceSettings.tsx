@@ -15,6 +15,9 @@ import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSetti
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import OptionMenu from "@nimbus/ui/OptionsMenu";
 import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
+import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
+import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
+import ToggleGroup from "@nimbus/ui/ToggleGroup";
 
 export default function WorkspaceSettings({
   workspace,
@@ -26,8 +29,18 @@ export default function WorkspaceSettings({
   const { register, firstError, isSubmitting, isDirty, onSubmit } =
     useUpdateWorkspaceSettingsForm(workspace);
 
-  const { handleUpdateRole, handleRemoveMember, loading } =
+  const { handleUpdateRole, handleRemoveMember, loading: memberLoading } =
     useWorkspaceMembers(workspace.id);
+
+  const {
+    register: docRegister,
+    firstError: docError,
+    isSubmitting: docSubmitting,
+    onSubmit: docOnSubmit,
+    setValue: docSetValue,
+  } = useWorkspaceDocumentForm(workspace.id);
+
+  const { handleDeleteDocument, loading: docLoading } = useWorkspaceDocuments();
 
   return (
     <div className=" relative z-50 w-200 h-150 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
@@ -106,7 +119,7 @@ export default function WorkspaceSettings({
                           <Button
                             size="sm"
                             className="bg-transparent text-(--foreground) hover:bg-(--muted) border border-(--border) uppercase text-[10px]"
-                            loading={loading === member.id}
+                            loading={memberLoading === member.id}
                           >
                             {member.role}
                           </Button>
@@ -144,7 +157,7 @@ export default function WorkspaceSettings({
                             <Button
                               size="sm"
                               onClick={() => handleRemoveMember(member.id)}
-                              loading={loading === member.id}
+                              loading={memberLoading === member.id}
                               data-alert-dialog-close
                             >
                               Remove
@@ -162,7 +175,73 @@ export default function WorkspaceSettings({
             label: "Documents",
             content: (
               <div>
-                <Button className="hover:cursor-pointer">Add Document</Button>
+                <AlertDialog
+                  trigger={
+                    <Button className="hover:cursor-pointer">
+                      Add Document
+                    </Button>
+                  }
+                >
+                  <div className=" relative z-50 w-120 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
+                    <h2 className="text-2xl font-semibold m-4">
+                      Create Document
+                    </h2>
+                    <form onSubmit={docOnSubmit}>
+                      <input type="hidden" {...docRegister("workspaceId")} />
+                      <input type="hidden" {...docRegister("type")} />
+                      <div className="flex flex-col text-left m-4">
+                        <label htmlFor="docTitle" className="m-1 text-sm">
+                          Title
+                        </label>
+                        <Input
+                          placeholder="My Awesome Document"
+                          id="docTitle"
+                          className="w-full"
+                          {...docRegister("title")}
+                        />
+                      </div>
+                      <div className="flex flex-col text-center">
+                        <label className="text-sm">Type</label>
+                        <ToggleGroup
+                          options={["MARKDOWN", "CANVAS"]}
+                          onChange={(val) =>
+                            docSetValue("type", val as "MARKDOWN" | "CANVAS")
+                          }
+                        />
+                      </div>
+
+                      {docError && (
+                        <span className="text-xs text-red-500 m-4 block">
+                          {docError}
+                        </span>
+                      )}
+
+                      <div className="flex justify-end gap-2 m-4">
+                        <Button
+                          size="sm"
+                          type="button"
+                          data-alert-dialog-close
+                          className="bg-transparent border border-(--border)"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          loading={docSubmitting}
+                        >
+                          Create
+                        </Button>
+                        <button
+                          type="button"
+                          id="close-doc-dialog"
+                          data-alert-dialog-close
+                          className="hidden"
+                        ></button>
+                      </div>
+                    </form>
+                  </div>
+                </AlertDialog>
+
                 {documents.map((document) => (
                   <div
                     key={document.id}
@@ -177,7 +256,31 @@ export default function WorkspaceSettings({
                       <div>{document.label}</div>
                     </div>
                     <div className="flex">
-                      <Delete className="w-4 h-4 mr-4 text-(--destructive)" />
+                      <AlertDialog
+                        trigger={
+                          <Delete className="w-4 h-4 mr-4 text-(--destructive) hover:cursor-pointer" />
+                        }
+                      >
+                        <div className=" relative z-50 w-120 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
+                          <h3 className="mb-8">
+                            Are you sure you want to delete this document?
+                          </h3>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" size="sm" data-alert-dialog-close>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleDeleteDocument(document.id)}
+                              loading={docLoading === document.id}
+                              data-alert-dialog-close
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      </AlertDialog>
                     </div>
                   </div>
                 ))}

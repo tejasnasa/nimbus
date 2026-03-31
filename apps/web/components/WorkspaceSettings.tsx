@@ -1,3 +1,5 @@
+"use client";
+
 import { Workspace } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
@@ -9,7 +11,7 @@ import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import Flow from "@nimbus/ui/icons/Flow";
 import Markdown from "@nimbus/ui/icons/Markdown";
 import Delete from "@nimbus/ui/icons/Delete";
-import Edit from "@nimbus/ui/icons/Edit";
+import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
 
 export default function WorkspaceSettings({
   workspace,
@@ -18,6 +20,9 @@ export default function WorkspaceSettings({
   workspace: Workspace;
   documents: ClientDocument[];
 }) {
+  const { register, firstError, isSubmitting, isDirty, onSubmit } =
+    useUpdateWorkspaceSettingsForm(workspace);
+
   return (
     <div className=" relative z-50 w-200 h-150 rounded-xl border border-(--border) bg-(--card) shadow-lg animate-in fade-in zoom-in-95 p-5">
       <h1 className="text-5xl m-2 mb-8">Settings</h1>
@@ -26,7 +31,7 @@ export default function WorkspaceSettings({
           {
             label: "General",
             content: (
-              <form>
+              <form onSubmit={onSubmit}>
                 <div className="flex flex-col text-left m-4">
                   <label htmlFor="title" className="m-1 text-sm">
                     Title
@@ -35,7 +40,7 @@ export default function WorkspaceSettings({
                     placeholder="Tejas's Workspace"
                     id="title"
                     className="w-full"
-                    defaultValue={workspace.name}
+                    {...register("name")}
                   />
                 </div>
                 <div className="flex flex-col text-left m-4">
@@ -46,16 +51,23 @@ export default function WorkspaceSettings({
                     placeholder="Describe your workspace..."
                     id="description"
                     className="w-full"
-                    defaultValue={workspace.description}
+                    {...register("description")}
                   />
                 </div>
 
-                <span className="text-xs m-4 text-red-500 self-start">
-                  This is an error
-                </span>
+                {firstError && (
+                  <span className="text-xs m-4 text-red-500 self-start">
+                    {firstError}
+                  </span>
+                )}
 
                 <div className="m-4 flex justify-end gap-2">
-                  <Button size="sm" className="hover:cursor-pointer">
+                  <Button
+                    size="sm"
+                    className="hover:cursor-pointer"
+                    disabled={!isDirty || isSubmitting}
+                    loading={isSubmitting}
+                  >
                     Save
                   </Button>
                 </div>
@@ -120,6 +132,9 @@ export default function WorkspaceSettings({
               <div>
                 <Button className="hover:cursor-pointer">
                   Regenerate Invite Code
+                </Button>
+                <Button className="hover:cursor-pointer">
+                  Copy Invite Code
                 </Button>
                 <Button className="hover:cursor-pointer">
                   <Delete className="w-6 h-6" />

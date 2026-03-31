@@ -14,18 +14,27 @@ export default function ChatMsgA({
   isOnline?: boolean;
 }) {
   return (
-    <div className="flex items-center m-2">
+    <div className="flex items-start gap-2 m-1.5 group">
       <Avatar
         user={{
           name: name,
           image: image,
           isOnline: isOnline,
         }}
-        classname="w-8 h-8 mr-2 self-start"
+        classname="w-7 h-7 shrink-0 mt-0.5"
       />
-      <div>
-        <div className="text-sm p-1.5 w-fit whitespace-pre-wrap">{message}</div>
-        <p className="text-[10px] text-(--muted-foreground) m-px">{time}</p>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <span className="text-xs font-medium truncate text-(--muted-foreground)/80">
+            {name}
+          </span>
+          <span className="text-[10px] text-(--muted-foreground)/60 opacity-0 group-hover:opacity-100 transition-opacity">
+            {time}
+          </span>
+        </div>
+        <div className="text-sm leading-relaxed px-3 py-1.5 rounded-xl rounded-tl-sm bg-(--muted)/40 w-fit max-w-[85%] whitespace-pre-wrap break-words">
+          {message}
+        </div>
       </div>
     </div>
   );

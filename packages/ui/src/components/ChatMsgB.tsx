@@ -14,10 +14,19 @@ export default function ChatMsgB({
   isOnline?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-end m-2">
-      <div className="flex flex-col items-end">
-        <div className="text-sm p-1.5 w-fit whitespace-pre-wrap">{message}</div>
-        <p className="text-[10px] text-(--muted-foreground) m-px">{time}</p>
+    <div className="flex items-start gap-2 m-1.5 justify-end group">
+      <div className="flex-1 min-w-0 flex flex-col items-end">
+        <div className="flex items-baseline gap-2 mb-0.5">
+          <span className="text-[10px] text-(--muted-foreground)/60 opacity-0 group-hover:opacity-100 transition-opacity">
+            {time}
+          </span>
+          <span className="text-xs font-medium truncate text-(--muted-foreground)/80">
+            {name}
+          </span>
+        </div>
+        <div className="text-sm leading-relaxed px-3 py-1.5 rounded-xl rounded-tr-sm bg-(--primary)/15 w-fit max-w-[85%] whitespace-pre-wrap break-words">
+          {message}
+        </div>
       </div>
       <Avatar
         user={{
@@ -25,7 +34,7 @@ export default function ChatMsgB({
           image: image,
           isOnline: isOnline,
         }}
-        classname="w-8 h-8 ml-2 self-start"
+        classname="w-7 h-7 shrink-0 mt-0.5"
       />
     </div>
   );

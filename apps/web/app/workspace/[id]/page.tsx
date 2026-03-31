@@ -26,13 +26,15 @@ export default async function Workspace({
   });
 
   return (
-    <main className="h-dvh flex">
-      <section className="w-[25%] p-4 flex flex-col min-h-0 overflow-hidden border-r border-(--border)">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-4xl">{workspaceData.name}</h1>
+    <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden">
+      <section className="w-[320px] min-w-[320px] flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
+        <div className="flex justify-between items-center p-4 pb-2">
+          <h1 className="text-2xl font-semibold tracking-tight truncate">
+            {workspaceData.name}
+          </h1>
           <AlertDialog
             trigger={
-              <button className="p-1.5 w-9 h-9 hover:cursor-pointer text-(--muted-foreground) rounded-md hover:bg-(--muted) transition-colors">
+              <button className="p-2 w-9 h-9 hover:cursor-pointer text-(--muted-foreground) rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0">
                 <Settings />
               </button>
             }
@@ -43,14 +45,16 @@ export default async function Workspace({
             />
           </AlertDialog>
         </div>
-        <div className="text-sm text-(--muted-foreground) mb-2">
+        <div className="text-xs text-(--muted-foreground) px-4 pb-3 leading-relaxed">
           {workspaceData.description}
         </div>
-        <Chat
-          userId={session!.user?.id}
-          messages={messages}
-          wsid={workspaceData.id}
-        />
+        <div className="flex-1 min-h-0 px-2 pb-2">
+          <Chat
+            userId={session!.user?.id}
+            messages={messages}
+            wsid={workspaceData.id}
+          />
+        </div>
       </section>
       <DocEditor documents={documents} />
     </main>

@@ -4,9 +4,10 @@ import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
 import Textarea from "@nimbus/ui/Textarea";
+import ChatIcon from "@nimbus/ui/icons/Chat";
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
-import {  timeAgo } from "@nimbus/utils";
+import { timeAgo } from "@nimbus/utils";
 import { Message } from "@nimbus/types";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 
@@ -86,8 +87,26 @@ export default function Chat({
   }, []);
 
   return (
-    <div className="bg-(--background) h-full min-h-0 rounded-lg flex flex-col justify-between">
-      <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
+    <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-(--border)">
+        <div className="w-2 h-2 rounded-full bg-(--chart-2) animate-pulse" />
+        <span className="text-xs font-medium text-(--muted-foreground)">
+          {onlineUsers.size} online
+        </span>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 scrollbar-thin">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="w-12 h-12 rounded-2xl bg-(--primary)/10 flex items-center justify-center mb-3">
+              <ChatIcon className="w-6 h-6 text-(--primary)" />
+            </div>
+            <p className="text-sm text-(--muted-foreground)">No messages yet</p>
+            <p className="text-xs text-(--muted-foreground)/60 mt-1">
+              Start the conversation
+            </p>
+          </div>
+        )}
         {messages.map((msg) =>
           msg.userId === userId ? (
             <ChatMsgB
@@ -110,28 +129,28 @@ export default function Chat({
         )}
         <div ref={bottomRef} />
       </div>
-      <form
-        className="w-[95%] mx-auto relative"
-        onSubmit={(e) => e.preventDefault()}
-      >
-        <Button
-          size="xs"
-          onClick={handleSend}
-          className="absolute bottom-6 right-1 m-1 hover:cursor-pointer"
-        >
-          Send
-        </Button>
-        <Textarea
-          className="text-xs w-full"
-          placeholder="Type..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <p className="text-xs text-(--muted-foreground) mt-1 text-right">
+
+      <div className="p-2 pt-0">
+        <form className="relative" onSubmit={(e) => e.preventDefault()}>
+          <Textarea
+            className="text-xs w-full !h-20 rounded-xl !bg-(--muted)/50 pr-16"
+            placeholder="Type a message..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          <Button
+            size="xs"
+            onClick={handleSend}
+            className="absolute bottom-3 right-2 hover:cursor-pointer rounded-lg"
+          >
+            Send
+          </Button>
+        </form>
+        <p className="text-[10px] text-(--muted-foreground)/60 mt-1 text-right px-1">
           Ask anything from @NimbusBot
         </p>
-      </form>
+      </div>
     </div>
   );
 }

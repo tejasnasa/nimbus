@@ -18,7 +18,7 @@ export default function DocEditor({
   if (!current) return null;
 
   return (
-    <section className="w-3/4 flex-1 min-w-0 min-h-0 flex flex-col">
+    <section className="flex-1 min-w-0 min-h-0 flex flex-col bg-(--background)">
       <DocTabs
         tabs={tabs}
         setTabs={setTabs}

@@ -35,9 +35,9 @@ export default function DocTabs<T extends { label: string }>({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full bg-(--card)/20 backdrop-blur-sm">
       <div className="border-b border-(--border)">
-        <div className="flex gap-4">
+        <div className="flex">
           {tabs.map((tab, i) => (
             <button
               key={tab.label}
@@ -54,12 +54,12 @@ export default function DocTabs<T extends { label: string }>({
                 dragIndex.current = null;
               }}
               onClick={() => setActive(i)}
-              className={`py-2 px-4 text-md font-medium transition-colors -mb-px border-b-2 ${
+              className={`py-2.5 px-5 text-sm font-medium transition-all duration-200 -mb-px border-b-2 ${
                 dragOver === i
                   ? "border-(--primary) opacity-50"
                   : active === i
-                    ? "border-(--primary) text-(--foreground)"
-                    : "border-transparent text-(--muted-foreground) hover:text-(--foreground) hover:border-(--border) hover:cursor-pointer"
+                    ? "border-(--primary) text-(--foreground) bg-(--primary)/5"
+                    : "border-transparent text-(--muted-foreground) hover:text-(--foreground) hover:bg-(--muted)/30 hover:cursor-pointer"
               }`}
             >
               {tab.label}

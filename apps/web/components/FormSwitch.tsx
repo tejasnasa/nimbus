@@ -22,22 +22,22 @@ export default function FormSwitch() {
 
   return (
     <>
-      {/* shown only on mobile */}
       <div className="flex md:hidden flex-col items-center justify-center h-screen gap-4 p-8 text-center">
-        <span className="text-4xl">🖥️</span>
-        <h1 className="text-xl font-semibold">Desktop Only</h1>
-        <p className="text-sm text-(--muted-foreground)">
-          This website is not meant for mobile phones. Please open it on a
-          desktop browser.
+        <div className="w-16 h-16 rounded-2xl bg-(--card)/60 border border-(--border) backdrop-blur-xl flex items-center justify-center mb-2">
+          <span className="text-3xl">🖥️</span>
+        </div>
+        <h1 className="text-xl font-bold tracking-tight">Desktop Only</h1>
+        <p className="text-sm text-(--muted-foreground) leading-relaxed max-w-xs">
+          Nimbus is designed for desktop browsers. Please switch to a larger
+          screen for the best experience.
         </p>
       </div>
 
-      {/* shown only on desktop */}
-      <div className="hidden md:block relative w-full min-h-140">
+      <div className="hidden md:grid relative w-full items-start">
         <div
           className={`
-            absolute inset-0 transition-all duration-300 mt-10
-            ${formType === "login" ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 pointer-events-none"}
+            [grid-area:1/1] transition-all duration-500 ease-out
+            ${formType === "login" ? "opacity-100 translate-y-0 scale-100 z-10" : "opacity-0 -translate-y-4 scale-[0.98] pointer-events-none z-0"}
           `}
         >
           <LoginForm
@@ -50,8 +50,8 @@ export default function FormSwitch() {
         </div>
         <div
           className={`
-            absolute inset-0 transition-all duration-300
-            ${formType === "signup" ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none"}
+            [grid-area:1/1] transition-all duration-500 ease-out
+            ${formType === "signup" ? "opacity-100 translate-y-0 scale-100 z-10" : "opacity-0 translate-y-4 scale-[0.98] pointer-events-none z-0"}
           `}
         >
           <SignupForm

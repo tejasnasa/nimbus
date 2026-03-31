@@ -6,6 +6,9 @@ import Image from "next/image";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
 import { signupSchema } from "@nimbus/types";
+import { authClient } from "../lib/auth-client";
+import Signup from "@nimbus/ui/icons/Signup";
+import Error from "@nimbus/ui/icons/Error";
 
 interface SignupFormProps {
   register: UseFormRegister<z.infer<typeof signupSchema>>;
@@ -23,84 +26,105 @@ export default function SignupForm({
   openLogin,
 }: SignupFormProps) {
   return (
-    <section className="bg-(--card) p-6 rounded-xl">
-      <div className="flex flex-col align-middle items-center mb-6">
-        <h1 className="text-2xl text-[26px] font-bold text-center m-2">
+    <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
+      <div className="flex flex-col items-center mb-8">
+        <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-(--chart-2) to-(--primary) flex items-center justify-center mb-5 shadow-lg shadow-(--chart-2)/20">
+          <Signup className="w-7 h-7 text-(--primary-foreground)" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight mb-1">
           Create your account
         </h1>
-        <div className="text-xs text-(--muted-foreground)">
-          Fill in the form below to create your account
-        </div>
+        <p className="text-sm text-(--muted-foreground)">
+          Get started with Nimbus for free
+        </p>
       </div>
 
-      <form
-        className="flex flex-col gap-4 items-center p-2 mt-4"
-        onSubmit={onSubmit}
-      >
+      <form className="flex flex-col gap-5" onSubmit={onSubmit}>
         <div className="flex flex-col gap-2">
-          <label htmlFor="name" className="text-sm">
+          <label
+            htmlFor="name"
+            className="text-sm font-medium text-(--muted-foreground)"
+          >
             Name
           </label>
           <Input
             placeholder="Tejas Nasa"
-            className="w-80"
+            className="w-full"
             id="name"
             {...register("name")}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor="email" className="text-sm">
+          <label
+            htmlFor="email"
+            className="text-sm font-medium text-(--muted-foreground)"
+          >
             Email
           </label>
           <Input
             placeholder="tejas@example.com"
-            className="w-80"
+            className="w-full"
             id="email"
             {...register("email")}
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="text-sm">
+          <label
+            htmlFor="password"
+            className="text-sm font-medium text-(--muted-foreground)"
+          >
             Password
           </label>
           <Input
-            placeholder="**********"
+            placeholder="••••••••"
             type="password"
-            className="w-80"
+            className="w-full"
             id="password"
             {...register("password")}
           />
         </div>
         {firstError && (
-          <span className="text-xs text-red-500 self-start ml-0.5">
-            {firstError}
-          </span>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
+            <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+            <span className="text-xs text-(--destructive)">{firstError}</span>
+          </div>
         )}
         <Button
-          className="m-4 mt-0 font-semibold w-full"
-          size="sm"
+          className="font-semibold w-full mt-1"
+          size="lg"
           loading={isSubmitting}
         >
-          Sign Up
+          Create Account
         </Button>
       </form>
-      <div className="flex flex-col items-center justify-center gap-4">
+
+      <div className="flex flex-col items-center gap-4 mt-4">
         <OrContinueWith />
-        <Button size="sm" className="bg-white text-black hover:bg-gray-200">
-          Sign up with
+        <Button
+          size="sm"
+          className="bg-white text-black transition-colors hover:bg-gray-200 w-full border border-(--border) cursor-pointer"
+          onClick={async () => {
+            await authClient.signIn.social({
+              provider: "google",
+              callbackURL: "/home",
+            });
+          }}
+        >
           <Image
             src={google}
             alt="Google"
-            width={20}
-            height={20}
-            className="inline ml-0.5"
+            width={18}
+            height={18}
+            className="inline"
           />
+          Continue with Google
         </Button>
         <button
           onClick={openLogin}
-          className="text-sm text-(--muted-foreground) hover:underline hover:cursor-pointer transition-all"
+          className="text-sm text-(--muted-foreground) hover:text-(--foreground) hover:cursor-pointer transition-colors mt-2"
         >
-          Already have an account? Log in
+          Already have an account?{" "}
+          <span className="text-(--primary) font-medium">Sign in</span>
         </button>
       </div>
     </section>

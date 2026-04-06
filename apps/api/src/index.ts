@@ -12,6 +12,7 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { pubClient, subClient } from "./lib/redis";
 import { registerCanvasHandlers } from "./socket/canvas";
 import { registerDocumentHandlers } from "./socket/document";
+import morgan from "morgan";
 
 const app = express();
 app.use(
@@ -26,7 +27,7 @@ app.use(
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 
 app.use(express.json());
-
+app.use(morgan("dev"));
 app.use("/api", masterRouter);
 
 app.get("/", (req, res) => {

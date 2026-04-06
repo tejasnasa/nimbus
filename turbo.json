@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "env": ["DATABASE_URL", "NEXT_PUBLIC_BACKEND_URL"],
-      "dependsOn": ["^build", "^db:generate"],
+      "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },

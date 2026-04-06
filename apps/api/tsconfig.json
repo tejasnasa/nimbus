@@ -1,13 +1,15 @@
 {
   "compilerOptions": {
-    "moduleResolution": "bundler",
-    "module": "ESNext",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "target": "es2018",
+    "target": "es2022",
     "sourceMap": true,
     "outDir": "dist",
-    "skipLibCheck": true
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "strict": true
   },
   "include": ["./src/**/*"],
   "exclude": ["node_modules"]

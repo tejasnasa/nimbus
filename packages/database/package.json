@@ -2,7 +2,10 @@
   "name": "@nimbus/db",
   "version": "1.0.0",
   "description": "",
+  "main": "./dist/index.js",
   "scripts": {
+    "dev": "tsc --watch",
+    "build": "prisma generate && tsc",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy"
@@ -11,7 +14,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "prisma": "^7.5.0"
+    "prisma": "^7.5.0",
+    "@nimbus/typescript-config": "*"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",
@@ -19,8 +23,5 @@
     "dotenv": "^16.0.3",
     "pg": "^8.20.0",
     "zod": "^4.3.6"
-  },
-  "exports": {
-    ".": "./src/index.ts"
   }
 }

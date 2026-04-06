@@ -24,10 +24,9 @@ app.use(
   }),
 );
 
-app.all("/api/auth/{*any}", toNodeHandler(auth));
-
 app.use(express.json());
 app.use(morgan("dev"));
+app.all("/api/auth/{*any}", toNodeHandler(auth));
 app.use("/api", masterRouter);
 
 app.get("/", (req, res) => {

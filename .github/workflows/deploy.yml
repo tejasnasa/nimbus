@@ -28,6 +28,15 @@ jobs:
           build-args: |
             DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
 
+      - name: Copy docker-compose to droplet
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: root
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/app"
+
       - name: Deploy to droplet
         uses: appleboy/ssh-action@v1
         with:

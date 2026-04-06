@@ -2,10 +2,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { documentSchema } from "@nimbus/types";
-import { useRouter } from "next/navigation";
 
 export function useWorkspaceDocumentForm(workspaceId: string) {
-  const router = useRouter();
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {

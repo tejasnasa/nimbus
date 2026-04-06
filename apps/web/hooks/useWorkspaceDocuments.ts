@@ -1,8 +1,6 @@
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function useWorkspaceDocuments() {
-  const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleDeleteDocument = async (docId: string) => {

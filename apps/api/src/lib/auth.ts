@@ -13,15 +13,13 @@ export const auth = betterAuth({
   advanced: {
     trustHost: true,
     defaultCookieAttributes: {
-      sameSite: "none",
+      sameSite: "lax",
       secure: true,
-      partitioned: true,
+      domain: ".tejasnasa.me"
     },
   },
   trustedOrigins: [
-    `${process.env.FRONTEND_URL}`,
-    `${process.env.FRONTEND_URL_2}`,
-    `${process.env.FRONTEND_URL_3}`,
+    `${process.env.FRONTEND_URL}`
   ],
   baseURL: `${process.env.BETTER_AUTH_URL}`,
   socialProviders: {

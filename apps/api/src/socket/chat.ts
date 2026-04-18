@@ -1,6 +1,7 @@
 import { prisma } from "@nimbus/db";
 import { Server, Socket } from "socket.io";
 import { presenceService } from "../lib/presence";
+import { generateBotResponse } from "../lib/bot";
 
 const registerChatHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
@@ -104,6 +105,29 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
           name: user.name,
           image: user.image,
         });
+
+        if (data.content.toLowerCase().includes("@nimbusbot")) {
+          (async () => {
+            const botContent = await generateBotResponse(data.workspaceId);
+            
+            const botMessage = await prisma.message.create({
+              data: {
+                content: botContent,
+                userId: process.env.BOT_USERID!,
+                workspaceId: data.workspaceId,
+              },
+              include: {
+                user: true,
+              },
+            });
+
+            io.to(data.workspaceId).emit("message:new", {
+              ...botMessage,
+              name: botMessage.user.name,
+              image: botMessage.user.image,
+            });
+          })().catch(err => console.error("Bot Reply Error:", err));
+        }
       } catch (err) {
         console.error(err);
       }

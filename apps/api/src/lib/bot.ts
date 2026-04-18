@@ -18,13 +18,10 @@ export async function generateBotResponse(workspaceId: string) {
 
     const history = messages.reverse().map((msg) => ({
       role: msg.userId === process.env.BOT_USERID ? "assistant" as const : "user" as const,
-      content: msg.content,
-      name: msg.user.name.replace(/\s+/g, "_"),
-    }));
+      content: msg.userId === process.env.BOT_USERID ? (msg.content ?? "") : `${msg.user.name ??  "User"}: ${msg.content ?? ""}`,
+}));
 
-    const systemPrompt = {
-      role: "system" as const,
-      content: `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace. 
+    const instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace. 
 
 Nimbus is a high-performance, real-time platform that unifies:
 1. Document Editing (Milkdown/Markdown)
@@ -33,12 +30,12 @@ Nimbus is a high-performance, real-time platform that unifies:
 
 Your role is to assist users within their workspaces by providing information, answering questions, and acting as a knowledgeable teammate. Keep your responses helpful, concise, and professional yet friendly. When asked about features, keep in mind you are embedded directly into this real-time environment.
 
-Reply to messages which called you using @NimbusBot or something similar. And always reply in simple text, not markdown. Line breaks are allowed.`,
-    };
+Reply to messages which called you using @NimbusBot or something similar. And always reply in simple text, not markdown. Line breaks are allowed.`;
 
     const response = await client.responses.create({
       model: process.env.OPENAI_MODEL!,
-      input: [systemPrompt, ...history],
+      input: history,
+      instructions: instructions,
       max_output_tokens: 1000,
     });
 

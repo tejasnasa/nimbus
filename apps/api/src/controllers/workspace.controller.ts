@@ -47,7 +47,7 @@ export const createWorkspace = async (
 
       await tx.workspaceMember.create({
         data: {
-          userId: process.env.BOT_USERID,
+          userId: process.env.BOT_USERID!,
           workspaceId: ws.id,
           role: "ADMIN",
         },

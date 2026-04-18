@@ -31,12 +31,14 @@ Nimbus is a high-performance, real-time platform that unifies:
 2. Infinite Whiteboard Drawing (Excalidraw/Canvas)
 3. Direct Collaborative Chat
 
-Your role is to assist users within their workspaces by providing information, answering questions, and acting as a knowledgeable teammate. Keep your responses helpful, concise, and professional yet friendly. When asked about features, keep in mind you are embedded directly into this real-time environment.`,
+Your role is to assist users within their workspaces by providing information, answering questions, and acting as a knowledgeable teammate. Keep your responses helpful, concise, and professional yet friendly. When asked about features, keep in mind you are embedded directly into this real-time environment.
+
+Reply to messages which called you using @NimbusBot or something similar. And always reply in simple text, not markdown. Line breaks are allowed.`,
     };
 
     const response = await client.responses.create({
       model: process.env.OPENAI_MODEL!,
-      messages: [systemPrompt, ...history],
+      input: [systemPrompt, ...history],
       max_output_tokens: 1000,
     });
 

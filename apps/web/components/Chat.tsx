@@ -124,6 +124,7 @@ export default function Chat({
               message={msg.content}
               time={timeAgo(msg.createdAt)}
               isOnline={onlineUsers.has(msg.userId)}
+              isBot={msg.userId === process.env.NEXT_PUBLIC_BOT_USERID}
             />
           ),
         )}

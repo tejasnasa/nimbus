@@ -6,12 +6,14 @@ export default function ChatMsgA({
   message,
   time,
   isOnline,
+  isBot
 }: {
   name: string;
   image: string;
   message: string;
   time: string;
   isOnline?: boolean;
+  isBot?: boolean;
 }) {
   return (
     <div className="flex items-start gap-2 m-1.5 group">
@@ -25,7 +27,7 @@ export default function ChatMsgA({
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-0.5">
-          <span className="text-xs font-medium truncate text-(--muted-foreground)/80">
+          <span className={`text-xs font-medium truncate ${isBot ? "text-blue-500" : "text-(--muted-foreground)/80"}`}>
             {name}
           </span>
           <span className="text-[10px] text-(--muted-foreground)/60 opacity-0 group-hover:opacity-100 transition-opacity">

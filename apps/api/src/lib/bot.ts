@@ -2,7 +2,8 @@ import { OpenAI } from "openai";
 import { prisma } from "@nimbus/db";
 
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1"
 });
 
 export async function generateBotResponse(workspaceId: string) {
@@ -21,7 +22,7 @@ export async function generateBotResponse(workspaceId: string) {
       content: msg.userId === process.env.BOT_USERID ? (msg.content ?? "") : `${msg.user.name ??  "User"}: ${msg.content ?? ""}`,
 }));
 
-    const instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace. 
+    const instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
 
 Nimbus is a high-performance, real-time platform that unifies Document Editing (Milkdown), Infinite Whiteboard Drawing (Excalidraw), and Direct Collaborative Chat.
 

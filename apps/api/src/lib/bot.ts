@@ -39,7 +39,7 @@ STRICT RULES:
 - Line breaks are allowed.`;
 
     const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL!,
+      model: process.env.GROQ_MODEL!,
       input: history,
       instructions: instructions,
       max_output_tokens: 1000,

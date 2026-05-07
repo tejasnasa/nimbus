@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import Button from "./Button";
 
 type Props = {
   open: boolean;
@@ -40,7 +41,7 @@ export default function VerifyEmailDialog({ open, email, onClose }: Props) {
         style={{ animation: "scale-in 0.3s ease-out" }}
       >
         <div className="flex flex-col gap-1">
-          <h2 className="text-base font-semibold">Check your email</h2>
+          <h2 className=" mb-4 font-semibold text-2xl">Check your email</h2>
           <p className="text-sm text-(--muted-foreground)">
             We sent a verification link to{" "}
             <span className="text-(--foreground) font-medium">{email}</span>.
@@ -48,26 +49,16 @@ export default function VerifyEmailDialog({ open, email, onClose }: Props) {
           </p>
         </div>
 
-        <p className="text-sm text-(--muted-foreground)">
-          Click the link in your email, then come back and log in.
-        </p>
-
-        <div className="flex flex-col gap-2 pt-1">
-          <button
+        <div className="flex flex-col gap-2 pt-2">
+          <Button
             onClick={() => {
               onClose();
               router.push("/login");
             }}
-            className="w-full rounded-xl bg-(--foreground) text-(--background) text-sm font-medium py-2.5 hover:opacity-90 transition-opacity"
+            className="cursor-pointer"
           >
-            I&apos;ve verified — go to login
-          </button>
-          <button
-            onClick={onClose}
-            className="w-full rounded-xl border border-(--border) text-sm font-medium py-2.5 hover:bg-(--muted) transition-colors"
-          >
-            Close
-          </button>
+            I&apos;ve Verified — Go To Login
+          </Button>
         </div>
       </div>
     </div>,

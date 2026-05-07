@@ -14,12 +14,19 @@ export const auth = betterAuth({
   emailVerification: {
     sendOnSignUp: true,
     callbackURL: "/email-verified",
-    sendVerificationEmail: async ({ user, url, token }, request) => {
-      void sendEmail({
-        to: user.email,
-        subject: "Verify your Nimbus email address",
-        text: `Click the link to verify your email: ${url}`,
-      });
+    sendVerificationEmail: async ({ user, url }) => {
+      console.log("sendVerificationEmail called", user.email);
+      console.log("RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY);
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Verify your Nimbus email address",
+          text: `Click the link to verify your email: ${url}`,
+        });
+        console.log("email sent successfully");
+      } catch (error) {
+        console.error("email send error:", error);
+      }
     },
   },
   experimental: { joins: true },

@@ -29,7 +29,10 @@ ENV NODE_ENV=production
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json .
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
+
+RUN npm ci --omit=dev --ignore-scripts
 
 EXPOSE 8080
 CMD ["node", "dist/index.js"]

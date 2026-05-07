@@ -15,11 +15,14 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     callbackURL: `${process.env.FRONTEND_URL}/email-verified`,
     sendVerificationEmail: async ({ user, url }) => {
-      console.log("url:", url);
+      const frontendUrl = url.replace(
+        process.env.BETTER_AUTH_URL as string,
+        process.env.FRONTEND_URL as string,
+      );
       sendEmail({
         to: user.email,
         subject: "Verify your Nimbus email address",
-        text: `Click the link to verify your email: ${url}`,
+        text: `Click the link to verify your email: ${frontendUrl}`,
       });
     },
   },

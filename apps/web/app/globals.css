@@ -6,6 +6,15 @@ html {
   scroll-behavior: smooth;
 }
 
+.milkdown .editor {
+  min-height: 100%;
+  height: 100%;
+}
+
+.milkdown {
+  height: 100%;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

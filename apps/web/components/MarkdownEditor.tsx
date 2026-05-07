@@ -6,6 +6,7 @@ import { nord } from "@milkdown/theme-nord";
 import React, { useEffect } from "react";
 import "@milkdown/theme-nord/style.css";
 import * as Y from "yjs";
+import { Awareness } from "y-protocols/awareness";
 import { socket } from "../lib/socket";
 
 interface MarkdownEditorProps {
@@ -29,14 +30,8 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
     const editor = get();
     if (!editor) return;
 
-    socket.emit("doc:join", documentId);
     const doc = new Y.Doc();
-
-    editor.action((ctx) => {
-      const collabService = ctx.get(collabServiceCtx);
-      collabService.bindDoc(doc);
-      collabService.connect();
-    });
+    const awareness = new Awareness(doc);
 
     const handleState = (state: number[]) => {
       Y.applyUpdate(doc, Uint8Array.from(state), "socket");
@@ -49,6 +44,15 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
     socket.on("doc:state", handleState);
     socket.on("doc:update", handleUpdate);
 
+    editor.action((ctx) => {
+      const collabService = ctx.get(collabServiceCtx);
+      collabService.bindDoc(doc);
+      collabService.setAwareness(awareness);
+      collabService.connect();
+    });
+
+    socket.emit("doc:join", documentId);
+
     const onDocUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin !== "socket") {
         socket.emit("doc:update", documentId, Array.from(update));
@@ -57,18 +61,20 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
     doc.on("update", onDocUpdate);
 
     return () => {
-      socket.emit("doc:leave", documentId);
       socket.off("doc:state", handleState);
       socket.off("doc:update", handleUpdate);
       doc.off("update", onDocUpdate);
-      doc.destroy();
 
       editor.action((ctx) => {
         const collabService = ctx.get(collabServiceCtx);
         collabService.disconnect();
       });
+
+      socket.emit("doc:leave", documentId);
+      awareness.destroy();
+      doc.destroy();
     };
-  }, [documentId, get, loading]);
+  }, [documentId, get]);
 
   return <Milkdown />;
 };
@@ -76,7 +82,7 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
 export const MarkdownEditor = ({ documentId }: MarkdownEditorProps) => {
   return (
     <MilkdownProvider>
-      <div className="p-1">
+      <div className="h-full overflow-y-auto p-1">
         <MilkdownEditor documentId={documentId} />
       </div>
     </MilkdownProvider>

@@ -11,6 +11,7 @@
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/infra": "^0.2.6",
     "@excalidraw/excalidraw": "^0.18.0",
     "@hookform/resolvers": "^5.2.2",
     "@milkdown/kit": "^7.19.2",
@@ -21,6 +22,8 @@
     "@nimbus/ui": "^0.0.0",
     "@nimbus/utils": "^1.0.0",
     "@tailwindcss/postcss": "^4.2.2",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "better-auth": "^1.5.5",
     "nanoid": "^3.3.11",
     "next": "16.1.5",

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { JetBrains_Mono } from "next/font/google";
 import { SocketProvider } from "../providers/socketProvider";
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -21,7 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={jetBrainsMono.className}>
-        <SocketProvider>{children}</SocketProvider>
+        <SocketProvider>{children}
+          <Analytics />
+          <SpeedInsights />
+        </SocketProvider>
       </body>
     </html>
   );

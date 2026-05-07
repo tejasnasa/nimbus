@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@better-auth/infra": "^0.2.6",
     "@better-auth/prisma-adapter": "^1.5.5",
     "@nimbus/db": "^1.0.0",
     "@nimbus/types": "^1.0.0",

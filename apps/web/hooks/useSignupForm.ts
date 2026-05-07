@@ -1,10 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { signupSchema } from "@nimbus/types";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { signupSchema } from "@nimbus/types";
 import { authClient } from "../lib/auth-client";
+import { useRouter } from "next/navigation";
 
 export function useSignupForm() {
+  const router = useRouter();
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: { name: "", email: "", password: "" },
@@ -24,6 +26,9 @@ export function useSignupForm() {
           callbackURL: "/home",
         },
         {
+          onSuccess: () => {
+            router.push("/home");
+          },
           onError: (ctx) => {
             alert(ctx.error.message);
           },

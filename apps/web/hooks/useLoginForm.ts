@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { loginSchema } from "@nimbus/types";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { loginSchema } from "@nimbus/types";
 import { authClient } from "../lib/auth-client";
 
 export function useLoginForm() {
@@ -23,7 +23,13 @@ export function useLoginForm() {
         },
         {
           onError: (ctx) => {
-            alert(ctx.error.message);
+            if (ctx.error.status === 403) {
+              form.setError("root", {
+                message: "Please verify your email before signing in.",
+              });
+            } else {
+              form.setError("root", { message: ctx.error.message });
+            }
           },
         },
       );

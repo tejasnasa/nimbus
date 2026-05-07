@@ -1,6 +1,7 @@
+import { prisma } from "@nimbus/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "@nimbus/db";
+import { sendEmail } from "./email";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -8,6 +9,18 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    callbackURL: "/email-verified",
+    sendVerificationEmail: async ({ user, url, token }, request) => {
+      void sendEmail({
+        to: user.email,
+        subject: "Verify your Nimbus email address",
+        text: `Click the link to verify your email: ${url}`,
+      });
+    },
   },
   experimental: { joins: true },
   advanced: {
@@ -15,12 +28,10 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       sameSite: "lax",
       secure: true,
-      domain: ".tejasnasa.me"
+      domain: ".tejasnasa.me",
     },
   },
-  trustedOrigins: [
-    `${process.env.FRONTEND_URL}`
-  ],
+  trustedOrigins: [`${process.env.FRONTEND_URL}`],
   baseURL: `${process.env.BETTER_AUTH_URL}`,
   socialProviders: {
     google: {
@@ -28,5 +39,5 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     },
-  }
+  },
 });

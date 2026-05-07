@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import SignupForm from "./SignupForm";
-import LoginForm from "./LoginForm";
-import { useSignupForm } from "../hooks/useSignupForm";
 import { useLoginForm } from "../hooks/useLoginForm";
+import { useSignupForm } from "../hooks/useSignupForm";
+import LoginForm from "./LoginForm";
+import SignupForm from "./SignupForm";
 
 export default function FormSwitch() {
   const [formType, setFormType] = useState<"login" | "signup">("login");
@@ -12,6 +12,9 @@ export default function FormSwitch() {
     firstError: signupFirstError,
     isSubmitting: signupIsSubmitting,
     onSubmit: signupOnSubmit,
+    showVerifyDialog,
+    setShowVerifyDialog,
+    submittedEmail,
   } = useSignupForm();
   const {
     register: loginRegister,
@@ -60,6 +63,9 @@ export default function FormSwitch() {
             isSubmitting={signupIsSubmitting}
             onSubmit={signupOnSubmit}
             openLogin={() => setFormType("login")}
+            showVerifyDialog={showVerifyDialog}
+            setShowVerifyDialog={setShowVerifyDialog}
+            submittedEmail={submittedEmail}
           />
         </div>
       </div>

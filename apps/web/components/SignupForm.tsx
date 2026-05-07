@@ -1,14 +1,15 @@
+import { signupSchema } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
+import Error from "@nimbus/ui/icons/Error";
+import Signup from "@nimbus/ui/icons/Signup";
 import Input from "@nimbus/ui/Input";
 import OrContinueWith from "@nimbus/ui/OrContinueWith";
-import google from "../assets/google.svg";
+import VerifyEmailDialog from "@nimbus/ui/VerifyEmailDialog";
 import Image from "next/image";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
-import { signupSchema } from "@nimbus/types";
+import google from "../assets/google.svg";
 import { authClient } from "../lib/auth-client";
-import Signup from "@nimbus/ui/icons/Signup";
-import Error from "@nimbus/ui/icons/Error";
 
 interface SignupFormProps {
   register: UseFormRegister<z.infer<typeof signupSchema>>;
@@ -16,6 +17,9 @@ interface SignupFormProps {
   isSubmitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
   openLogin?: () => void;
+  showVerifyDialog: boolean;
+  setShowVerifyDialog: (open: boolean) => void;
+  submittedEmail: string;
 }
 
 export default function SignupForm({
@@ -24,6 +28,9 @@ export default function SignupForm({
   isSubmitting,
   onSubmit,
   openLogin,
+  showVerifyDialog,
+  setShowVerifyDialog,
+  submittedEmail,
 }: SignupFormProps) {
   return (
     <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
@@ -127,6 +134,12 @@ export default function SignupForm({
           <span className="text-(--primary) font-medium">Sign in</span>
         </button>
       </div>
+
+      <VerifyEmailDialog
+        open={showVerifyDialog}
+        email={submittedEmail}
+        onClose={() => setShowVerifyDialog(false)}
+      />
     </section>
   );
 }

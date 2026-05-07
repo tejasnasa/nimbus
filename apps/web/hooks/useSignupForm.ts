@@ -1,16 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signupSchema } from "@nimbus/types";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { authClient } from "../lib/auth-client";
-import { useRouter } from "next/navigation";
 
 export function useSignupForm() {
-  const router = useRouter();
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: { name: "", email: "", password: "" },
   });
+  const [showVerifyDialog, setShowVerifyDialog] = useState(false);
+  const watchedEmail = form.watch("email");
 
   const { name, email, password, root } = form.formState.errors;
   const firstError =
@@ -23,14 +24,14 @@ export function useSignupForm() {
           name: data.name,
           email: data.email,
           password: data.password,
-          callbackURL: "/home",
+          callbackURL: "/email-verified",
         },
         {
           onSuccess: () => {
-            router.push("/home");
+            setShowVerifyDialog(true);
           },
           onError: (ctx) => {
-            alert(ctx.error.message);
+            form.setError("root", { message: ctx.error.message });
           },
         },
       );
@@ -50,5 +51,8 @@ export function useSignupForm() {
     firstError,
     isSubmitting: form.formState.isSubmitting,
     onSubmit,
+    showVerifyDialog,
+    setShowVerifyDialog,
+    submittedEmail: watchedEmail,
   };
 }

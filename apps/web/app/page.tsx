@@ -80,10 +80,14 @@ export default function LandingPage() {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-150 h-40 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full border border-(--border) bg-(--card)/50 backdrop-blur-sm text-sm text-(--muted-foreground) animate-fade-in">
+          
+          <a className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full border border-(--border) bg-(--card)/50 backdrop-blur-sm text-sm text-(--muted-foreground) animate-fade-in hover:bg-(--card)/80 hover:border-(--muted-foreground)/50 active:translate-y-0.5 transition-all duration-200" href="https://github.com/tejasnasa/nimbus"
+              target="_blank">
             <span className="w-2 h-2 rounded-full bg-(--chart-2) animate-pulse" />
-            Now with AI-Powered NimbusBot
-          </div>
+            <Github className="w-4 h-4" />
+              <span>Star on GitHub</span>
+          </a>
+          
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6 animate-slide-up">
             Where Teams Build,{" "}

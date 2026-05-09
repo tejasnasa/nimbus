@@ -22,8 +22,7 @@ export const auth = betterAuth({
       );
       sendEmail({
         to: user.email,
-        subject: "Verify your Nimbus email address",
-        text: `Click the link to verify your email: ${verifyUrl.toString()}`,
+        url: verifyUrl.toString(),
       });
     },
   },

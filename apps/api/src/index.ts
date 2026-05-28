@@ -1,18 +1,19 @@
+import { createAdapter } from "@socket.io/redis-adapter";
+import { toNodeHandler } from "better-auth/node";
+import cors from "cors";
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
-import { auth } from "./lib/auth";
-import { toNodeHandler } from "better-auth/node";
-import masterRouter from "./routers/master.router";
 import { createServer } from "http";
-import { Server } from "socket.io";
-import applySocketAuth from "./middleware/socket.middleware";
-import registerChatHandlers from "./socket/chat";
-import { createAdapter } from "@socket.io/redis-adapter";
-import { pubClient, subClient } from "./lib/redis";
-import { registerCanvasHandlers } from "./socket/canvas";
-import { registerDocumentHandlers } from "./socket/document";
 import morgan from "morgan";
+import { Server } from "socket.io";
+import { auth } from "./lib/auth";
+import { pubClient, subClient } from "./lib/redis";
+import applySocketAuth from "./middleware/socket.middleware";
+import masterRouter from "./routers/master.router";
+import { registerCanvasHandlers } from "./socket/canvas";
+import registerChatHandlers from "./socket/chat";
+import { registerDocumentHandlers } from "./socket/document";
+import { registerVoiceHandlers } from "./socket/voice";
 
 const app = express();
 app.use(
@@ -50,6 +51,7 @@ io.on("connection", (socket) => {
   registerChatHandlers(io, socket);
   registerDocumentHandlers(io, socket);
   registerCanvasHandlers(io, socket);
+  registerVoiceHandlers(io, socket);
 });
 
 httpServer.listen(3001, () => {

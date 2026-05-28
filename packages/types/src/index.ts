@@ -12,3 +12,5 @@ export type {
   ClientToServerEvents,
   ServerToClientEvents,
 } from "./socket/socketEvents";
+
+export type { VoiceUser } from "./socket/voice";

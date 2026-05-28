@@ -1,5 +1,6 @@
-import { Message } from "../api/message";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { Message } from "../api/message";
+import type { VoiceUser } from "./voice";
 
 export type ClientToServerEvents = {
   "workspace:join": (workspaceId: string) => void;
@@ -16,6 +17,24 @@ export type ClientToServerEvents = {
   "doc:join": (docId: string) => void;
   "doc:update": (docId: string, update: number[]) => void;
   "doc:leave": (docId: string) => void;
+  "voice:join": (workspaceId: string) => void;
+  "voice:leave": (workspaceId: string) => void;
+  "voice:offer": (data: {
+    workspaceId: string;
+    targetUserId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => void;
+  "voice:answer": (data: {
+    workspaceId: string;
+    targetUserId: string;
+    answer: RTCSessionDescriptionInit;
+  }) => void;
+  "voice:ice-candidate": (data: {
+    workspaceId: string;
+    targetUserId: string;
+    candidate: RTCIceCandidateInit;
+  }) => void;
+  "voice:mute-state": (data: { workspaceId: string; isMuted: boolean }) => void;
 };
 
 export type ServerToClientEvents = {
@@ -37,4 +56,20 @@ export type ServerToClientEvents = {
   "doc:state": (update: number[]) => void;
   "doc:update": (update: number[]) => void;
   "doc:error": (message: string) => void;
+  "voice:user-joined": (data: { userId: string; name: string }) => void;
+  "voice:user-left": (data: { userId: string }) => void;
+  "voice:current-users": (data: { users: VoiceUser[] }) => void;
+  "voice:offer": (data: {
+    fromUserId: string;
+    offer: RTCSessionDescriptionInit;
+  }) => void;
+  "voice:answer": (data: {
+    fromUserId: string;
+    answer: RTCSessionDescriptionInit;
+  }) => void;
+  "voice:ice-candidate": (data: {
+    fromUserId: string;
+    candidate: RTCIceCandidateInit;
+  }) => void;
+  "voice:mute-state": (data: { userId: string; isMuted: boolean }) => void;
 };

@@ -1,24 +1,30 @@
 "use client";
 
+import { Message, Workspace } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
 import Textarea from "@nimbus/ui/Textarea";
 import ChatIcon from "@nimbus/ui/icons/Chat";
-import { useEffect, useRef, useState } from "react";
-import { socket } from "../lib/socket";
-import { timeAgo } from "@nimbus/utils";
-import { Message } from "@nimbus/types";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import { timeAgo } from "@nimbus/utils";
+import { useEffect, useRef, useState } from "react";
+import { ClientDocument } from "../api/document";
+import { socket } from "../lib/socket";
+import VoiceControls from "./VoiceControls";
 
 export default function Chat({
   userId,
   messages: initialMessages,
   wsid,
+  documents,
+  workspaceData,
 }: {
   userId: string;
   messages: Message[];
   wsid: string;
+  documents: ClientDocument[];
+  workspaceData: Workspace;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
@@ -87,13 +93,8 @@ export default function Chat({
   }, []);
 
   return (
-    <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-(--border)">
-        <div className="w-2 h-2 rounded-full bg-(--chart-2) animate-pulse" />
-        <span className="text-xs font-medium text-(--muted-foreground)">
-          {onlineUsers.size} online
-        </span>
-      </div>
+    <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
+      <VoiceControls workspaceData={workspaceData} documents={documents} />
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 scrollbar-thin">
         {messages.length === 0 && (

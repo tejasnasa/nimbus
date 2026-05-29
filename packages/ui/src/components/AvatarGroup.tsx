@@ -15,7 +15,11 @@ export default function AvatarGroup({
   return (
     <div className={`flex items-center ${className || ""}`}>
       {visible.map((user, i) => (
-        <div key={i} className="relative -ml-2.5 first:ml-0">
+        <div
+          key={i}
+          className="relative -ml-3 first:ml-0"
+          style={{ zIndex: visible.length - i }}
+        >
           <img
             src={user.image}
             className="h-9 w-9 rounded-full border-2 border-(--background) object-cover"
@@ -27,7 +31,7 @@ export default function AvatarGroup({
       ))}
 
       {remaining > 0 && (
-        <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium bg-(--muted) text-(--muted-foreground) border-2 border-(--background) -ml-2.5">
+        <div className="h-9 w-9 rounded-full flex items-center justify-center text-xs font-medium bg-(--muted) text-(--muted-foreground) border-2 border-(--background) -ml-3">
           +{remaining}
         </div>
       )}

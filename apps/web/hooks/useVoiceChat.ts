@@ -28,6 +28,9 @@ export function useVoiceChat({
     Map<string, { analyser: AnalyserNode; audioCtx: AudioContext }>
   >(new Map());
   const animationFrameRef = useRef<number | null>(null);
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(
+    new Map(),
+  );
 
   const isMutedRef = useRef(true);
   const isDeafenedRef = useRef(false);
@@ -182,7 +185,7 @@ export function useVoiceChat({
         cleanupPeer(targetUserId);
       }
 
-      const peer = new RTCPeerConnection({ 
+      const peer = new RTCPeerConnection({
         iceServers,
         iceTransportPolicy: "relay",
       });
@@ -330,6 +333,13 @@ export function useVoiceChat({
           await peer.setRemoteDescription(
             new RTCSessionDescription(data.answer),
           );
+
+          const pending =
+            pendingCandidatesRef.current.get(data.fromUserId) || [];
+          for (const candidate of pending) {
+            await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+          pendingCandidatesRef.current.delete(data.fromUserId);
         }
       } catch (e) {
         console.error("Error setting remote description:", e);
@@ -342,9 +352,13 @@ export function useVoiceChat({
     }) => {
       try {
         const peer = peersRef.current.get(data.fromUserId);
-        if (peer) {
-          await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+        if (!peer || !peer.remoteDescription) {
+          const queue = pendingCandidatesRef.current.get(data.fromUserId) || [];
+          queue.push(data.candidate);
+          pendingCandidatesRef.current.set(data.fromUserId, queue);
+          return;
         }
+        await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
       } catch (e) {
         console.error("Error adding ICE candidate:", e);
       }

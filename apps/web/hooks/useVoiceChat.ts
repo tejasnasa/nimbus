@@ -315,6 +315,12 @@ export function useVoiceChat({
         );
         await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
 
+        const pending = pendingCandidatesRef.current.get(data.fromUserId) || [];
+        for (const candidate of pending) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+        pendingCandidatesRef.current.delete(data.fromUserId);
+
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
 

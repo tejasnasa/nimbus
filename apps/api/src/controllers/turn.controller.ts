@@ -6,12 +6,9 @@ export const getTurnCredentials = async (userId: string) => {
     const credentials = generateTurnCredentials(userId);
 
     const turnUrl = process.env.TURN_SERVER_URL;
-    const turnsUrl = process.env.TURNS_SERVER_URL;
 
-    if (!turnUrl || !turnsUrl) {
-      console.error(
-        "Missing TURN_SERVER_URL or TURNS_SERVER_URL env variables.",
-      );
+    if (!turnUrl) {
+      console.error("Missing TURN_SERVER_URL env variable.");
       return ServerResponse.internalError(
         null,
         "TURN server configuration is missing",
@@ -24,11 +21,6 @@ export const getTurnCredentials = async (userId: string) => {
         { urls: "stun:stun1.l.google.com:19302" },
         {
           urls: [`${turnUrl}?transport=udp`, `${turnUrl}?transport=tcp`],
-          username: credentials.username,
-          credential: credentials.credential,
-        },
-        {
-          urls: `${turnsUrl}?transport=tcp`,
           username: credentials.username,
           credential: credentials.credential,
         },

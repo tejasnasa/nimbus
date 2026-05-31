@@ -34,6 +34,11 @@ export function useVoiceChat({
 
   const isMutedRef = useRef(true);
   const isDeafenedRef = useRef(false);
+  const voiceUsersRef = useRef<VoiceUser[]>([]);
+
+  useEffect(() => {
+    voiceUsersRef.current = voiceUsers;
+  }, [voiceUsers]);
 
   useEffect(() => {
     isMutedRef.current = isMuted;
@@ -296,7 +301,7 @@ export function useVoiceChat({
         const turnData = await response.json();
         const iceServers = turnData.responseObject.iceServers;
 
-        const userDetails = voiceUsers.find(
+        const userDetails = voiceUsersRef.current.find(
           (u) => u.userId === data.fromUserId,
         );
         const name = userDetails?.name || "Peer";
@@ -389,7 +394,7 @@ export function useVoiceChat({
       socket.off("voice:ice-candidate", handleIceCandidate);
       socket.off("voice:mute-state", handleMuteState);
     };
-  }, [isConnected, workspaceId, voiceUsers, createPeerConnection, cleanupPeer]);
+  }, [isConnected, workspaceId, createPeerConnection, cleanupPeer]);
 
   useEffect(() => {
     let active = true;

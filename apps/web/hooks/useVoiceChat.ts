@@ -192,7 +192,7 @@ export function useVoiceChat({
 
       const peer = new RTCPeerConnection({
         iceServers,
-        iceTransportPolicy: "relay",
+        iceTransportPolicy: "all",
       });
 
       peer.onicecandidate = (event) => {

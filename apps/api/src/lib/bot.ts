@@ -1,12 +1,15 @@
-import { OpenAI } from "openai";
 import { prisma } from "@nimbus/db";
+import { BotResult } from "@nimbus/types";
+import { OpenAI } from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
-  baseURL: "https://api.groq.com/openai/v1"
+  baseURL: "https://api.groq.com/openai/v1",
 });
 
-export async function generateBotResponse(workspaceId: string) {
+export async function generateBotResponse(
+  workspaceId: string,
+): Promise<BotResult> {
   try {
     const messages = await prisma.message.findMany({
       where: { workspaceId },
@@ -18,11 +21,23 @@ export async function generateBotResponse(workspaceId: string) {
     });
 
     const history = messages.reverse().map((msg) => ({
-      role: msg.userId === process.env.BOT_USERID ? "assistant" as const : "user" as const,
-      content: msg.userId === process.env.BOT_USERID ? (msg.content ?? "") : `${msg.user.name ??  "User"}: ${msg.content ?? ""}`,
-}));
+      role:
+        msg.userId === process.env.BOT_USERID
+          ? ("assistant" as const)
+          : ("user" as const),
+      content:
+        msg.userId === process.env.BOT_USERID
+          ? (msg.content ?? "")
+          : `${msg.user.name ?? "User"}: ${msg.content ?? ""}`,
+    }));
 
     const instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
+
+You can create documents for users. When they ask you to create, write, draft, make,
+or generate a document, note, diagram, flowchart, wireframe, canvas, or any written
+content — use the create_document tool. For rich text content (notes, docs, specs,
+proposals), use type MARKDOWN. For visual content (diagrams, flowcharts, wireframes,
+mind maps, architecture diagrams), use type CANVAS.
 
 Nimbus is a high-performance, real-time platform that unifies Document Editing (Milkdown), Infinite Whiteboard Drawing (Excalidraw), and Direct Collaborative Chat.
 
@@ -38,16 +53,77 @@ STRICT RULES:
 - Keep your responses helpful, concise, and professional yet friendly.
 - Line breaks are allowed.`;
 
+    const tools = [
+      {
+        type: "function" as const,
+        name: "create_document",
+        description:
+          "Create a new document in the workspace when the user asks for one.",
+        strict: true,
+        parameters: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["MARKDOWN", "CANVAS"],
+              description:
+                "MARKDOWN for text documents, CANVAS for diagrams/flowcharts/wireframes",
+            },
+            title: {
+              type: "string",
+              description: "A concise title for the document",
+            },
+            prompt: {
+              type: "string",
+              description:
+                "Detailed description of what the document should contain",
+            },
+          },
+          required: ["type", "title", "prompt"],
+        },
+      },
+    ];
+
     const response = await client.responses.create({
       model: process.env.GROQ_MODEL!,
+      tools,
       input: history,
       instructions: instructions,
       max_output_tokens: 1000,
     });
 
-    return response.output_text || "I'm sorry, I couldn't process that.";
+    const toolCall = response.output?.find(
+      (item) => item.type === "function_call",
+    ) as any;
+
+    if (toolCall && toolCall.name === "create_document") {
+      try {
+        const args = JSON.parse(toolCall.arguments);
+        const type = args.type === "CANVAS" ? "CANVAS" : "MARKDOWN";
+        const title = args.title || "Untitled Document";
+        const prompt = args.prompt || "";
+        const chatMessage = `Sure! I am creating the document "${title}" for you now. Please wait...`;
+        return {
+          kind: "create_document",
+          type,
+          title,
+          prompt,
+          chatMessage,
+        };
+      } catch (e) {
+        console.error("Error parsing tool call arguments:", e);
+      }
+    }
+
+    return {
+      kind: "reply",
+      content: response.output_text || "I'm sorry, I couldn't process that.",
+    };
   } catch (error) {
     console.error("Error generating bot response:", error);
-    return "Something went wrong while thinking. Please try again later.";
+    return {
+      kind: "reply",
+      content: "Something went wrong while thinking. Please try again later.",
+    };
   }
 }

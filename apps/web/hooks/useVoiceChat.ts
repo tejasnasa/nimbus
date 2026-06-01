@@ -34,6 +34,7 @@ export function useVoiceChat({
 
   const isMutedRef = useRef(true);
   const isDeafenedRef = useRef(false);
+  const mutedBeforeDeafen = useRef(false);
   const voiceUsersRef = useRef<VoiceUser[]>([]);
 
   useEffect(() => {
@@ -143,6 +144,9 @@ export function useVoiceChat({
 
         setIsConnected(true);
         setIsMuted(true);
+        setVoiceUsers([
+          { userId, name: userName, image: userImage, isMuted: true },
+        ]);
 
         setupAudioAnalysis(localStream, userId);
 
@@ -158,6 +162,7 @@ export function useVoiceChat({
       isDestroyed = true;
       socket.emit("voice:leave", workspaceId);
       setIsConnected(false);
+      setVoiceUsers([]);
 
       for (const peerId of peersRef.current.keys()) {
         cleanupPeer(peerId);
@@ -250,7 +255,10 @@ export function useVoiceChat({
       const turnData = await response.json();
       const iceServers = turnData.responseObject.iceServers;
 
-      setVoiceUsers(data.users);
+      setVoiceUsers((prev) => {
+        const me = prev.find((u) => u.userId === userId);
+        return me ? [me, ...data.users] : data.users;
+      });
 
       for (const u of data.users) {
         try {
@@ -446,28 +454,49 @@ export function useVoiceChat({
   }, []);
 
   const toggleMute = useCallback(() => {
+    if (isDeafened) {
+      audioElementsRef.current.forEach((audio) => {
+        audio.volume = 1;
+      });
+      localStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
+
+      setIsDeafened(false);
+      setIsMuted(false);
+      setVoiceUsers((prev) =>
+        prev.map((u) => (u.userId === userId ? { ...u, isMuted: false } : u)),
+      );
+      socket.emit("voice:mute-state", { workspaceId, isMuted: false });
+      return;
+    }
+
     if (!localStreamRef.current) return;
     const nextMute = !isMuted;
-
     localStreamRef.current.getAudioTracks().forEach((track) => {
       track.enabled = !nextMute;
     });
 
     setIsMuted(nextMute);
+    setVoiceUsers((prev) =>
+      prev.map((u) => (u.userId === userId ? { ...u, isMuted: nextMute } : u)),
+    );
     socket.emit("voice:mute-state", { workspaceId, isMuted: nextMute });
-  }, [workspaceId, isMuted]);
+  }, [workspaceId, isMuted, isDeafened, userId]);
 
   const toggleDeafen = useCallback(() => {
     const nextDeafen = !isDeafened;
-    setIsDeafened(nextDeafen);
 
     if (nextDeafen) {
-      if (localStreamRef.current) {
-        localStreamRef.current.getAudioTracks().forEach((track) => {
-          track.enabled = false;
-        });
-      }
+      mutedBeforeDeafen.current = isMuted;
+
+      localStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+      });
       setIsMuted(true);
+      setVoiceUsers((prev) =>
+        prev.map((u) => (u.userId === userId ? { ...u, isMuted: true } : u)),
+      );
       socket.emit("voice:mute-state", { workspaceId, isMuted: true });
 
       audioElementsRef.current.forEach((audio) => {
@@ -477,16 +506,25 @@ export function useVoiceChat({
       audioElementsRef.current.forEach((audio) => {
         audio.volume = 1;
       });
+      const wasAlreadyMuted = mutedBeforeDeafen.current;
+      localStreamRef.current?.getAudioTracks().forEach((track) => {
+        track.enabled = !wasAlreadyMuted;
+      });
 
-      if (localStreamRef.current) {
-        localStreamRef.current.getAudioTracks().forEach((track) => {
-          track.enabled = true;
-        });
-      }
-      setIsMuted(false);
-      socket.emit("voice:mute-state", { workspaceId, isMuted: false });
+      setIsMuted(wasAlreadyMuted);
+      setVoiceUsers((prev) =>
+        prev.map((u) =>
+          u.userId === userId ? { ...u, isMuted: wasAlreadyMuted } : u,
+        ),
+      );
+      socket.emit("voice:mute-state", {
+        workspaceId,
+        isMuted: wasAlreadyMuted,
+      });
     }
-  }, [workspaceId, isDeafened]);
+
+    setIsDeafened(nextDeafen);
+  }, [workspaceId, isDeafened, isMuted, userId]);
 
   return {
     isConnected,

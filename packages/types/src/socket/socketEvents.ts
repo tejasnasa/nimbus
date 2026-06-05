@@ -56,6 +56,18 @@ export type ServerToClientEvents = {
   "doc:state": (update: number[]) => void;
   "doc:update": (update: number[]) => void;
   "doc:error": (message: string) => void;
+  "doc:ai:start": (data: {
+    type: "MARKDOWN" | "CANVAS";
+    label: string;
+  }) => void;
+  "doc:ai:thinking": (data: { token: string }) => void;
+  "doc:ai:complete": (data: {
+    documentId: string;
+    label: string;
+    type: "MARKDOWN" | "CANVAS";
+    canvasData?: readonly OrderedExcalidrawElement[];
+  }) => void;
+  "doc:ai:error": (data: { message: string }) => void;
   "voice:user-joined": (data: { userId: string; name: string }) => void;
   "voice:user-left": (data: { userId: string }) => void;
   "voice:current-users": (data: { users: VoiceUser[] }) => void;

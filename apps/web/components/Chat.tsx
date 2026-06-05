@@ -135,7 +135,7 @@ export default function Chat({
       <div className="p-2 pt-0">
         <form className="relative" onSubmit={(e) => e.preventDefault()}>
           <Textarea
-            className="text-xs w-full !h-20 rounded-xl !bg-(--muted)/50 pr-16"
+            className="text-xs w-full rounded-xl bg-(--muted)/50"
             placeholder="Type a message..."
             value={content}
             onChange={(e) => setContent(e.target.value)}

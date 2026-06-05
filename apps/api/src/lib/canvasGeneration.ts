@@ -1,6 +1,6 @@
 import openaiClient from "./openaiClient";
 
-const CANVAS_MAX_OUTPUT_TOKENS = 16_384;
+const CANVAS_MAX_OUTPUT_TOKENS = 8_192;
 
 const LABEL_FONT_SIZE = 16;
 const LABEL_LINE_HEIGHT = 1.35;
@@ -550,28 +550,6 @@ function rectsOverlap(
   );
 }
 
-function resolveOverlaps(nodes: DiagramNode[], padX: number, padY: number) {
-  const sorted = [...nodes].sort((a, b) => a.y - b.y || a.x - b.x);
-  for (let pass = 0; pass < nodes.length * 2; pass++) {
-    let moved = false;
-    for (let i = 0; i < sorted.length; i++) {
-      for (let j = i + 1; j < sorted.length; j++) {
-        const a = sorted[i];
-        const b = sorted[j];
-        if (!rectsOverlap(a, b, padX, padY)) continue;
-
-        if (b.x >= a.x - padX) {
-          b.y = a.y + a.height + padY;
-        } else {
-          b.x = a.x + a.width + padX;
-        }
-        moved = true;
-      }
-    }
-    if (!moved) break;
-  }
-}
-
 function assignRanks(nodeIds: string[], edges: DiagramEdge[]) {
   const rank = new Map(nodeIds.map((id) => [id, 0]));
   const iterations = Math.max(nodeIds.length, edges.length) + 1;
@@ -772,7 +750,7 @@ export async function generateCanvasDocument(
   }
 
   const model = process.env.OPENAI_MODEL!;
-  const reasoningEffort = "medium";
+  const reasoningEffort = "low";
   let thinkingLog = "";
 
   const appendReasoning = (token: string) => {
@@ -780,7 +758,7 @@ export async function generateCanvasDocument(
     onReasoning(token);
   };
 
-  onStatus(`Reasoning (${reasoningEffort}) — planning diagram…`);
+  onStatus(`Planning diagram…`);
 
   const stream = await openaiClient.responses.create({
     model,

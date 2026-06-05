@@ -1,10 +1,10 @@
 "use client";
 
-import "@excalidraw/excalidraw/index.css";
-import dynamic from "next/dynamic";
-import { useEffect, useRef } from "react";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { socket } from "../lib/socket";
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
@@ -14,70 +14,87 @@ const Excalidraw = dynamic(
 interface CanvasProps {
   initialElements: readonly OrderedExcalidrawElement[];
   documentId: string;
-  onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
 }
 
-export default function Canvas({
-  initialElements,
-  documentId,
-  onChange,
-}: CanvasProps) {
+export default function Canvas({ initialElements, documentId }: CanvasProps) {
   const excalidrawAPI = useRef<ExcalidrawImperativeAPI | null>(null);
   const isRemoteUpdate = useRef(false);
   const isInitialized = useRef(false);
+  const emitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestElementsRef =
+    useRef<readonly OrderedExcalidrawElement[]>(initialElements);
+
+  const initialData = useMemo(
+    () => ({ elements: [...initialElements] }),
+    [documentId],
+  );
+
+  const handleExcalidrawApi = useCallback((api: ExcalidrawImperativeAPI) => {
+    excalidrawAPI.current = api;
+  }, []);
 
   useEffect(() => {
     if (!documentId) return;
 
+    isInitialized.current = false;
     socket.emit("canvas:join", documentId);
 
-    socket.on("canvas:state", (data) => {
+    const handleState = (data: {
+      documentId: string;
+      elements: readonly OrderedExcalidrawElement[];
+    }) => {
       if (data.documentId !== documentId) return;
       isRemoteUpdate.current = true;
       excalidrawAPI.current?.updateScene({ elements: data.elements });
       isInitialized.current = true;
-      setTimeout(() => (isRemoteUpdate.current = false), 200);
-    });
+      setTimeout(() => {
+        isRemoteUpdate.current = false;
+      }, 200);
+    };
 
-    socket.on("canvas:update", (data) => {
+    const handleUpdate = (data: {
+      documentId: string;
+      elements: readonly OrderedExcalidrawElement[];
+    }) => {
       if (data.documentId !== documentId) return;
       isRemoteUpdate.current = true;
       excalidrawAPI.current?.updateScene({ elements: data.elements });
-      setTimeout(() => (isRemoteUpdate.current = false), 200);
-    });
+      setTimeout(() => {
+        isRemoteUpdate.current = false;
+      }, 200);
+    };
 
-    // Fallback in case we are the first user (no canvas:state received)
-    const initTimeout = setTimeout(() => {
-      isInitialized.current = true;
-    }, 2000);
+    socket.on("canvas:state", handleState);
+    socket.on("canvas:update", handleUpdate);
 
     return () => {
+      if (emitTimerRef.current) clearTimeout(emitTimerRef.current);
       socket.emit("canvas:leave", documentId);
-      socket.off("canvas:update");
-      socket.off("canvas:state");
-      clearTimeout(initTimeout);
+      socket.off("canvas:state", handleState);
+      socket.off("canvas:update", handleUpdate);
+      isInitialized.current = false;
     };
   }, [documentId]);
 
   return (
     <div className="h-full w-full">
       <Excalidraw
-        initialData={{ elements: initialElements }}
+        initialData={initialData}
         theme="dark"
-        excalidrawAPI={(api) => {
-          excalidrawAPI.current = api;
-        }}
+        excalidrawAPI={handleExcalidrawApi}
         onChange={(elements) => {
           if (isRemoteUpdate.current || !isInitialized.current) {
             return;
           }
 
-          onChange(elements);
-
-          socket.emit("canvas:update", {
-            documentId,
-            elements,
-          });
+          latestElementsRef.current = elements;
+          if (emitTimerRef.current) clearTimeout(emitTimerRef.current);
+          emitTimerRef.current = setTimeout(() => {
+            socket.emit("canvas:update", {
+              documentId,
+              elements: latestElementsRef.current,
+            });
+          }, 300);
         }}
       />
     </div>

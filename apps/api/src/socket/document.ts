@@ -71,6 +71,16 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
       socket.join(DOC_ROOM(docId));
       const doc = await getDoc(docId);
 
+      if (document.type === "MARKDOWN" && document.initialContent) {
+        const metadata = doc.getMap("metadata");
+        metadata.set("initialContent", document.initialContent);
+
+        await prisma.document.update({
+          where: { id: docId },
+          data: { initialContent: null },
+        });
+      }
+
       const state = Y.encodeStateAsUpdate(doc);
       socket.emit("doc:state", Array.from(state));
 

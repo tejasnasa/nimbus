@@ -96,6 +96,17 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
       elements: CanvasState;
     }) => {
       try {
+        if (!socket.rooms.has(CANVAS_ROOM(documentId))) {
+          return socket.emit("canvas:error", "Not joined to canvas");
+        }
+
+        const hasIncomingElements = elements.length > 0;
+        const existingInMemory = canvases.get(documentId);
+
+        if (!hasIncomingElements && (existingInMemory?.length ?? 0) > 0) {
+          return;
+        }
+
         canvases.set(documentId, elements);
 
         socket.to(CANVAS_ROOM(documentId)).emit("canvas:update", {

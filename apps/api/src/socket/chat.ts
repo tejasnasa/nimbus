@@ -1,6 +1,8 @@
 import { prisma } from "@nimbus/db";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
+import { generateCanvasDocument } from "../lib/canvasGeneration";
+import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
 
 const registerChatHandlers = (io: Server, socket: Socket) => {
@@ -110,22 +112,16 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
           (async () => {
             const botResult = await generateBotResponse(data.workspaceId);
 
-            let content = "";
-            if (botResult.kind === "reply") {
-              content = botResult.content;
-            } else if (botResult.kind === "create_document") {
-              content = botResult.chatMessage;
-            }
-
             const botMessage = await prisma.message.create({
               data: {
-                content,
+                content:
+                  botResult.kind === "reply"
+                    ? botResult.content
+                    : botResult.chatMessage,
                 userId: process.env.BOT_USERID!,
                 workspaceId: data.workspaceId,
               },
-              include: {
-                user: true,
-              },
+              include: { user: true },
             });
 
             io.to(data.workspaceId).emit("message:new", {
@@ -133,6 +129,102 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
               name: botMessage.user.name,
               image: botMessage.user.image,
             });
+
+            if (botResult.kind === "create_document") {
+              io.to(data.workspaceId).emit("doc:ai:start", {
+                type: botResult.type,
+                label: botResult.label,
+              });
+
+              try {
+                if (botResult.type === "MARKDOWN") {
+                  const { fullContent } = await generateMarkdownDocument(
+                    botResult.prompt,
+                    botResult.label,
+                    (token) => {
+                      io.to(data.workspaceId).emit("doc:ai:progress", {
+                        token,
+                      });
+                    },
+                    (token) => {
+                      io.to(data.workspaceId).emit("doc:ai:thinking", {
+                        token,
+                      });
+                    },
+                  );
+
+                  const doc = await prisma.document.create({
+                    data: {
+                      title: botResult.label,
+                      type: "MARKDOWN",
+                      workspaceId: data.workspaceId,
+                      initialContent: fullContent,
+                    },
+                  });
+
+                  io.to(data.workspaceId).emit("doc:ai:complete", {
+                    documentId: doc.id,
+                    label: doc.title,
+                    type: doc.type,
+                  });
+                } else {
+                  const { canvasData } = await generateCanvasDocument(
+                    botResult.prompt,
+                    botResult.label,
+                    (token) => {
+                      io.to(data.workspaceId).emit("doc:ai:thinking", {
+                        token,
+                      });
+                    },
+                    (status) => {
+                      io.to(data.workspaceId).emit("doc:ai:progress", {
+                        status,
+                      });
+                    },
+                  );
+
+                  const doc = await prisma.document.create({
+                    data: {
+                      title: botResult.label,
+                      type: "CANVAS",
+                      workspaceId: data.workspaceId,
+                      canvasData,
+                    },
+                  });
+
+                  io.to(data.workspaceId).emit("doc:ai:complete", {
+                    documentId: doc.id,
+                    label: doc.title,
+                    type: doc.type,
+                    canvasData,
+                  });
+                }
+              } catch (err) {
+                console.error("Doc generation error:", err);
+                io.to(data.workspaceId).emit("doc:ai:error", {
+                  message: "Document generation failed. Please try again.",
+                });
+
+                try {
+                  const errorBotMessage = await prisma.message.create({
+                    data: {
+                      content: `Sorry, I failed to create the document "${botResult.label}". Please try again.`,
+                      userId: process.env.BOT_USERID!,
+                      workspaceId: data.workspaceId,
+                    },
+                    include: { user: true },
+                  });
+
+                  io.to(data.workspaceId).emit("message:new", {
+                    ...errorBotMessage,
+                    name: errorBotMessage.user.name,
+                    image: errorBotMessage.user.image,
+                  });
+                } catch (dbErr) {
+                  console.error("Error creating failure bot message:", dbErr);
+                }
+              }
+            }
           })().catch((err) => console.error("Bot Reply Error:", err));
         }
       } catch (err) {

@@ -131,6 +131,7 @@ model Document {
   type        DocumentType @default(CANVAS)
   canvasData  Json?
   yjsState    Bytes?
+  initialContent String?
 
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

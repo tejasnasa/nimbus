@@ -1,6 +1,6 @@
 "use server";
 
-import { Workspace } from "@nimbus/types";
+import { Member, Workspace } from "@nimbus/types";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
@@ -17,7 +17,14 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 
   const data = await res.json();
 
-  return data.responseObject;
+  const workspaces = data.responseObject.map((workspace: Workspace) => {
+    const members = workspace.members.filter(
+      (member) => member.id !== process.env.NEXT_PUBLIC_BOTUSER_ID,
+    );
+    return { ...workspace, members };
+  });
+
+  return workspaces;
 }
 
 export async function getWorkspace(workspaceId: string): Promise<Workspace> {
@@ -33,9 +40,13 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace> {
     notFound();
   }
 
-  const data = await res.json();
+  const workspace = (await res.json()).responseObject;
 
-  return data.responseObject;
+  const members = workspace.members.filter(
+    (member: Member) => member.id !== process.env.NEXT_PUBLIC_BOTUSER_ID,
+  );
+
+  return { ...workspace, members };
 }
 
 export async function deleteWorkspace(workspaceId: string): Promise<void> {

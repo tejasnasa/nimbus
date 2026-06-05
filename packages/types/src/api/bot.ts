@@ -3,7 +3,7 @@ export type BotResult =
   | {
       kind: "create_document";
       type: "MARKDOWN" | "CANVAS";
-      title: string;
+      label: string;
       prompt: string;
       chatMessage: string;
     };

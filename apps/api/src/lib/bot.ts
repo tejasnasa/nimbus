@@ -1,11 +1,6 @@
 import { prisma } from "@nimbus/db";
 import { BotResult } from "@nimbus/types";
-import { OpenAI } from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
-  baseURL: "https://api.groq.com/openai/v1",
-});
+import groqClient from "./groqClient";
 
 export async function generateBotResponse(
   workspaceId: string,
@@ -69,7 +64,7 @@ STRICT RULES:
               description:
                 "MARKDOWN for text documents, CANVAS for diagrams/flowcharts/wireframes",
             },
-            title: {
+            label: {
               type: "string",
               description: "A concise title for the document",
             },
@@ -79,12 +74,12 @@ STRICT RULES:
                 "Detailed description of what the document should contain",
             },
           },
-          required: ["type", "title", "prompt"],
+          required: ["type", "label", "prompt"],
         },
       },
     ];
 
-    const response = await client.responses.create({
+    const response = await groqClient.responses.create({
       model: process.env.GROQ_MODEL!,
       tools,
       input: history,
@@ -100,13 +95,13 @@ STRICT RULES:
       try {
         const args = JSON.parse(toolCall.arguments);
         const type = args.type === "CANVAS" ? "CANVAS" : "MARKDOWN";
-        const title = args.title || "Untitled Document";
+        const label = args.label || "Untitled Document";
         const prompt = args.prompt || "";
-        const chatMessage = `Sure! I am creating the document "${title}" for you now. Please wait...`;
+        const chatMessage = `Sure! I am creating the document "${label}" for you now. Please wait...`;
         return {
           kind: "create_document",
           type,
-          title,
+          label,
           prompt,
           chatMessage,
         };

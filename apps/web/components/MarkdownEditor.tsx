@@ -18,7 +18,11 @@ interface MarkdownEditorProps {
   documentId: string;
 }
 
-const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
+interface MilkdownEditorProps extends MarkdownEditorProps {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
   const { get, loading } = useEditor((root) =>
     Editor.make()
       .config(nord)
@@ -62,7 +66,7 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
   const stateAppliedRef = useRef(false);
 
   useEffect(() => {
-    const container = document.querySelector(".milkdown");
+    const container = containerRef.current;
     if (!container) return;
 
     const onMouseEnter = (e: Event) => {
@@ -82,7 +86,7 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
       container.removeEventListener("mouseover", onMouseEnter);
       container.removeEventListener("mouseout", onMouseLeave);
     };
-  }, []);
+  }, [containerRef]);
 
   useEffect(() => {
     if (loading) return;
@@ -197,10 +201,12 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
 };
 
 export const MarkdownEditor = ({ documentId }: MarkdownEditorProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   return (
     <MilkdownProvider>
-      <div className="h-full overflow-y-auto p-1 milkdown">
-        <MilkdownEditor documentId={documentId} />
+      <div ref={containerRef} className="h-full overflow-y-auto p-1 milkdown">
+        <MilkdownEditor documentId={documentId} containerRef={containerRef} />
       </div>
     </MilkdownProvider>
   );

@@ -7,12 +7,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
-    socket.on("connect", () => console.log("[socket] connected:", socket.id));
-    socket.on("connect_error", (err) =>
-      console.error("[socket] connection error:", err.message),
-    );
+    const onConnect = () => console.log("[socket] connected:", socket.id);
+    const onConnectError = (err: Error) =>
+      console.error("[socket] connection error:", err.message);
+
+    socket.on("connect", onConnect);
+    socket.on("connect_error", onConnectError);
 
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("connect_error", onConnectError);
       socket.disconnect();
     };
   }, []);

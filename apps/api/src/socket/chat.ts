@@ -141,11 +141,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
                   const { fullContent } = await generateMarkdownDocument(
                     botResult.prompt,
                     botResult.label,
-                    (token) => {
-                      io.to(data.workspaceId).emit("doc:ai:progress", {
-                        token,
-                      });
-                    },
+                    () => {},
                     (token) => {
                       io.to(data.workspaceId).emit("doc:ai:thinking", {
                         token,
@@ -176,11 +172,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
                         token,
                       });
                     },
-                    (status) => {
-                      io.to(data.workspaceId).emit("doc:ai:progress", {
-                        status,
-                      });
-                    },
+                    () => {},
                   );
 
                   const doc = await prisma.document.create({

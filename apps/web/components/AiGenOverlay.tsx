@@ -9,13 +9,7 @@ export type AIGenerationState = {
   type: "MARKDOWN" | "CANVAS";
   label: string;
   thinkingTokens: string;
-  stage:
-    | "starting"
-    | "thinking"
-    | "writing"
-    | "finalizing"
-    | "error"
-    | "complete";
+  stage: "starting" | "thinking" | "error" | "complete";
   status: string;
   errorMessage?: string;
 };

@@ -1,28 +1,29 @@
 "use client";
 
 import { Workspace } from "@nimbus/types";
+import AlertDialog from "@nimbus/ui/AlertDialog";
+import Avatar from "@nimbus/ui/Avatar";
 import Button from "@nimbus/ui/Button";
+import Delete from "@nimbus/ui/icons/Delete";
+import Error from "@nimbus/ui/icons/Error";
+import Flow from "@nimbus/ui/icons/Flow";
+import Lock from "@nimbus/ui/icons/Lock";
+import Markdown from "@nimbus/ui/icons/Markdown";
+import Plus from "@nimbus/ui/icons/Plus";
+import Settings from "@nimbus/ui/icons/Settings";
 import Input from "@nimbus/ui/Input";
+import OptionMenu from "@nimbus/ui/OptionsMenu";
 import SettingTabs from "@nimbus/ui/SettingTabs";
 import Textarea from "@nimbus/ui/Textarea";
-import { ClientDocument } from "../api/document";
-import Avatar from "@nimbus/ui/Avatar";
+import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
-import Flow from "@nimbus/ui/icons/Flow";
-import Markdown from "@nimbus/ui/icons/Markdown";
-import Delete from "@nimbus/ui/icons/Delete";
+import { ClientDocument } from "../api/document";
 import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
-import AlertDialog from "@nimbus/ui/AlertDialog";
-import OptionMenu from "@nimbus/ui/OptionsMenu";
-import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
 import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
 import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
-import ToggleGroup from "@nimbus/ui/ToggleGroup";
+import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
 import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
-import Settings from "@nimbus/ui/icons/Settings";
-import Error from "@nimbus/ui/icons/Error";
-import Plus from "@nimbus/ui/icons/Plus";
-import Lock from "@nimbus/ui/icons/Lock";
+import { useDocEditorRef } from "./DocEditorRefContext";
 
 export default function WorkspaceSettings({
   workspace,
@@ -40,13 +41,19 @@ export default function WorkspaceSettings({
     loading: memberLoading,
   } = useWorkspaceMembers(workspace.id);
 
+  const addTabRef = useDocEditorRef();
+
   const {
     register: docRegister,
     firstError: docError,
     isSubmitting: docSubmitting,
     onSubmit: docOnSubmit,
     setValue: docSetValue,
-  } = useWorkspaceDocumentForm(workspace.id);
+  } = useWorkspaceDocumentForm(workspace.id, (doc) => {
+    if (addTabRef.current) {
+      addTabRef.current(doc);
+    }
+  });
 
   const { handleDeleteDocument, loading: docLoading } = useWorkspaceDocuments();
 

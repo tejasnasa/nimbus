@@ -1,9 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { documentSchema } from "@nimbus/types";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { documentSchema } from "@nimbus/types";
+import { ClientDocument } from "../api/document";
 
-export function useWorkspaceDocumentForm(workspaceId: string) {
+export function useWorkspaceDocumentForm(
+  workspaceId: string,
+  addTab?: (doc: ClientDocument) => void,
+) {
   const form = useForm<z.infer<typeof documentSchema>>({
     resolver: zodResolver(documentSchema),
     defaultValues: {
@@ -15,7 +19,10 @@ export function useWorkspaceDocumentForm(workspaceId: string) {
 
   const { isSubmitting, errors } = form.formState;
   const firstError =
-    errors.title?.message || errors.type?.message || errors.workspaceId?.message || errors.root?.message;
+    errors.title?.message ||
+    errors.type?.message ||
+    errors.workspaceId?.message ||
+    errors.root?.message;
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
@@ -38,9 +45,21 @@ export function useWorkspaceDocumentForm(workspaceId: string) {
         );
       }
 
-      form.reset();
-      window.location.reload();
       document.getElementById("close-doc-dialog")?.click();
+      const json = await res.json();
+      const doc = json.responseObject;
+      const clientDoc: ClientDocument = {
+        id: doc.id,
+        label: doc.title,
+        type: doc.type,
+        elements: Array.isArray(doc.canvasData) ? doc.canvasData : [],
+        yjsState: doc.yjsState ?? null,
+      };
+
+      form.reset();
+      if (addTab) {
+        addTab(clientDoc);
+      }
     } catch (error) {
       alert((error as { message?: string }).message ?? "Something went wrong.");
     }

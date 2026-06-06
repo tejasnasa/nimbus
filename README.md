@@ -19,7 +19,7 @@
 
 ## 🌟 Why Nimbus?
 
-In a world where remote work and asynchronous communication are the norm, context switching between tools kills productivity. **Nimbus** eliminates the friction by combining your text documents, diagrams, and team chat into a single, cohesive environment. 
+In a world where remote work and asynchronous communication are the norm, context switching between tools kills productivity. **Nimbus** eliminates the friction by combining your text documents, whiteboard diagrams, instant chat, voice calls, and an AI assistant into a single, cohesive environment. 
 
 Designed for **scale and performance**, Nimbus handles thousands of concurrent users in real-time, making it the perfect choice for enterprises, open-source communities, and fast-moving startups.
 
@@ -36,9 +36,15 @@ Designed for **scale and performance**, Nimbus handles thousands of concurrent u
 - **Rich-Text Document Editor (Milkdown)** — A beautiful, highly extensible Markdown editor that natively syncs via Yjs. Supports slash commands, embeddable blocks, and collaborative cursors.
 - **Infinite Canvas Whiteboarding (Excalidraw)** — Sketch diagrams, build flowcharts, or wireframe UIs on an infinite canvas seamlessly embedded into your workspace.
 
-### 🤖 Intelligent AI Assistance (@NimbusBot)
-- **Context-Aware Companion** — NimbusBot isn't just a chatbot; it understands your workspace. It dynamically analyzes your current document state, chat history, and canvas vectors to provide hyper-relevant answers.
-- **Automated Summarization & Extraction** — Automatically generate meeting notes, action items, and technical summaries directly from your collaborative sessions.
+### 🎙️ Native WebRTC Voice Rooms
+- **Zero-Latency Audio** — Embedded audio rooms per workspace using peer-to-peer WebRTC connections for instant team standups.
+- **TURN Relay Infrastructure** — Integrated Coturn TURN relay server configuration to bypass firewalls and ensure stable peer connections on restricted networks.
+- **Seamless UX** — Toggle voice chat inside any channel with a single click without leaving your active workspace.
+
+### 🤖 Intelligent AI Assistance & Generation (@NimbusBot)
+- **AI Document Generation** — Instantly draft high-fidelity Markdown documents (via Qwen) and structured Excalidraw whiteboards (via GPT-OSS) directly from prompts.
+- **Yjs Server-Side Injection** — Real-time streaming content injection server-side, propagating document updates dynamically to all connected Yjs collaborators.
+- **Context-Aware Companion** — NimbusBot analyzes your workspace state, chat logs, and active canvases to provide hyper-relevant advice, summaries, and code snippets.
 
 ### 🔒 Bank-Grade Security & Privacy
 - **Robust Authentication** — Secured by Better-Auth, providing bulletproof session management, OAuth integrations, and granular role-based access control (RBAC).
@@ -57,6 +63,8 @@ Nimbus leverages a modern, robust tech stack designed for high availability and 
 | **Monorepo** | Turborepo | High-performance build system for JS/TS codebases. |
 | **Backend** | Node.js + Express | Lightweight, fast backend for API and WebSocket handling. |
 | **Real-Time** | WebSockets (Socket.io) + Yjs | Real-time bi-directional event-based communication. |
+| **Voice Chat** | WebRTC + Coturn TURN | Zero-latency peer-to-peer voice channel relay. |
+| **AI Layer** | LLMs (Qwen & GPT-OSS) | Backend AI pipeline for streaming Markdown and structured JSON whiteboards. |
 | **Database** | PostgreSQL | Robust, scalable relational database (managed via Prisma). |
 | **Cache/PubSub**| Redis (ioredis) | In-memory data structure store used for WebSocket multiplexing. |
 | **Authentication**| Better-Auth | Comprehensive authentication and authorization. |

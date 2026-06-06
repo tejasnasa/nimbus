@@ -1,20 +1,22 @@
-import Link from "next/link";
-import Cloud from "@nimbus/ui/icons/Cloud";
 import Chat from "@nimbus/ui/icons/Chat";
+import Cloud from "@nimbus/ui/icons/Cloud";
 import CreateDocument from "@nimbus/ui/icons/CreateDocument";
-import People from "@nimbus/ui/icons/People";
-import Presence from "@nimbus/ui/icons/Presence";
-import Lock from "@nimbus/ui/icons/Lock";
 import Eye from "@nimbus/ui/icons/Eye";
-import Star from "@nimbus/ui/icons/Star";
+import Flow from "@nimbus/ui/icons/Flow";
 import Github from "@nimbus/ui/icons/Github";
-import Twitter from "@nimbus/ui/icons/Twitter";
+import Headphones from "@nimbus/ui/icons/Headphones";
 import Linkedin from "@nimbus/ui/icons/Linkedin";
-import canvas from "../assets/canvas.png";
-import canvas_copy from "../assets/canvas-copy.png";
-import message from "../assets/message.png";
-import markdown from "../assets/markdown.png";
+import Markdown from "@nimbus/ui/icons/Markdown";
+import Star from "@nimbus/ui/icons/Star";
+import Twitter from "@nimbus/ui/icons/Twitter";
 import Image from "next/image";
+import Link from "next/link";
+import canvas_copy from "../assets/canvas-copy.png";
+import canvas from "../assets/canvas.png";
+import docgen from "../assets/docgen.png";
+import markdown from "../assets/markdown.png";
+import message from "../assets/message.png";
+import voice from "../assets/voice.png";
 
 export default function LandingPage() {
   return (
@@ -80,28 +82,19 @@ export default function LandingPage() {
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-150 h-40 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center relative">
-          
-          <a className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full border border-(--border) bg-(--card)/50 backdrop-blur-sm text-sm text-(--muted-foreground) animate-fade-in hover:bg-(--card)/80 hover:border-(--muted-foreground)/50 active:translate-y-0.5 transition-all duration-200" href="https://github.com/tejasnasa/nimbus"
-              target="_blank">
-            <span className="w-2 h-2 rounded-full bg-(--chart-2) animate-pulse" />
-            <Github className="w-4 h-4" />
-              <span>Star on GitHub</span>
-          </a>
-          
-
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6 animate-slide-up">
+          <h1 className="text-5xl lg:text-[85px] font-bold tracking-tight leading-[1.1] mb-6 animate-slide-up">
             Where Teams Build,{" "}
             <span className="text-gradient">Chat & Collaborate</span> in Real
             Time
           </h1>
 
           <p
-            className="text-lg sm:text-xl text-(--muted-foreground) max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
+            className="text-md lg:text-xl text-(--muted-foreground) max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
             style={{ animationDelay: "0.1s" }}
           >
-            Nimbus brings your entire workflow into one space — real-time
-            messaging, markdown docs, canvas whiteboards, an AI assistant, and
-            workspace management, all designed for developer teams.
+            Nimbus brings your entire workflow into one space - real-time
+            messaging, crystal-clear voice chat, markdown documents, infinite
+            whiteboards, and AI document generation.
           </p>
 
           <div
@@ -123,7 +116,7 @@ export default function LandingPage() {
           </div>
 
           <div
-            className="flex items-center justify-center gap-12 mt-16 text-sm text-(--muted-foreground) animate-slide-up"
+            className="flex items-center justify-center gap-12 mt-14 text-sm text-(--muted-foreground) animate-slide-up"
             style={{ animationDelay: "0.3s" }}
           >
             <div className="flex flex-col items-center gap-1">
@@ -216,54 +209,57 @@ export default function LandingPage() {
                 Collaborative Documents
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Edit documents together in real-time. Multiple cursors, live
-                syncing, and tab-based document management built right into your
-                workspace.
-              </p>
-            </div>
-
-            <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
-              <div className="w-12 h-12 rounded-xl bg-(--sidebar-primary)/15 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                <People className="w-6 h-6 text-(--sidebar-primary)" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Team Workspaces</h3>
-              <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Organize your projects into workspaces. Invite team members with
-                a code, manage roles, and keep everything scoped and accessible.
+                Work side-by-side with a beautiful Markdown editor featuring
+                slash commands, real-time cursor tracking, and offline syncing
+                via Yjs.
               </p>
             </div>
 
             <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
               <div className="w-12 h-12 rounded-xl bg-(--chart-1)/15 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                <Presence className="w-6 h-6 text-(--chart-1)" />
+                <Flow className="w-6 h-6 text-(--chart-1)" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Live Presence</h3>
+              <h3 className="text-xl font-semibold mb-2">Infinite Canvas</h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Always know who&apos;s online. See live presence indicators,
-                avatar groups, and activity status across your entire workspace.
-              </p>
-            </div>
-
-            <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
-              <div className="w-12 h-12 rounded-xl bg-(--destructive)/15 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                <Lock className="w-6 h-6 text-(--destructive)" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Secure by Design</h3>
-              <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Built with BetterAuth for enterprise-grade security. Session
-                management, encrypted credentials, and role-based access
-                control.
+                Multiplayer flowcharting and wireframing powered by Excalidraw,
+                embedded directly within your document workspace.
               </p>
             </div>
 
             <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
               <div className="w-12 h-12 rounded-xl bg-linear-to-br from-(--primary)/20 to-(--chart-2)/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-                <Eye className="w-6 h-6 text-gradient" />
+                <Markdown className="w-6 h-6 text-gradient" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">AI Assistant</h3>
+              <h3 className="text-xl font-semibold mb-2">AI Document Gen</h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                @NimbusBot is your built-in AI assistant. Ask questions, get
-                summaries, brainstorm ideas — right inside your workspace chat.
+                Generate technical blueprints, specifications, and structured
+                whiteboard diagrams with streamable, server-injected LLM
+                outputs.
+              </p>
+            </div>
+
+            <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
+              <div className="w-12 h-12 rounded-xl bg-(--sidebar-primary)/15 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                <Headphones className="w-6 h-6 text-(--sidebar-primary)" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Voice Chat</h3>
+              <p className="text-sm text-(--muted-foreground) leading-relaxed">
+                Crystal-clear, zero-latency voice rooms built directly into your
+                workspace. Backed by Coturn STUN/TURN relays to bypass
+                firewalls.
+              </p>
+            </div>
+
+            <div className="group p-8 rounded-2xl border border-(--border) bg-(--card)/40 backdrop-blur-sm hover:border-(--primary)/50 hover:bg-(--card)/80 transition-all duration-300 hover:-translate-y-1">
+              <div className="w-12 h-12 rounded-xl bg-(--destructive)/15 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+                <Eye className="w-6 h-6 text-(--destructive)" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">
+                AI Workspace Copilot
+              </h3>
+              <p className="text-sm text-(--muted-foreground) leading-relaxed">
+                @NimbusBot contextually analyzes your active markdown documents,
+                messages, and whiteboards to provide relevant assistance.
               </p>
             </div>
           </div>
@@ -460,6 +456,133 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div
+              className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden order-2 lg:order-1"
+              id="voice-feature-image-placeholder"
+            >
+              <div className="max-w-6xl mx-auto">
+                <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--background)/50">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-(--destructive)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-1)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-2)/60" />
+                    </div>
+                    <div className="flex-1 flex justify-center">
+                      <div className="px-4 py-1 rounded-lg bg-(--secondary) text-xs text-(--muted-foreground)">
+                        nimbus.app/workspace
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full aspect-video bg-(--card) flex flex-col items-center justify-center text-(--muted-foreground) px-24 py-20 gap-2">
+                    <Image src={voice} alt="Voice Screenshot" />
+                  </div>
+                </div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
+              </div>
+            </div>
+            <div className="order-1 lg:order-2">
+              <span className="inline-block px-3 py-1 mb-4 text-xs font-medium tracking-widest uppercase text-(--sidebar-primary) border border-(--sidebar-primary)/30 rounded-full">
+                Voice Rooms
+              </span>
+              <h3 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+                Crystal-Clear, Low-Latency Voice Chat
+              </h3>
+              <p className="text-(--muted-foreground) leading-relaxed mb-6">
+                Skip the external meeting link. Nimbus features integrated voice
+                rooms built right into your project workspace. Connect
+                peer-to-peer over WebRTC with sub-millisecond audio sync. Backed
+                by an enterprise-grade Coturn TURN cluster, voice rooms bypass
+                complex network configurations and firewalls seamlessly.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--sidebar-primary)" />
+                  </span>
+                  One-click voice room connection inside channels
+                </li>
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--sidebar-primary)" />
+                  </span>
+                  High-fidelity WebRTC peer-to-peer audio quality
+                </li>
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--sidebar-primary)" />
+                  </span>
+                  Coturn STUN/TURN fallback for reliable connectivity
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <span className="inline-block px-3 py-1 mb-4 text-xs font-medium tracking-widest uppercase text-(--primary) border border-(--primary)/30 rounded-full">
+                AI Generation
+              </span>
+              <h3 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+                Draft Specifications & Canvas Diagrams Instantly
+              </h3>
+              <p className="text-(--muted-foreground) leading-relaxed mb-6">
+                Turn your discussions into action. Nimbus integrates
+                state-of-the-art LLMs (like Qwen and GPT-OSS) that generate
+                high-fidelity Markdown documents and interactive Excalidraw
+                whiteboard files directly from your workspace chat. Watch your
+                ideas build step-by-step with real-time text and canvas
+                injection.
+              </p>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--primary)" />
+                  </span>
+                  Seamless document and canvas structure generation
+                </li>
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--primary)" />
+                  </span>
+                  Real-time document streaming and Yjs CRDT synchronization
+                </li>
+                <li className="flex items-center gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-(--primary)/20 flex items-center justify-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-(--primary)" />
+                  </span>
+                  Context-aware assistant referencing current workspace state
+                </li>
+              </ul>
+            </div>
+            <div
+              className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden"
+              id="ai-feature-image-placeholder"
+            >
+              <div className="max-w-6xl mx-auto">
+                <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
+                  <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
+                    <div className="flex gap-1.5">
+                      <div className="w-3 h-3 rounded-full bg-(--destructive)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-1)/60" />
+                      <div className="w-3 h-3 rounded-full bg-(--chart-2)/60" />
+                    </div>
+                    <div className="flex-1 flex justify-center">
+                      <div className="px-4 py-1 rounded-lg bg-(--secondary) text-xs text-(--muted-foreground)">
+                        nimbus.app/workspace
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full aspect-video bg-(--secondary)/30 flex flex-col items-center justify-center text-(--muted-foreground) gap-2">
+                    <Image src={docgen} alt="App Screenshot" />
+                  </div>
+                </div>
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -634,138 +757,8 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-(--border) bg-(--card)/20">
-        <div className="max-w-7xl mx-auto px-6 py-16">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12">
-            <div className="lg:col-span-1">
-              <Link
-                href="/"
-                className="flex items-center gap-2.5 font-semibold text-lg mb-4"
-              >
-                <div className="flex size-8 items-center justify-center rounded-lg text-(--primary-foreground)">
-                  <Cloud />
-                </div>
-                Nimbus
-              </Link>
-              <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Communication and collaboration platform built for developer
-                teams. Powered by AI.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-sm mb-4 uppercase tracking-wider text-(--muted-foreground)">
-                Product
-              </h4>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <a
-                    href="#features"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#preview"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Preview
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#how-it-works"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    How It Works
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Changelog
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-sm mb-4 uppercase tracking-wider text-(--muted-foreground)">
-                Resources
-              </h4>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Documentation
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Community
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    API Reference
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Support
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-sm mb-4 uppercase tracking-wider text-(--muted-foreground)">
-                Legal
-              </h4>
-              <ul className="space-y-3 text-sm">
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Terms of Service
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="#"
-                    className="text-(--muted-foreground) hover:text-(--foreground) transition-colors"
-                  >
-                    Cookie Policy
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-12 pt-8 border-t border-(--border) flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-(--muted-foreground)">
+        <div className="max-w-7xl mx-auto">
+          <div className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-(--muted-foreground)">
             <p>Made by Tejas Nasa.</p>
             <div className="flex items-center gap-6">
               <a

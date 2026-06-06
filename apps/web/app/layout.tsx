@@ -12,28 +12,26 @@ const jetBrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://nimbus.tejasnasa.me"),
-  title: {
-    default: "Nimbus",
-    template: "%s | Nimbus",
-  },
+  title: "Nimbus - Realtime Collaborative Workspace with AI & Voice Chat",
   description:
-    "Real-time collaborative workspace with messaging, markdown docs, canvas whiteboards, and an embedded AI assistant.",
+    "Real-time collaborative workspace with rich Markdown documents, infinite canvas whiteboards, voice chat, and AI document generation.",
   keywords: [
     "collaborative workspace",
     "real-time collaboration",
     "markdown editor",
     "canvas whiteboard",
     "team workspace",
+    "voice chat",
+    "AI document generation",
+    "multitasking workspace",
   ],
-  authors: [{ name: "Tejas Nasa", url: "https://tejasnasa.me" }],
-  creator: "Tejas Nasa",
   applicationName: "Nimbus",
   openGraph: {
     type: "website",
     url: "https://nimbus.tejasnasa.me",
-    title: "Nimbus - Realtime Collaborative Workspace",
+    title: "Nimbus - Realtime Collaborative Workspace with AI & Voice Chat",
     description:
-      "Messaging, markdown docs, canvas whiteboards, and an AI assistant - all in one space.",
+      "Real-time collaborative workspace with rich Markdown documents, infinite canvas whiteboards, voice chat, and AI document generation.",
     siteName: "Nimbus",
     images: [
       {
@@ -46,9 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nimbus - Realtime Collaborative Workspace",
+    title: "Nimbus - Realtime Collaborative Workspace with AI & Voice Chat",
     description:
-      "Messaging, markdown docs, canvas whiteboards, and an AI assistant - all in one space.",
+      "Real-time collaborative workspace with rich Markdown documents, infinite canvas whiteboards, voice chat, and AI document generation.",
     images: ["/og-image.png"],
     creator: "@tejasnasa",
   },
@@ -84,21 +82,24 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebApplication",
-              name: "Nimbus",
-              url: "https://nimbus.tejasnasa.me",
-              author: {
-                "@type": "Person",
-                name: "Tejas Nasa",
-                url: "https://tejasnasa.me",
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "Nimbus",
+                url: "https://nimbus.tejasnasa.me",
               },
-              description:
-                "Real-time collaborative workspace with messaging, markdown docs, canvas whiteboards, and an AI assistant.",
-              applicationCategory: "ProductivityApplication",
-              operatingSystem: "Web",
-            }),
+              {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                name: "Nimbus",
+                url: "https://nimbus.tejasnasa.me",
+                description:
+                  "Real-time collaborative workspace with rich Markdown documents, infinite canvas whiteboards, voice chat, and AI document generation.",
+                applicationCategory: "ProductivityApplication",
+                operatingSystem: "Web",
+              },
+            ]),
           }}
         />
       </body>

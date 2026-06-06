@@ -1,9 +1,3 @@
-import { languages } from "@codemirror/language-data";
-import { oneDark } from "@codemirror/theme-one-dark";
-import {
-  codeBlockComponent,
-  codeBlockConfig,
-} from "@milkdown/kit/component/code-block";
 import {
   tableBlock,
   tableBlockConfig,
@@ -57,26 +51,38 @@ const MilkdownEditor = ({ documentId }: MarkdownEditorProps) => {
             }
           },
         }));
-
-        ctx.update(codeBlockConfig.key, (prev) => ({
-          ...prev,
-          languages,
-          extensions: [oneDark],
-          expandIcon: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M12 16L6 10H18L12 16Z"/></svg>`,
-          searchIcon: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M15.5 14H14.71L14.43 13.73C15.41 12.59 16 11.11 16 9.5C16 5.91 13.09 3 9.5 3C5.91 3 3 5.91 3 9.5C3 13.09 5.91 16 9.5 16C11.11 16 12.59 15.41 13.73 14.43L14 14.71V15.5L19 20.5L20.5 19L15.5 14ZM9.5 14C7.01 14 5 11.99 5 9.5C5 7.01 7.01 5 9.5 5C11.99 5 14 7.01 14 9.5C14 11.99 11.99 14 9.5 14Z"/></svg>`,
-          clearSearchIcon: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"/></svg>`,
-          copyIcon: `<svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M6.9998 6V3C6.9998 2.44772 7.44752 2 7.9998 2H19.9998C20.5521 2 20.9998 2.44772 20.9998 3V17C20.9998 17.5523 20.5521 18 19.9998 18H16.9998V20.9991C16.9998 21.5519 16.5499 22 15.993 22H4.00666C3.45059 22 3 21.5554 3 20.9991L3.0026 7.00087C3.0027 6.44811 3.45264 6 4.00942 6H6.9998ZM5.00242 8L5.00019 20H14.9998V8H5.00242ZM8.9998 6H16.9998V16H18.9998V4H8.9998V6Z"></path></svg>`,
-        }));
       })
       .use(commonmark)
       .use(gfm)
       .use(tableBlock)
-      .use(codeBlockComponent)
       .use(collab),
   );
 
   const collabConnectedRef = useRef(false);
   const stateAppliedRef = useRef(false);
+
+  useEffect(() => {
+    const container = document.querySelector(".milkdown");
+    if (!container) return;
+
+    const onMouseEnter = (e: Event) => {
+      const handle = (e.target as HTMLElement).closest(".handle");
+      if (handle) handle.setAttribute("data-show", "true");
+    };
+
+    const onMouseLeave = (e: Event) => {
+      const handle = (e.target as HTMLElement).closest(".handle");
+      if (handle) handle.removeAttribute("data-show");
+    };
+
+    container.addEventListener("mouseover", onMouseEnter);
+    container.addEventListener("mouseout", onMouseLeave);
+
+    return () => {
+      container.removeEventListener("mouseover", onMouseEnter);
+      container.removeEventListener("mouseout", onMouseLeave);
+    };
+  }, []);
 
   useEffect(() => {
     if (loading) return;

@@ -1,7 +1,7 @@
 import { prisma } from "@nimbus/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { sendEmail } from "./email";
+import { sendEmail, sendPasswordResetEmail } from "./email";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -10,6 +10,9 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail({ to: user.email, url });
+    },
   },
   emailVerification: {
     sendOnSignUp: true,

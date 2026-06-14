@@ -16,6 +16,7 @@ interface LoginFormProps {
   isSubmitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
   openSignup?: () => void;
+  openForgotPassword?: () => void;
 }
 
 export default function LoginForm({
@@ -24,6 +25,7 @@ export default function LoginForm({
   isSubmitting,
   onSubmit,
   openSignup,
+  openForgotPassword,
 }: LoginFormProps) {
   return (
     <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
@@ -59,13 +61,22 @@ export default function LoginForm({
           >
             Password
           </label>
-          <Input
-            placeholder="••••••••"
-            type="password"
-            className="w-full"
-            id="password"
-            {...register("password")}
-          />
+          <div className="flex flex-col gap-2">
+            <Input
+              placeholder="••••••••"
+              type="password"
+              className="w-full"
+              id="password"
+              {...register("password")}
+            />
+            <button
+              type="button"
+              onClick={openForgotPassword}
+              className="text-xs text-(--muted-foreground) hover:text-(--foreground) transition-colors text-right hover:cursor-pointer"
+            >
+              Forgot password?
+            </button>
+          </div>
         </div>
         {firstError && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">

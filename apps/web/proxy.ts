@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const protectedRoutes = ["/home", "/workspace"];
-const publicRoutes = ["/login", "/", "/email-verified"];
+const publicRoutes = ["/login", "/", "/email-verified", "/reset-password"];
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;

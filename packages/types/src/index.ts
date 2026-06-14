@@ -1,5 +1,5 @@
 export { documentSchema } from "./validations/document";
-export { loginSchema } from "./validations/login";
+export { loginSchema, resetSchema, forgotSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";
 export { workspaceJoinSchema, workspaceSchema } from "./validations/workspace";
 

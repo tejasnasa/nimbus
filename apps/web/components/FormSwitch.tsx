@@ -4,9 +4,12 @@ import { useLoginForm } from "../hooks/useLoginForm";
 import { useSignupForm } from "../hooks/useSignupForm";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
+import ForgotPasswordForm from "./ForgotPasswordForm";
 
 export default function FormSwitch() {
-  const [formType, setFormType] = useState<"login" | "signup">("login");
+  const [formType, setFormType] = useState<"login" | "signup" | "forgot">(
+    "login",
+  );
   const {
     register: signupRegister,
     firstError: signupFirstError,
@@ -49,7 +52,16 @@ export default function FormSwitch() {
             isSubmitting={loginIsSubmitting}
             onSubmit={loginOnSubmit}
             openSignup={() => setFormType("signup")}
+            openForgotPassword={() => setFormType("forgot")}
           />
+        </div>
+        <div
+          className={`
+            [grid-area:1/1] transition-all duration-500 ease-out
+            ${formType === "forgot" ? "opacity-100 translate-y-0 scale-100 z-10" : "opacity-0 -translate-y-4 scale-[0.98] pointer-events-none z-0"}
+          `}
+        >
+          <ForgotPasswordForm openLogin={() => setFormType("login")} />
         </div>
         <div
           className={`

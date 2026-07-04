@@ -171,7 +171,7 @@ html {
 }
 
 @utility animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 5s ease-in-out infinite;
 }
 
 @utility animate-spin-slow {

@@ -74,12 +74,12 @@ export default function LandingPage() {
       </nav>
 
       <section className="relative pt-40 pb-32 px-6">
-        <div className="absolute top-20 left-1/4 w-96 h-96 bg-(--primary)/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none" />
+        <div className="absolute top-20 left-1/4 w-150 h-150 bg-(--primary)/25 rounded-full blur-3xl animate-pulse-glow pointer-events-none" />
         <div
-          className="absolute top-40 right-1/4 w-80 h-80 bg-(--chart-2)/15 rounded-full blur-3xl animate-pulse-glow pointer-events-none"
+          className="absolute top-40 right-1/4 w-80 h-80 bg-(--chart-2)/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"
           style={{ animationDelay: "1s" }}
         />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-150 h-40 bg-(--primary)/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-150 h-40 bg-(--primary)/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-5xl mx-auto text-center relative">
           <h1 className="text-5xl lg:text-[85px] font-bold tracking-tight leading-[1.1] mb-6 animate-slide-up">
@@ -335,7 +335,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl mx-auto relative">
               <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
                 <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
                   <div className="flex gap-1.5">
@@ -431,7 +431,7 @@ export default function LandingPage() {
               className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden"
               id="canvas-feature-image-placeholder"
             >
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto relative">
                 <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
                     <div className="flex gap-1.5">
@@ -462,7 +462,7 @@ export default function LandingPage() {
               className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden order-2 lg:order-1"
               id="voice-feature-image-placeholder"
             >
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto relative">
                 <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--background)/50">
                     <div className="flex gap-1.5">
@@ -561,7 +561,7 @@ export default function LandingPage() {
               className="rounded-2xl border border-(--border) bg-(--card)/40 overflow-hidden"
               id="ai-feature-image-placeholder"
             >
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto relative">
                 <div className="relative rounded-2xl border border-(--border) bg-(--card)/50 backdrop-blur-sm overflow-hidden shadow-2xl shadow-(--primary)/5">
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-(--border) bg-(--card)/80">
                     <div className="flex gap-1.5">

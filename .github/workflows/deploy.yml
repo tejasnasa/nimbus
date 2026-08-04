@@ -32,7 +32,7 @@ jobs:
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DROPLET_HOST }}
-          username: root
+          username: tejas
           key: ${{ secrets.DROPLET_SSH_KEY }}
           source: "docker-compose.yml"
           target: "/app"
@@ -41,7 +41,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DROPLET_HOST }}
-          username: root
+          username: tejas
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
             cd /app

@@ -1,3 +1,13 @@
+/**
+ * Formats a timestamp as a human-readable relative time string.
+ *
+ * Handles past dates (`"5 minutes ago"`), future dates (`"in 2 hours"`, used
+ * for scheduled items), invalid input (throws), and missing values (`"Never"`).
+ *
+ * @param dateInput - Date as a string, Date object, or undefined.
+ * @returns Relative label such as `"just now"`, `"3 days ago"`, or `"in 1 year"`.
+ * @throws When the input cannot be parsed into a valid Date.
+ */
 export const timeAgo = (dateInput: string | Date | undefined) => {
   if (!dateInput) return "Never";
   const date = new Date(dateInput);

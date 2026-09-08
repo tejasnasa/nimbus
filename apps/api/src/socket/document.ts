@@ -1,11 +1,24 @@
+/**
+ * @module api/socket/document
+ * @description Server-side Yjs collaboration: per-document `Y.Doc` instances
+ * hydrated from Postgres (`yjsState`) on first join, binary updates relayed
+ * to room peers, debounced persistence (5s), and eviction when the last
+ * socket leaves. AI-seeded `initialContent` is injected once via the doc's
+ * metadata map, then cleared so rejoins never re-seed.
+ *
+ * @important The `docs` Map is process-local — horizontal scaling needs a
+ *            shared Yjs store (or sticky sessions) or edits split by replica.
+ */
 import * as Y from "yjs";
 import { Server, Socket } from "socket.io";
 import { prisma } from "@nimbus/db";
 
+/** In-memory Yjs docs keyed by document id (see module note on scaling). */
 export const docs = new Map<string, Y.Doc>();
 
 const DOC_ROOM = (docId: string) => `doc:${docId}`;
 
+/** Loads (or lazily hydrates) the shared Yjs doc for an id. */
 const getDoc = async (docId: string) => {
   if (docs.has(docId)) return docs.get(docId)!;
 
@@ -24,6 +37,7 @@ const getDoc = async (docId: string) => {
   return doc;
 };
 
+/** Persists the full Yjs state binary for a live doc. */
 const saveSnapshot = async (docId: string) => {
   const doc = docs.get(docId);
   if (!doc) return;
@@ -40,6 +54,7 @@ const saveSnapshot = async (docId: string) => {
 
 const saveTimers = new Map<string, NodeJS.Timeout>();
 
+/** Resets the 5s persist timer — rapid edits collapse into one DB write. */
 const debouncedSave = (docId: string) => {
   if (saveTimers.has(docId)) clearTimeout(saveTimers.get(docId)!);
 
@@ -51,6 +66,13 @@ const debouncedSave = (docId: string) => {
   saveTimers.set(docId, timer);
 };
 
+/**
+ * Registers Yjs doc handlers for one socket.
+ *
+ * `doc:join` membership-gates, injects one-shot AI content, and replays full
+ * state; `doc:update` applies + relays + debounce-saves; `doc:leave` /
+ * `disconnecting` snapshot + evict when the room drains.
+ */
 export const registerDocumentHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
 
@@ -71,6 +93,8 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
       socket.join(DOC_ROOM(docId));
       const doc = await getDoc(docId);
 
+      // One-shot AI seed: publish initialContent through the shared doc, then
+      // null it in the DB so later joins receive it via Yjs state, not re-seeding.
       if (document.type === "MARKDOWN" && document.initialContent) {
         const metadata = doc.getMap("metadata");
         metadata.set("initialContent", document.initialContent);
@@ -105,6 +129,8 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
     }
   });
 
+  // Evict only when the room is truly empty — otherwise remaining peers keep
+  // editing the live doc and the leaver's departure must not snapshot-race them.
   socket.on("doc:leave", async (docId: string) => {
     try {
       socket.leave(DOC_ROOM(docId));

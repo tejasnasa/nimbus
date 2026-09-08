@@ -1,3 +1,16 @@
+/**
+ * @module api/socket/chat
+ * @description Workspace chat + presence + NimbusBot pipeline.
+ *
+ * Handles `workspace:join/leave` (membership check → room join → Redis
+ * presence → `presence:*` broadcasts), `message:send` (persist → `message:new`
+ * fan-out), `@nimbusbot` mentions (fire-and-forget bot reply, then
+ * `doc:ai:start/thinking/complete|error` streaming for document generation),
+ * ephemeral `typing:*` relays, and `disconnecting` presence cleanup.
+ *
+ * @important Assumes handshake auth (`socket.data.user`). Bot generation runs
+ *            detached so slow LLM calls never block chat delivery.
+ */
 import { prisma } from "@nimbus/db";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
@@ -5,6 +18,15 @@ import { generateCanvasDocument } from "../lib/canvasGeneration";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
 
+/**
+ * Registers chat/presence/bot handlers for one socket.
+ *
+ * Disconnects sockets with no authenticated user; every event re-checks
+ * workspace membership so revoked members lose access immediately.
+ *
+ * @param io - Server for room broadcasts.
+ * @param socket - Authenticated client socket (`socket.data.user` trusted).
+ */
 const registerChatHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
 
@@ -13,6 +35,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     return;
   }
 
+  /** Join flow: verify member → join room → mark present → notify room + replay roster. */
   socket.on("workspace:join", async (workspaceId: string) => {
     console.log("JOIN EVENT RECEIVED:", workspaceId, "from", user.id);
 
@@ -108,6 +131,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
           image: user.image,
         });
 
+        // Case-insensitive mention check; bot work runs detached so the sender's
+        // ack path never waits on Groq/OpenAI latency. Errors are caught and logged.
         if (data.content.toLowerCase().includes("@nimbusbot")) {
           (async () => {
             const botResult = await generateBotResponse(data.workspaceId);
@@ -225,6 +250,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     },
   );
 
+  // Typing relays are ephemeral (never persisted) and exclude the sender via `socket.to`.
   socket.on("typing:start", (workspaceId: string) => {
     socket.to(workspaceId).emit("typing:start", {
       userId: user.id,
@@ -239,6 +265,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     });
   });
 
+  // `disconnecting` (not `disconnect`): rooms are still intact here, so every
+  // joined workspace can be left + presence-cleared before the socket dies.
   socket.on("disconnecting", async () => {
     try {
       await Promise.all(

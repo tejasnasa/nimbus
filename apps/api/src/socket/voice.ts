@@ -1,9 +1,26 @@
+/**
+ * @module api/socket/voice
+ * @description WebRTC signaling relay + voice presence. The server never
+ * touches media: `voice:offer/answer/ice-candidate` are routed to the target
+ * user's socket, while `voice:join/leave/mute-state` maintain the Redis
+ * roster (`voicePresenceService`) and fan out `voice:user-joined/left`,
+ * `voice:current-users`, and `voice:mute-state`. Joiners start muted.
+ */
 import { prisma } from "@nimbus/db";
 import { Server, Socket } from "socket.io";
 import { voicePresenceService } from "../lib/voicePresence";
 
 const VOICE_ROOM = (workspaceId: string) => `voice:${workspaceId}`;
 
+/**
+ * Registers voice signaling + presence handlers for one socket.
+ *
+ * Every event is membership-gated; offer/answer/ICE forward point-to-point
+ * via `getSocketByUserId`, while roster changes broadcast to the voice room.
+ *
+ * @param io - Server for targeted emits and room broadcasts.
+ * @param socket - Authenticated client socket (`socket.data.user` trusted).
+ */
 export const registerVoiceHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
 
@@ -27,6 +44,8 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
 
       const currentUsers =
         await voicePresenceService.getVoiceUsers(workspaceId);
+      // Exclude self: the joiner already knows its own state and opens a
+      // peer connection per entry in this list.
       const others = currentUsers.filter((u) => u.userId !== user.id);
       socket.emit("voice:current-users", { users: others });
       socket.to(VOICE_ROOM(workspaceId)).emit("voice:user-joined", {
@@ -138,6 +157,16 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
   });
 };
 
+/**
+ * Finds a connected socket by user id.
+ *
+ * NOTE: O(n) scan over all sockets — fine at current scale, but a
+ * userId→socketId index (Redis or in-memory) is needed past single-box loads.
+ *
+ * @param io - Server whose socket registry is scanned.
+ * @param userId - Target user's id.
+ * @returns The matching socket, or null when offline.
+ */
 function getSocketByUserId(io: Server, userId: string) {
   for (const [, socket] of io.sockets.sockets) {
     if (socket.data?.user?.id === userId) return socket;

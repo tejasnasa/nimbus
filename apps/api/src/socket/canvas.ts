@@ -1,13 +1,27 @@
+/**
+ * @module api/socket/canvas
+ * @description Full-state Excalidraw sync (last-write-wins, no CRDT):
+ * per-canvas element arrays hydrated from `canvasData` on first join,
+ * replaced wholesale on `canvas:update`, relayed to room peers, debounced
+ * persistence (3s), and eviction when the last socket leaves.
+ *
+ * @important The `canvases` Map is process-local (same scaling caveat as the
+ *            Yjs docs). Empty updates never clobber non-empty state — see the
+ *            `canvas:update` guard.
+ */
 import { Server, Socket } from "socket.io";
 import { prisma } from "@nimbus/db";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
+/** Full element array for one canvas (replaced, never merged). */
 type CanvasState = readonly OrderedExcalidrawElement[];
 
+/** In-memory canvas states keyed by document id. */
 export const canvases = new Map<string, CanvasState>();
 
 const CANVAS_ROOM = (canvasId: string) => `canvas:${canvasId}`;
 
+/** Loads (or lazily hydrates) the element array for a canvas id. */
 const getCanvas = async (canvasId: string) => {
   if (canvases.has(canvasId)) return canvases.get(canvasId)!;
 
@@ -26,6 +40,7 @@ const getCanvas = async (canvasId: string) => {
   return elements;
 };
 
+/** Persists the current in-memory element array. */
 const saveSnapshot = async (canvasId: string) => {
   const elements = canvases.get(canvasId);
   if (!elements) return;
@@ -42,6 +57,7 @@ const saveSnapshot = async (canvasId: string) => {
 
 const saveTimers = new Map<string, NodeJS.Timeout>();
 
+/** Resets the 3s persist timer — drag bursts collapse into one DB write. */
 const debouncedSave = (canvasId: string) => {
   if (saveTimers.has(canvasId)) clearTimeout(saveTimers.get(canvasId)!);
 
@@ -53,6 +69,14 @@ const debouncedSave = (canvasId: string) => {
   saveTimers.set(canvasId, timer);
 };
 
+/**
+ * Registers canvas handlers for one socket.
+ *
+ * `canvas:join` membership-gates and replays full state; `canvas:update`
+ * requires room membership, drops empty-overwrite races, then relays +
+ * debounce-saves; `canvas:leave` / `disconnecting` snapshot + evict when
+ * the room drains.
+ */
 export const registerCanvasHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
 
@@ -96,10 +120,14 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
       elements: CanvasState;
     }) => {
       try {
+        // Guard: only room members may write — prevents stray updates from
+        // sockets that never joined (or already left) from forking state.
         if (!socket.rooms.has(CANVAS_ROOM(documentId))) {
           return socket.emit("canvas:error", "Not joined to canvas");
         }
 
+        // WARNING: an empty array usually means "not yet loaded" on the sender,
+        // not "cleared canvas" — dropping it avoids wiping peers' work.
         const hasIncomingElements = elements.length > 0;
         const existingInMemory = canvases.get(documentId);
 

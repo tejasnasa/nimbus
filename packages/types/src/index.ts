@@ -1,5 +1,13 @@
+/**
+ * @module types
+ * @description Barrel export for `@nimbus/types`.
+ *
+ * Central home for shared Zod validation schemas, REST API DTOs, and the
+ * typed Socket.IO event contracts used by both `apps/api` and `apps/web`.
+ */
+
 export { documentSchema } from "./validations/document";
-export { loginSchema, resetSchema, forgotSchema } from "./validations/login";
+export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";
 export { workspaceJoinSchema, workspaceSchema } from "./validations/workspace";
 

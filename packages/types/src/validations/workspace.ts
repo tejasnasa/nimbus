@@ -1,5 +1,11 @@
+/**
+ * @module validations/workspace
+ * @description Zod schemas for creating and joining workspaces.
+ */
+
 import { z } from "zod";
 
+/** Payload for creating a new workspace (creator becomes OWNER). */
 export const workspaceSchema = z.object({
   name: z
     .string()
@@ -11,6 +17,7 @@ export const workspaceSchema = z.object({
     .optional(),
 });
 
+/** Payload for joining an existing workspace via its invite code. */
 export const workspaceJoinSchema = z.object({
   inviteCode: z.string(),
 });

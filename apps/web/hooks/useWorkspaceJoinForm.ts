@@ -1,9 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useWorkspaceJoinForm
+ * @description Join-by-invite-code form: validates the code, POSTs to
+ * `/api/workspace/join`, and routes to the joined workspace. Failures
+ * surface as a root form error.
+ */
 import { workspaceJoinSchema } from "@nimbus/types";
 import { useRouter } from "next/navigation";
 
+/** Join-workspace form state (register, firstError, isSubmitting, onSubmit). */
 export function useWorkspaceJoinForm() {
   const router = useRouter();
   const form = useForm<z.infer<typeof workspaceJoinSchema>>({

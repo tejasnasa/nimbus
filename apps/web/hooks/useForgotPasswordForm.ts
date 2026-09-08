@@ -2,9 +2,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useForgotPasswordForm
+ * @description Password-reset request form: sends the reset link (redirecting
+ * to `/reset-password`) and flips `sent` so the UI can show confirmation.
+ */
 import { authClient } from "../lib/auth-client";
 import { forgotSchema } from "@nimbus/types";
 
+/** Reset-request form state plus the `sent` confirmation flag. */
 export function useForgotPasswordForm() {
   const form = useForm<z.infer<typeof forgotSchema>>({
     resolver: zodResolver(forgotSchema),

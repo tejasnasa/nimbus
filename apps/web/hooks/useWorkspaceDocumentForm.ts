@@ -2,8 +2,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { documentSchema } from "@nimbus/types";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useWorkspaceDocumentForm
+ * @description New-document form: validates title/type, POSTs to
+ * `/api/document/create`, closes the dialog (`close-doc-dialog` click),
+ * maps the response to a `ClientDocument`, resets, and opens it via `addTab`.
+ */
 import { ClientDocument } from "../api/document";
 
+/**
+ * New-document form state.
+ *
+ * @param workspaceId - Owning workspace (form default).
+ * @param addTab - Opens the created document in the editor.
+ */
 export function useWorkspaceDocumentForm(
   workspaceId: string,
   addTab?: (doc: ClientDocument) => void,

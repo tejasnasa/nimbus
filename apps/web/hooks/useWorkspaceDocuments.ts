@@ -1,5 +1,11 @@
+/**
+ * @module web/hooks/useWorkspaceDocuments
+ * @description Document deletion with per-doc loading state. Reloads the page
+ * on success so tab/document lists refresh from the server.
+ */
 import { useState } from "react";
 
+/** Returns `handleDeleteDocument(docId)` plus the in-flight `loading` id. */
 export function useWorkspaceDocuments() {
   const [loading, setLoading] = useState<string | null>(null);
 

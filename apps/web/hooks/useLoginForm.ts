@@ -2,8 +2,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "@nimbus/types";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useLoginForm
+ * @description Email/password sign-in form (`callbackURL: "/home"`).
+ * Unverified emails (403) get a dedicated message instead of the raw error.
+ */
 import { authClient } from "../lib/auth-client";
 
+/** Sign-in form state (register, firstError, isSubmitting, onSubmit). */
 export function useLoginForm() {
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),

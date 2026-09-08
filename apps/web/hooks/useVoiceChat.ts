@@ -1,7 +1,20 @@
+/**
+ * @module web/hooks/useVoiceChat
+ * @description WebRTC voice-chat lifecycle for a workspace: TURN credential
+ * fetch, muted-by-default mic acquisition, per-peer RTCPeerConnections with
+ * offer/answer/ICE relay over Socket.IO, hidden `<audio>` playback, AnalyserNode
+ * speaking indicators (requestAnimationFrame loop), and mute/deafen state
+ * synced via `voice:mute-state`. ICE candidates arriving before the remote
+ * description are queued and flushed after.
+ *
+ * @important Joins muted (`track.enabled = false`); the AudioContext-per-peer
+ *            analysis loop must be torn down with peers to avoid leaks.
+ */
 import { VoiceUser } from "@nimbus/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 
+/** Identity + workspace for the voice session. */
 export interface UseVoiceChatProps {
   userId: string;
   userName: string;
@@ -9,6 +22,20 @@ export interface UseVoiceChatProps {
   workspaceId: string;
 }
 
+/**
+ * Manages the full voice session.
+ *
+ * Lifecycle: fetch TURN creds → getUserMedia (muted) → `voice:join` →
+ * mesh with `voice:current-users` (offer each) / answer incoming offers →
+ * stream remote tracks to hidden audio elements → speaking detection →
+ * `voice:leave` + full peer/mic/analyser teardown on unmount.
+ *
+ * @param props.userId - Current user's ID.
+ * @param props.userName - Display name announced to peers.
+ * @param props.userImage - Avatar URL (nullable).
+ * @param props.workspaceId - Workspace voice channel.
+ * @returns Connection/mute/deafen flags, rosters, and toggle controls.
+ */
 export function useVoiceChat({
   userId,
   userName,
@@ -49,6 +76,7 @@ export function useVoiceChat({
     isDeafenedRef.current = isDeafened;
   }, [isDeafened]);
 
+  /** Closes the peer, removes its audio element + analyser, and drops it from rosters. */
   const cleanupPeer = useCallback((peerId: string) => {
     const peer = peersRef.current.get(peerId);
     if (peer) {
@@ -84,6 +112,7 @@ export function useVoiceChat({
     });
   }, []);
 
+  /** Attaches an AnalyserNode (fftSize 512) for speaking detection; failures are non-fatal. */
   const setupAudioAnalysis = useCallback(
     (stream: MediaStream, peerId: string) => {
       try {
@@ -133,6 +162,8 @@ export function useVoiceChat({
         });
         localStreamRef.current = localStream;
 
+        // Join muted by default — the track stays live (so negotiation succeeds)
+        // but captures silence until the user unmutes.
         localStream.getAudioTracks().forEach((track) => {
           track.enabled = false;
         });
@@ -184,6 +215,7 @@ export function useVoiceChat({
     };
   }, [workspaceId, userId, setupAudioAnalysis, cleanupPeer]);
 
+  // NOTE: a fresh peer replaces any stale entry for the target (re-join safe).
   const createPeerConnection = useCallback(
     (
       targetUserId: string,
@@ -371,6 +403,8 @@ export function useVoiceChat({
     }) => {
       try {
         const peer = peersRef.current.get(data.fromUserId);
+        // Queue candidates until the remote description exists — addIceCandidate
+        // before setRemoteDescription throws InvalidStateError.
         if (!peer || !peer.remoteDescription) {
           const queue = pendingCandidatesRef.current.get(data.fromUserId) || [];
           queue.push(data.candidate);
@@ -428,6 +462,8 @@ export function useVoiceChat({
         });
         const average = total / bufferLength;
 
+        // Threshold 12/255 average energy; state only replaced when the set
+        // actually changes to avoid re-rendering every animation frame.
         if (average > 12) {
           currentlySpeaking.add(participantId);
         }
@@ -453,6 +489,7 @@ export function useVoiceChat({
     };
   }, []);
 
+  /** Toggles mic; unmutes (undeafens) first when deafened. Syncs via `voice:mute-state`. */
   const toggleMute = useCallback(() => {
     if (isDeafened) {
       audioElementsRef.current.forEach((audio) => {
@@ -484,6 +521,10 @@ export function useVoiceChat({
     socket.emit("voice:mute-state", { workspaceId, isMuted: nextMute });
   }, [workspaceId, isMuted, isDeafened, userId]);
 
+  /**
+   * Toggles deafen: mutes mic + silences remote audio, remembering the prior
+   * mute state so undeafening restores it instead of forcing unmute.
+   */
   const toggleDeafen = useCallback(() => {
     const nextDeafen = !isDeafened;
 

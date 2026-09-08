@@ -4,8 +4,16 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
+/**
+ * @module web/hooks/useResetPasswordForm
+ * @description Password-reset completion: submits the new password with the
+ * emailed token, flips `done`, and routes to `/login` after 2.5s.
+ */
 import { authClient } from "../lib/auth-client";
 
+/**
+ * @param token - Reset token from the emailed link.
+ */
 export function useResetPasswordForm(token: string) {
   const router = useRouter();
   const form = useForm<z.infer<typeof resetSchema>>({

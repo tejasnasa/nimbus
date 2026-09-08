@@ -1,9 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useWorkspaceForm
+ * @description Create-workspace form: Zod-validated name/description,
+ * POSTs to `/api/workspace/create`, and routes to the new workspace on
+ * success. Server failures surface as a root form error.
+ */
 import { workspaceSchema } from "@nimbus/types";
 import { useRouter } from "next/navigation";
 
+/** Create-workspace form state (register, firstError, isSubmitting, onSubmit). */
 export function useWorkspaceForm() {
   const router = useRouter();
   const form = useForm<z.infer<typeof workspaceSchema>>({

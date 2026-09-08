@@ -1,9 +1,18 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useUpdateWorkspaceSettingsForm
+ * @description Workspace rename/description form prefilled from the current
+ * workspace. Resets the dirty flag and refreshes the route on success;
+ * failures surface as a root form error.
+ */
 import { workspaceSchema, Workspace } from "@nimbus/types";
 import { useRouter } from "next/navigation";
 
+/**
+ * @param workspace - Current workspace (seeds name/description defaults).
+ */
 export function useUpdateWorkspaceSettingsForm(workspace: Workspace) {
   const router = useRouter();
   const form = useForm<z.infer<typeof workspaceSchema>>({

@@ -1,6 +1,15 @@
+/**
+ * @module web/hooks/useWorkspacePermissions
+ * @description Workspace danger-zone actions: invite-code regeneration,
+ * workspace deletion (routes to `/home`), and clipboard copy. Loading is
+ * keyed by action (`regenerate` | `delete`).
+ */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+/**
+ * @param workspaceId - Target workspace cuid.
+ */
 export function useWorkspacePermissions(workspaceId: string) {
   const router = useRouter();
   const [loading, setLoading] = useState<"regenerate" | "delete" | null>(null);

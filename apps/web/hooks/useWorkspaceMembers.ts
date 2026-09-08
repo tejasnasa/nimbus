@@ -1,6 +1,15 @@
+/**
+ * @module web/hooks/useWorkspaceMembers
+ * @description Member management: role updates and removals with per-member
+ * loading state. Refreshes the route on success; RBAC errors surface via alert.
+ */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+/**
+ * @param workspaceId - Workspace the members belong to.
+ * @returns `handleUpdateRole`, `handleRemoveMember`, and the in-flight `loading` member id.
+ */
 export function useWorkspaceMembers(workspaceId: string) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);

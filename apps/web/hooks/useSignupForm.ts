@@ -3,8 +3,14 @@ import { signupSchema } from "@nimbus/types";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+/**
+ * @module web/hooks/useSignupForm
+ * @description Email signup form: on success opens the verification dialog
+ * (`showVerifyDialog`) for the watched email address.
+ */
 import { authClient } from "../lib/auth-client";
 
+/** Signup form state plus verification-dialog controls and the submitted email. */
 export function useSignupForm() {
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),

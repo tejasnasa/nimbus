@@ -1,9 +1,16 @@
+/**
+ * @module web/providers/VoiceProvider
+ * @description Thin context wrapper around `useVoiceChat`: runs the WebRTC
+ * hook once per workspace and exposes its state + mute/deafen controls (plus
+ * `localUser` identity) to voice UI components.
+ */
 "use client";
 
 import { VoiceUser } from "@nimbus/types";
 import React, { createContext, useContext } from "react";
 import { useVoiceChat, UseVoiceChatProps } from "../hooks/useVoiceChat";
 
+/** Voice state + controls consumed via `useVoice()`. */
 interface VoiceContextType {
   isConnected: boolean;
   isMuted: boolean;
@@ -17,6 +24,10 @@ interface VoiceContextType {
 
 const VoiceContext = createContext<VoiceContextType | null>(null);
 
+/**
+ * Reads voice state; throws outside `VoiceProvider` to fail fast on
+ * misplaced consumers.
+ */
 export function useVoice() {
   const context = useContext(VoiceContext);
   if (!context) {
@@ -29,6 +40,11 @@ interface VoiceProviderProps extends UseVoiceChatProps {
   children: React.ReactNode;
 }
 
+/**
+ * Instantiates `useVoiceChat` for the workspace and publishes it via context.
+ *
+ * @param props - Identity + workspace (forwarded to the hook) and children.
+ */
 export function VoiceProvider({
   children,
   userId,

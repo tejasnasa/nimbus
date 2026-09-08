@@ -1,6 +1,13 @@
+/**
+ * @module web/api/document
+ * @description Server-side document fetch helper. Forwards cookies with
+ * `cache: "no-store"` and maps API `DocumentDTO`s (title/canvasData) to
+ * `ClientDocument`s (label/elements) for the editor.
+ */
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { headers } from "next/headers";
 
+/** Raw API shape (`title` + untyped `canvasData`). */
 export type DocumentDTO = {
   id: string;
   title: string;
@@ -9,6 +16,7 @@ export type DocumentDTO = {
   yjsState: unknown;
 };
 
+/** Editor-ready shape (`label` + typed element array). */
 export type ClientDocument = {
   id: string;
   label: string;
@@ -17,6 +25,14 @@ export type ClientDocument = {
   yjsState: unknown;
 };
 
+/**
+ * Lists a workspace's documents as client-ready models.
+ *
+ * Non-array `canvasData` normalizes to `[]` so canvas components always
+ * receive an iterable.
+ *
+ * @param workspaceId - Owning workspace.
+ */
 export async function getDocuments(
   workspaceId: string,
 ): Promise<ClientDocument[]> {

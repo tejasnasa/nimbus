@@ -1,9 +1,22 @@
+/**
+ * @module web/api/workspace
+ * @description Server-side workspace fetch helpers. Forward the request
+ * cookies to the API (session auth) with `cache: "no-store"`, and strip the
+ * NimbusBot pseudo-member (`NEXT_PUBLIC_BOTUSER_ID`) so it never renders as
+ * a human collaborator.
+ */
 "use server";
 
 import { Member, Workspace } from "@nimbus/types";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
+/**
+ * Lists the caller's workspaces (bot member filtered out).
+ *
+ * @returns Workspaces with human members only.
+ * @throws When the API responds non-OK.
+ */
 export async function getWorkspaces(): Promise<Workspace[]> {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace`,
@@ -27,6 +40,12 @@ export async function getWorkspaces(): Promise<Workspace[]> {
   return workspaces;
 }
 
+/**
+ * Fetches one workspace by slug id (bot member filtered out).
+ *
+ * @param workspaceId - URL slug id.
+ * @returns Workspace detail; triggers the 404 page on non-OK.
+ */
 export async function getWorkspace(workspaceId: string): Promise<Workspace> {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/${workspaceId}`,
@@ -49,6 +68,12 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace> {
   return { ...workspace, members };
 }
 
+/**
+ * Deletes a workspace (OWNER-only server-side).
+ *
+ * @param workspaceId - Workspace cuid.
+ * @throws When the API responds non-OK.
+ */
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/delete/${workspaceId}`,

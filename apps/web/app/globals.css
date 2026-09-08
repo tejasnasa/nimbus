@@ -1,11 +1,21 @@
+/* ═══ Nimbus Web Global Styles ═══
+ * App-level stylesheet: Tailwind v4 entry, shared UI tokens, Milkdown editor
+ * overrides, keyframes + `@utility` animation helpers, and reusable effect
+ * classes (glass cards, gradients, scrollbars). Imported once by
+ * `apps/web/app/layout.tsx`.
+ */
+
+/* ═══ Tailwind & Shared Tokens ═══ */
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 @import "@nimbus/ui/globals.css";
 
+/* ═══ Base Document ═══ */
 html {
   scroll-behavior: smooth;
 }
 
+/* ═══ Milkdown Editor Base ═══ */
 .milkdown .editor,
 .milkdown .milkdown-editor-surface {
   min-height: 100%;
@@ -17,6 +27,7 @@ html {
   height: 100%;
 }
 
+/* ═══ Keyframes — Entrance (fade / slide / scale) ═══ */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -70,6 +81,7 @@ html {
   }
 }
 
+/* ═══ Keyframes — Ambient (float / shimmer / glow / spin / gradient / border) ═══ */
 @keyframes float {
   0%,
   100% {
@@ -141,6 +153,7 @@ html {
   }
 }
 
+/* ═══ Utility Animations (Tailwind `@utility`) ═══ */
 @utility animate-fade-in {
   animation: fade-in 0.6s ease-out both;
 }
@@ -187,6 +200,7 @@ html {
   animation: border-glow 2s ease-in-out infinite;
 }
 
+/* ═══ Glass, Gradient & Grid Effects ═══ */
 .glass-card {
   background: oklch(0.212 0.019 322.12 / 0.4);
   backdrop-filter: blur(16px);
@@ -219,6 +233,7 @@ html {
   background-size: 64px 64px;
 }
 
+/* ═══ Scrollbars ═══ */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
 }
@@ -244,6 +259,7 @@ html {
   scrollbar-width: none;
 }
 
+/* ═══ Keyframes — Orb & Feedback (orbit / morph / checkmark / typewriter / explode) ═══ */
 @keyframes orbit {
   from {
     transform: rotate(var(--orbit-start, 0deg))
@@ -309,6 +325,7 @@ html {
   }
 }
 
+/* ═══ Orb Utility Animations ═══ */
 @utility animate-orbit {
   animation: orbit var(--orbit-duration, 3s) linear infinite;
 }
@@ -330,6 +347,7 @@ html {
   animation: orb-explode 0.5s ease-out forwards;
 }
 
+/* ═══ Milkdown Drag Handles (block / cell / line + add buttons) ═══ */
 .milkdown .handle {
   position: absolute;
   display: flex;
@@ -541,6 +559,7 @@ html {
   transform: translateX(-50%) scale(1.1);
 }
 
+/* ═══ Milkdown Tables ═══ */
 .milkdown table {
   border-collapse: collapse;
   margin: 1.5rem 0;

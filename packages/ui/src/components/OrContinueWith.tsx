@@ -1,3 +1,8 @@
+/**
+ * @module ui/components/OrContinueWith
+ * @description Horizontal "or" divider separating credential fields from
+ * OAuth buttons on the login/signup forms.
+ */
 export default function OrContinueWith() {
   return (
     <div className="flex items-center gap-3 w-full my-1">

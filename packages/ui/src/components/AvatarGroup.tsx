@@ -1,9 +1,22 @@
+/**
+ * @module ui/components/AvatarGroup
+ * @description Overlapping avatar stack with overflow counter (e.g. `+4`).
+ * Used on workspace cards and member lists.
+ */
 type AvatarGroupProps = {
+  /** Member images with optional per-user online flag. */
   users: { image: string; online?: boolean }[];
+  /** Max avatars shown before collapsing into the `+N` counter. Defaults to 3. */
   max?: number;
   className?: string;
 };
 
+/**
+ * Overlapping avatar stack.
+ *
+ * Later avatars render underneath earlier ones via descending `zIndex`,
+ * and any members beyond `max` collapse into a `+N` badge.
+ */
 export default function AvatarGroup({
   users,
   max = 3,

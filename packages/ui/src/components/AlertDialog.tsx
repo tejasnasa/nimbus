@@ -3,11 +3,25 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
+/**
+ * @module ui/components/AlertDialog
+ * @description Uncontrolled confirmation modal: clicking `trigger` opens a
+ * `document.body` portal with backdrop-blur + fade/scale animations. Closes
+ * on Escape, backdrop click, or any nested `[data-alert-dialog-close]` click.
+ */
 type Props = {
+  /** Clickable element that opens the dialog. */
   trigger: React.ReactNode;
+  /** Dialog panel content rendered inside the portal. */
   children: React.ReactNode;
 };
 
+/**
+ * Confirmation modal with portal rendering.
+ *
+ * NOTE: `mounted` guards SSR — the portal only renders after client mount
+ * so `document.body` is guaranteed to exist.
+ */
 export default function AlertDialog({ trigger, children }: Props) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);

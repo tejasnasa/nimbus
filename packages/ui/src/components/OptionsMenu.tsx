@@ -1,6 +1,13 @@
+/**
+ * @module ui/components/OptionsMenu
+ * @description Generic click-to-toggle dropdown: any `trigger` node opens a
+ * positioned menu of label/icon items with destructive and disabled variants.
+ * Closes on outside click or after an item is picked.
+ */
 "use client";
 import { useState, useRef, useEffect } from "react";
 
+/** Single dropdown row; `disabled` rows are non-interactive headers. */
 interface OptionItem {
   label: string;
   icon?: React.ReactNode;
@@ -17,6 +24,14 @@ interface OptionMenuProps {
   className?: string;
 }
 
+/**
+ * Dropdown context menu.
+ *
+ * @param props.trigger - Clickable element toggling the menu.
+ * @param props.items - Rows; `destructive` tints red, `disabled` greys out.
+ * @param props.size - Density preset (`sm` compact, `lg` comfortable).
+ * @param props.direction - Menu alignment relative to the trigger.
+ */
 export default function OptionMenu({
   trigger,
   items,
@@ -27,6 +42,8 @@ export default function OptionMenu({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Guard: close on outside click — the trigger toggle and menu live in the
+  // same ref container, so any mousedown outside it means dismissal.
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {

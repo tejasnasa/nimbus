@@ -1,5 +1,14 @@
+/**
+ * @module ui/components/DocTabs
+ * @description Drag-reorderable document tab strip for the editor.
+ *
+ * Supports HTML5 drag-to-reorder with active-index remapping, a pulsing
+ * indicator for `GENERATING` / `generating:*` tabs, a glow highlight for
+ * newly AI-created tabs, and hover-revealed close buttons.
+ */
 import { Dispatch, SetStateAction, useRef, useState } from "react";
 
+/** Controlled tab-strip state shared with the parent `DocEditor`. */
 interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
   tabs: T[];
   setTabs: Dispatch<SetStateAction<T[]>>;
@@ -9,6 +18,17 @@ interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
   onCloseTab?: (id: string) => void;
 }
 
+/**
+ * Document tab strip with drag-reorder.
+ *
+ * @param props.tabs - Ordered tabs; `type === "GENERATING"` (or id prefix
+ *                     `generating:`) renders the pulsing AI indicator.
+ * @param props.setTabs - Reordered array setter called on drop.
+ * @param props.active - Index of the selected tab.
+ * @param props.setActive - Selects a tab on click; remapped on reorder.
+ * @param props.highlightTabId - Tab id receiving the `animate-border-glow`.
+ * @param props.onCloseTab - Close-button handler; hidden when omitted.
+ */
 export default function DocTabs<
   T extends { id: string; label: string; type?: string },
 >({
@@ -22,6 +42,8 @@ export default function DocTabs<
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
 
+  // Reorder via splice-move, then remap the active index so the same
+  // document stays selected regardless of drag direction.
   const handleDrop = (i: number) => {
     const from = dragIndex.current;
     if (from === null || from === i) return;

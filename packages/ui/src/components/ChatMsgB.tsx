@@ -1,5 +1,20 @@
+/**
+ * @module ui/components/ChatMsgB
+ * @description Right-aligned chat bubble for the current user's own messages:
+ * primary-tinted bubble on the right, avatar at the edge. Timestamp reveals
+ * on hover. Pair with `ChatMsgA` for incoming messages.
+ */
 import Avatar from "./Avatar";
 
+/**
+ * Outgoing chat message bubble.
+ *
+ * @param props.name - Current user's display name.
+ * @param props.image - Current user's avatar URL.
+ * @param props.message - Plain-text content (whitespace preserved).
+ * @param props.time - Pre-formatted timestamp, shown on hover.
+ * @param props.isOnline - Toggles the avatar presence dot.
+ */
 export default function ChatMsgB({
   name,
   image,

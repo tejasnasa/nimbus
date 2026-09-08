@@ -1,8 +1,17 @@
+/**
+ * @module ui/components/Button
+ * @description Primary button with size variants, optional aspect-ratio lock,
+ * and a loading state that swaps in a spinner and disables interaction.
+ */
 import { Spinner } from "./icons/Spinner";
 
+/** Props extending the native button attributes with Nimbus variants. */
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** Visual size preset (padding + text size). Defaults to `"md"`. */
   size?: "xs" | "sm" | "md" | "lg";
+  /** Optional CSS `aspect-ratio` lock; when set, horizontal padding is removed. */
   ratio?: number;
+  /** When true, shows a spinner and disables the button. */
   loading?: boolean;
 };
 
@@ -20,6 +29,14 @@ const iconSizes = {
   lg: "h-5 w-5",
 };
 
+/**
+ * Primary action button.
+ *
+ * @param props.className - Additional Tailwind classes appended after the base styles.
+ * @param props.size - Size preset controlling padding and text size.
+ * @param props.ratio - Optional aspect-ratio lock for square/icon buttons.
+ * @param props.loading - Shows a spinner and forces `disabled` while true.
+ */
 export default function Button({
   className = "",
   size = "md",

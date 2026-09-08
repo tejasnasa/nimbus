@@ -1,11 +1,17 @@
+/* ═══ Nimbus UI Design Tokens ═══
+ * Shared OKLCH theme variables consumed by `@nimbus/ui` components and the
+ * web app (imported via `@import "@nimbus/ui/globals.css"` in
+ * `apps/web/app/globals.css`). Single dark-theme set only — light-mode
+ * overrides are intentionally not defined here.
+ */
 
-
+/* ═══ Base Elements ═══ */
 body {
   color: var(--foreground);
   background: var(--background);
 }
 
-
+/* ═══ Theme Tokens — Surfaces, Brand, Feedback, Charts & Sidebar ═══ */
 :root {
   --background: oklch(14.128% 0.00657 285.502);
   --foreground: oklch(0.985 0 0);

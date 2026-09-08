@@ -1,5 +1,21 @@
+/**
+ * @module ui/components/ChatMsgA
+ * @description Left-aligned chat bubble for other users' (and NimbusBot's)
+ * messages: avatar + name on the left, muted bubble underneath. Timestamp
+ * reveals on hover. Pair with `ChatMsgB` for the current user's messages.
+ */
 import Avatar from "./Avatar";
 
+/**
+ * Incoming chat message bubble.
+ *
+ * @param props.name - Sender display name (rendered blue when `isBot`).
+ * @param props.image - Sender avatar URL.
+ * @param props.message - Plain-text content (whitespace preserved).
+ * @param props.time - Pre-formatted timestamp, shown on hover.
+ * @param props.isOnline - Toggles the avatar presence dot.
+ * @param props.isBot - Highlights the name for bot messages.
+ */
 export default function ChatMsgA({
   name,
   image,

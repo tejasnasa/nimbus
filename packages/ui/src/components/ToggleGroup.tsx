@@ -1,11 +1,23 @@
+/**
+ * @module ui/components/ToggleGroup
+ * @description Single-select segmented control: exactly one option is active
+ * at a time, defaulting to the first. Reports changes via `onChange`.
+ */
 "use client";
 import { useState } from "react";
 
+/** Segmented-control props. */
 interface ToggleGroupProps {
   options: string[];
   onChange?: (selected: string) => void;
 }
 
+/**
+ * Single-select toggle button group.
+ *
+ * @param props.options - Labels to render; `options[0]` is initially selected.
+ * @param props.onChange - Called with the newly selected option.
+ */
 export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
   const [selected, setSelected] = useState<string>(options[0] ?? "");
 

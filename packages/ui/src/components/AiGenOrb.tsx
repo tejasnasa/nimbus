@@ -1,3 +1,11 @@
+/**
+ * @module ui/components/AiGenOrb
+ * @description Purely decorative AI-generation indicator: layered ambient
+ * glow, counter-rotating rings, morphing gradient core with specular
+ * highlight, and dashed SVG orbit arcs. Fixed 120px box; no props or state.
+ */
+
+/** Animated orb shown while NimbusBot generates docs or canvas content. */
 export function AIGenOrb() {
   return (
     <div

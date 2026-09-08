@@ -1,6 +1,12 @@
+/**
+ * @module ui/components/SettingTabs
+ * @description Vertical settings navigation: left column of tab buttons
+ * switching the right-hand content panel. Used by WorkspaceSettings.
+ */
 "use client";
 import { useState } from "react";
 
+/** Label/content pairs; content is rendered lazily for the active tab only. */
 interface SettingTabsProps {
   tabs: {
     label: string;
@@ -8,6 +14,11 @@ interface SettingTabsProps {
   }[];
 }
 
+/**
+ * Vertical tab navigation for settings panels.
+ *
+ * @param props.tabs - Ordered tabs; the active index starts at 0.
+ */
 export default function SettingTabs({ tabs }: SettingTabsProps) {
   const [active, setActive] = useState(0);
 

@@ -1,5 +1,17 @@
+/**
+ * @module ui/components/Textarea
+ * @description Fixed-height (h-32, non-resizable) multi-line input matching
+ * the Input component's muted/focus-ring styling. Used for workspace
+ * descriptions and other short free-text fields.
+ */
 import { TextareaHTMLAttributes } from "react";
 
+/**
+ * Multi-line text input.
+ *
+ * Pass-through wrapper around `<textarea>` — all native props are forwarded
+ * unchanged; resizing is disabled via `resize-none`.
+ */
 export default function Textarea({
   className,
   ...props

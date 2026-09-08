@@ -1,3 +1,8 @@
+/**
+ * @module ui/components/Skeleton
+ * @description Shimmer loading placeholder. Size/shape come entirely from the
+ * caller's `className` (e.g. `h-4 w-32`); the shimmer sweep is baked in.
+ */
 export function Skeleton({
   className = "",
   style,

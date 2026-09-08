@@ -8,8 +8,21 @@ import Delete from "./icons/Delete";
 import Clipboard from "./icons/Clipboard";
 import Duplicate from "./icons/Duplicate";
 import { Workspace } from "@nimbus/types";
+/**
+ * @module ui/components/WorkspaceCard
+ * @description Clickable workspace summary card linking to
+ * `/workspace/[slugId]`: name, relative update time, member AvatarGroup, and
+ * description, plus a hover-revealed menu (copy invite code / delete).
+ * The menu click is stop-propagated so it never triggers navigation.
+ */
 import { getAvatarForUser } from "../utils/getAvatarForUser";
 
+/**
+ * Workspace summary card.
+ *
+ * @param props.workspace - Workspace DTO with members and invite code.
+ * @param props.deleteWorkspace - Delete handler invoked from the card menu.
+ */
 export default function WorkspaceCard({
   workspace,
   deleteWorkspace,

@@ -5,12 +5,26 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Button from "./Button";
 
+/**
+ * @module ui/components/VerifyEmailDialog
+ * @description Controlled "check your email" modal shown after signup: portal
+ * overlay with the target address, Escape/backdrop dismissal, and a CTA that
+ * closes the dialog and routes to `/login`.
+ */
 type Props = {
+  /** Visibility flag controlled by the parent form. */
   open: boolean;
+  /** Address the verification link was sent to. */
   email: string;
   onClose: () => void;
 };
 
+/**
+ * Email-verification prompt dialog.
+ *
+ * NOTE: returns null until client-mounted to keep `document.body` portal
+ * access SSR-safe.
+ */
 export default function VerifyEmailDialog({ open, email, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();

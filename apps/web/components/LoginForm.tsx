@@ -10,6 +10,14 @@ import { authClient } from "../lib/auth-client";
 import Login from "@nimbus/ui/icons/Login";
 import Error from "@nimbus/ui/icons/Error";
 
+/**
+ * @module web/components/LoginForm
+ * @description Presentational sign-in card driven by `useLoginForm`: email +
+ * password fields, forgot-password link, error banner, Google OAuth
+ * (`callbackURL: /home`), and a switch to signup. All logic lives in the
+ * hook — this component only renders props.
+ */
+/** Controlled props from `useLoginForm` plus view-switch callbacks. */
 interface LoginFormProps {
   register: UseFormRegister<z.infer<typeof loginSchema>>;
   firstError?: string;

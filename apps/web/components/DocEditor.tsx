@@ -10,6 +10,16 @@ import Canvas from "./Canvas";
 import { useDocEditorRef } from "./DocEditorRefContext";
 import { MarkdownEditor } from "./MarkdownEditor";
 
+/**
+ * @module web/components/DocEditor
+ * @description Tabbed document workspace: `DocTabs` strip + per-tab
+ * `Canvas`/`MarkdownEditor`, plus the NimbusBot AI flow. `doc:ai:start`
+ * swaps in a GENERATING pseudo-tab with `AiGenOverlay`; `doc:ai:thinking`
+ * streams reasoning tokens; `doc:ai:complete` replaces the pseudo-tab with
+ * the real document after 500ms; `doc:ai:error` surfaces dismissal. Exposes
+ * `addTab` to siblings (e.g. Chat) via `DocEditorRefContext`.
+ */
+/** Placeholder tab shown while NimbusBot generates a document. */
 type GeneratingTab = {
   id: string;
   label: string;
@@ -17,6 +27,7 @@ type GeneratingTab = {
   docType: "MARKDOWN" | "CANVAS";
 };
 
+/** Renderable tab: persisted document or in-flight generation. */
 type EditorTab = ClientDocument | GeneratingTab;
 
 type DocAIStartData = { type: "MARKDOWN" | "CANVAS"; label: string };
@@ -33,6 +44,11 @@ function isGeneratingTab(tab: EditorTab): tab is GeneratingTab {
   return tab.type === "GENERATING";
 }
 
+/**
+ * Tabbed editor over the workspace's documents.
+ *
+ * @param props.documents - Initial tabs (first tab active).
+ */
 export default function DocEditor({
   documents,
 }: {
@@ -58,6 +74,7 @@ export default function DocEditor({
     }, 2000);
   }, []);
 
+  // Idempotent open: existing docs focus instead of duplicating tabs.
   const addTab = useCallback(
     (doc: ClientDocument) => {
       setTabs((prev) => {
@@ -162,6 +179,8 @@ export default function DocEditor({
   }, []);
 
   useEffect(() => {
+    // Single-flight generation: a new start evicts any stale GENERATING tab so
+    // only one AI overlay exists at a time.
     function onStart(data: DocAIStartData) {
       const tabId = `generating:${Date.now()}`;
 
@@ -205,6 +224,8 @@ export default function DocEditor({
     }
 
     function onComplete(data: DocAICompleteData) {
+      // Ref (not state) read: the socket callback closes over registration time,
+      // so the ref carries the latest generation tab id.
       const prev = aiGeneratingRef.current;
       if (!prev) return;
 

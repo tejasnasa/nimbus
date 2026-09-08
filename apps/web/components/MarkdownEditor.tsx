@@ -9,11 +9,23 @@ import { collab, collabServiceCtx } from "@milkdown/plugin-collab";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { nord } from "@milkdown/theme-nord";
 import "@milkdown/theme-nord/style.css";
+/**
+ * @module web/components/MarkdownEditor
+ * @description Real-time collaborative Markdown editor (Milkdown + Yjs).
+ *
+ * Lifecycle: `doc:join` → apply server binary state with origin `"socket"`
+ * → bind the collab plugin (seeding AI `initialContent` as a template when
+ * present) → local edits emit `doc:update`, remote updates apply silently.
+ * A 300ms fallback connects empty docs whose state arrives without content.
+ */
 import { useEffect, useRef } from "react";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { socket } from "../lib/socket";
 
+/**
+ * @param documentId - Document cuid (socket room + Yjs session key).
+ */
 interface MarkdownEditorProps {
   documentId: string;
 }
@@ -155,6 +167,7 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
     socket.on("doc:state", handleState);
     socket.on("doc:update", handleUpdate);
 
+    // Guard: suppress echo — only emit local mutations (origin !== "socket").
     const onDocUpdate = (update: Uint8Array, origin: unknown) => {
       if (origin !== "socket") {
         socket.emit("doc:update", documentId, Array.from(update));
@@ -164,6 +177,8 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
 
     socket.emit("doc:join", documentId);
 
+    // Fallback: empty docs never satisfy the content-gated connect above, so
+    // force-bind after 300ms once state has arrived (avoids a dead editor).
     const emptyDocConnectTimer = window.setTimeout(() => {
       if (!collabConnectedRef.current && stateAppliedRef.current) {
         const metadata = doc.getMap("metadata");
@@ -200,6 +215,12 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
   return <Milkdown />;
 };
 
+/**
+ * Collaborative Markdown editor for one document.
+ *
+ * Remount per `documentId` (keyed by the parent) so each doc gets a fresh
+ * Yjs session, Milkdown provider, and socket room.
+ */
 export const MarkdownEditor = ({ documentId }: MarkdownEditorProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
 

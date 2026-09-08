@@ -6,6 +6,13 @@ import Input from "@nimbus/ui/Input";
 import Textarea from "@nimbus/ui/Textarea";
 import { useWorkspaceForm } from "../hooks/useWorkspaceForm";
 import { useWorkspaceJoinForm } from "../hooks/useWorkspaceJoinForm";
+/**
+ * @module web/components/CreateWorkspaceCard
+ * @description Dashboard "New Workspace" card: dotted-tile entry point with
+ * two `AlertDialog` flows — create (name/description via `useWorkspaceForm`)
+ * and join-by-invite-code (via `useWorkspaceJoinForm`). Rendered first in the
+ * `ViewWorkspaces` masonry grid.
+ */
 import Plus from "@nimbus/ui/icons/Plus";
 import Error from "@nimbus/ui/icons/Error";
 import Signup from "@nimbus/ui/icons/Signup";

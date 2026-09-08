@@ -4,6 +4,13 @@ import { AIGenOrb } from "@nimbus/ui/AiGenOrb";
 import Error from "@nimbus/ui/icons/Error";
 import { useEffect, useRef } from "react";
 
+/**
+ * @module web/components/AiGenOverlay
+ * @description Full-pane AI generation status: orb/spinner while
+ * starting/thinking, check on complete, error art + Dismiss on failure, with
+ * an auto-scrolling reasoning/token log panel.
+ */
+/** Generation progress for one `generating:*` tab. */
 export type AIGenerationState = {
   tabId: string;
   type: "MARKDOWN" | "CANVAS";
@@ -19,6 +26,10 @@ interface Props {
   onDismissError: () => void;
 }
 
+/**
+ * @param props.state - Generation snapshot (stage drives orb/check/error).
+ * @param props.onDismissError - Removes the failed GENERATING tab.
+ */
 export function AiGenOverlay({ state, onDismissError }: Props) {
   const reasoningRef = useRef<HTMLDivElement>(null);
   const isMarkdown = state.type === "MARKDOWN";

@@ -1,8 +1,16 @@
+/**
+ * @module web/components/VoiceOverlay
+ * @description Floating speaking-indicator badges (top-right): avatars appear
+ * when a user starts speaking and linger 1.5s after they stop (swept on a
+ * 100ms interval), so brief pauses don't flicker the UI. Pointer-events-none
+ * overlay; renders null when nobody is speaking.
+ */
 "use client";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { useEffect, useRef, useState } from "react";
 import { useVoice } from "../providers/VoiceProvider";
 
+/** Visible speaker with `Infinity` lastSpoke while actively talking. */
 interface SpeakerInfo {
   userId: string;
   name: string;
@@ -63,6 +71,8 @@ export default function VoiceOverlay() {
     prevSpeakingRef.current = next;
   }, [speakingUsers, voiceUsers, localUser]);
 
+  // Sweep every 100ms: evict speakers silent >1.5s. Identity-preserving
+  // (returns prev when unchanged) to avoid re-rendering on every tick.
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();

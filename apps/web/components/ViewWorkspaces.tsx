@@ -7,6 +7,12 @@ import WorkspaceCard from "@nimbus/ui/WorkspaceCard";
 import { useState } from "react";
 import Masonry from "react-masonry-css";
 
+/**
+ * @module web/components/ViewWorkspaces
+ * @description Dashboard grid: All/My `ToggleGroup` filter (My = OWNER role)
+ * over a responsive masonry layout (4→1 columns) with staggered
+ * `animate-scale-in` entrances. `CreateWorkspaceCard` always leads.
+ */
 const breakpointColumnsObj = {
   default: 4,
   1280: 4,
@@ -15,6 +21,11 @@ const breakpointColumnsObj = {
   640: 1,
 };
 
+/**
+ * @param props.workspaces - All member workspaces.
+ * @param props.id - Current user (OWNER check for the My filter).
+ * @param props.deleteWorkspace - Delete handler for cards.
+ */
 export default function ViewWorkspaces({
   workspaces,
   id,

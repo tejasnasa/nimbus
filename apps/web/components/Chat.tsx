@@ -10,9 +10,23 @@ import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { timeAgo } from "@nimbus/utils";
 import { useEffect, useRef, useState } from "react";
 import { ClientDocument } from "../api/document";
+/**
+ * @module web/components/Chat
+ * @description Workspace chat panel: joins/leaves the workspace room,
+ * appends `message:new` live, tracks `presence:*` for online dots, and
+ * auto-scrolls on new messages. Own messages render right (`ChatMsgB`),
+ * others/bot left (`ChatMsgA`); Enter sends, Shift+Enter newlines.
+ */
 import { socket } from "../lib/socket";
 import VoiceControls from "./VoiceControls";
 
+/**
+ * @param props.userId - Current user (determines bubble side).
+ * @param props.messages - Server-rendered history; live messages append.
+ * @param props.wsid - Workspace cuid (socket room).
+ * @param props.documents - Passed to VoiceControls for context.
+ * @param props.workspaceData - Membership/voice context for VoiceControls.
+ */
 export default function Chat({
   userId,
   messages: initialMessages,

@@ -23,8 +23,22 @@ import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
 import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
 import { useWorkspaceMembers } from "../hooks/useWorkspaceMembers";
 import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
+/**
+ * @module web/components/WorkspaceSettings
+ * @description Workspace settings modal (~500 lines, largest component):
+ * `SettingTabs` with General (rename form, dirty-gated save), Members
+ * (role OptionMenu + remove confirmations), Documents (create dialog with
+ * MARKDOWN/CANVAS ToggleGroup + per-doc delete), and Permissions (invite
+ * copy/regenerate + danger-zone delete). New docs open via the
+ * `DocEditorRefContext` add-tab bridge; the create dialog closes through the
+ * hidden `close-doc-dialog` click in `useWorkspaceDocumentForm`.
+ */
 import { useDocEditorRef } from "./DocEditorRefContext";
 
+/**
+ * @param props.workspace - Workspace under edit (seeds the rename form).
+ * @param props.documents - Document list for the Documents tab.
+ */
 export default function WorkspaceSettings({
   workspace,
   documents,

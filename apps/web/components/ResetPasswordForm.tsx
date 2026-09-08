@@ -4,9 +4,18 @@ import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
 import Error from "@nimbus/ui/icons/Error";
 import Lock from "@nimbus/ui/icons/Lock";
+/**
+ * @module web/components/ResetPasswordForm
+ * @description Self-contained new-password card (owns
+ * `useResetPasswordForm(token)`): password + confirm fields → `done`
+ * confirmation with auto-redirect to login.
+ */
 import { useResetPasswordForm } from "../hooks/useResetPasswordForm";
 import { Spinner } from "@nimbus/ui/icons/Spinner";
 
+/**
+ * @param props.token - Reset token from the emailed link (from the page's search params).
+ */
 export default function ResetPasswordForm({ token }: { token: string }) {
   const { register, firstError, isSubmitting, onSubmit, done } =
     useResetPasswordForm(token);

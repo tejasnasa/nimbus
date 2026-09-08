@@ -9,10 +9,21 @@ import Microphone from "@nimbus/ui/icons/Microphone";
 import MicrophoneOff from "@nimbus/ui/icons/MicrophoneOff";
 import Settings from "@nimbus/ui/icons/Settings";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+/**
+ * @module web/components/VoiceControls
+ * @description Voice channel header inside Chat: connecting placeholder until
+ * `isConnected`, then live avatar stack + mute/deafen toggles (red when
+ * active) and the settings gear opening `WorkspaceSettings` in an
+ * `AlertDialog`. Rendered at the top of the chat panel.
+ */
 import { ClientDocument } from "../api/document";
 import { useVoice } from "../providers/VoiceProvider";
 import WorkspaceSettings from "./WorkspaceSettings";
 
+/**
+ * @param props.documents - Workspace docs (forwarded to settings).
+ * @param props.workspaceData - Workspace (forwarded to settings).
+ */
 export default function VoiceControls({
   documents,
   workspaceData,

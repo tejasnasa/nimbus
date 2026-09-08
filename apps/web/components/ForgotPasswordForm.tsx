@@ -6,6 +6,12 @@ import Error from "@nimbus/ui/icons/Error";
 import Login from "@nimbus/ui/icons/Login";
 import { useForgotPasswordForm } from "../hooks/useForgotPasswordForm";
 
+/**
+ * @module web/components/ForgotPasswordForm
+ * @description Self-contained reset-request card (owns
+ * `useForgotPasswordForm`): email field → `sent` confirmation state with a
+ * back-to-login link. Rendered inside `FormSwitch`.
+ */
 interface ForgotPasswordFormProps {
   openLogin: () => void;
 }

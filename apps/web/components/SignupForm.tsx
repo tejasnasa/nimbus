@@ -11,6 +11,13 @@ import z from "zod";
 import google from "../assets/google.svg";
 import { authClient } from "../lib/auth-client";
 
+/**
+ * @module web/components/SignupForm
+ * @description Presentational signup card driven by `useSignupForm`: name +
+ * email + password, Google OAuth, switch to login, and the
+ * `VerifyEmailDialog` for the submitted address. Logic lives in the hook.
+ */
+/** Controlled props from `useSignupForm` plus view-switch callbacks. */
 interface SignupFormProps {
   register: UseFormRegister<z.infer<typeof signupSchema>>;
   firstError?: string;

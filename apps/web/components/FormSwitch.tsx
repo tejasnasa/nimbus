@@ -1,3 +1,9 @@
+/**
+ * @module web/components/FormSwitch
+ * @description Auth view switcher (login ↔ signup ↔ forgot) with a
+ * crossfade grid-stack transition. Shows a desktop-only notice on small
+ * screens. Owns both form hooks so state persists across view switches.
+ */
 "use client";
 import { useState } from "react";
 import { useLoginForm } from "../hooks/useLoginForm";

@@ -11,11 +11,25 @@ const Excalidraw = dynamic(
   { ssr: false },
 );
 
+/**
+ * @module web/components/Canvas
+ * @description Excalidraw whiteboard with full-state socket sync.
+ *
+ * Lifecycle: `canvas:join` → server replays authoritative state →
+ * `updateScene` under a 200ms remote-update guard → local `onChange`
+ * debounced (300ms) back to `canvas:update`. Guards on both sides prevent
+ * echo loops and pre-join emissions.
+ */
 interface CanvasProps {
+  /** Snapshot for first paint; the server state wins once it arrives. */
   initialElements: readonly OrderedExcalidrawElement[];
+  /** Document cuid (socket room key). */
   documentId: string;
 }
 
+/**
+ * Collaborative canvas for one document (remount per `documentId`).
+ */
 export default function Canvas({ initialElements, documentId }: CanvasProps) {
   const excalidrawAPI = useRef<ExcalidrawImperativeAPI | null>(null);
   const isRemoteUpdate = useRef(false);
@@ -24,6 +38,9 @@ export default function Canvas({ initialElements, documentId }: CanvasProps) {
   const latestElementsRef =
     useRef<readonly OrderedExcalidrawElement[]>(initialElements);
 
+  // WARNING: memoized on documentId only — Excalidraw consumes initialData
+  // once per mount, and the parent remounts (key) per document, so updates to
+  // initialElements after mount intentionally do not re-seed the scene.
   const initialData = useMemo(
     () => ({ elements: [...initialElements] }),
     [documentId],
@@ -83,6 +100,8 @@ export default function Canvas({ initialElements, documentId }: CanvasProps) {
         theme="dark"
         excalidrawAPI={handleExcalidrawApi}
         onChange={(elements) => {
+          // Guard: drop remote replays and pre-join strokes — only initialized
+          // local edits are emitted (debounced below).
           if (isRemoteUpdate.current || !isInitialized.current) {
             return;
           }

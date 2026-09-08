@@ -12,6 +12,5 @@ export type VoiceUser = {
   userId: string;
   name: string;
   image: string | null;
-  /** True when the user's microphone is muted. */
   isMuted: boolean;
 };

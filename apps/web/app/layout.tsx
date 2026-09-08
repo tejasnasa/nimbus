@@ -1,3 +1,9 @@
+/**
+ * @module web/app/layout
+ * @description Root layout: JetBrains Mono font, global CSS, single
+ * app-wide `SocketProvider`, Vercel Analytics/SpeedInsights, full SEO/OG/
+ * Twitter metadata, and JSON-LD (WebSite + WebApplication) for search.
+ */
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";

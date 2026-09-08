@@ -1,3 +1,9 @@
+/**
+ * @module web/app/page
+ * @description Public marketing landing page (static, no data fetching):
+ * fixed nav, hero, feature grid, product preview screenshots, how-it-works,
+ * testimonials, and footer. Entry point forlogged-out visitors (`/`).
+ */
 import Chat from "@nimbus/ui/icons/Chat";
 import Cloud from "@nimbus/ui/icons/Cloud";
 import CreateDocument from "@nimbus/ui/icons/CreateDocument";

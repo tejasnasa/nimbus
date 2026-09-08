@@ -9,8 +9,19 @@ import DocEditor from "../../../components/DocEditor";
 import { DocEditorRefProvider } from "../../../components/DocEditorRefContext";
 import VoiceOverlay from "../../../components/VoiceOverlay";
 import { authClient } from "../../../lib/auth-client";
+/**
+ * @module web/app/workspace/[id]/page
+ * @description Workspace room (server component): loads workspace, messages,
+ * and documents in parallel-by-await, then composes the two-pane layout —
+ * Chat sidebar (voice header + messages) beside `DocEditor` — inside
+ * `VoiceProvider` (WebRTC identity) + `DocEditorRefProvider` (add-tab
+ * bridge) with a global `VoiceOverlay`. Guarded by `proxy.ts`.
+ */
 import { VoiceProvider } from "../../../providers/VoiceProvider";
 
+/**
+ * @param props.params - Route params; `id` is the workspace slugId.
+ */
 export default async function Workspace({
   params,
 }: {

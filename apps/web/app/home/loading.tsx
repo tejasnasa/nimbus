@@ -1,3 +1,9 @@
+/**
+ * @module web/app/home/loading
+ * @description Dashboard loading skeleton mirroring the home layout (nav,
+ * heading, filter, 8-card grid with staggered shimmer delays). Shown while
+ * the server component streams.
+ */
 import { Skeleton } from "@nimbus/ui/Skeleton";
 
 export default function Loading() {

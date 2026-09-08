@@ -1,3 +1,9 @@
+/**
+ * @module web/app/home/page
+ * @description Authenticated dashboard (server component): resolves the
+ * session, loads workspaces server-side, and renders `UserNavbar` +
+ * `ViewWorkspaces` (delete wired to the server action). Guarded by `proxy.ts`.
+ */
 import UserNavbar from "../../components/UserNavbar";
 import { authClient } from "../../lib/auth-client";
 import { headers } from "next/headers";

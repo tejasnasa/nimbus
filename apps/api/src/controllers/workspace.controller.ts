@@ -1,8 +1,31 @@
+/**
+ * @module api/controllers/workspace
+ * @description Workspace lifecycle + RBAC: creation transaction (workspace,
+ * OWNER membership, seeded CANVAS/MARKDOWN docs, NimbusBot ADMIN), member
+ * reads scoped by membership, invite join, and ADMIN/OWNER-gated mutations.
+ * Role ladder: OWNER (sole, immutable) > ADMIN > MEMBER.
+ *
+ * @important Role invariants — OWNER can never be reassigned, demoted, or
+ *            removed; ADMINs cannot promote to ADMIN. Creation requires
+ *            BOT_USERID for the bot membership row.
+ */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 
+/**
+ * Creates a workspace with default documents and bot membership.
+ *
+ * Runs inside a Prisma transaction that creates the workspace, adds the
+ * creator as OWNER, seeds one CANVAS + one MARKDOWN doc, and adds NimbusBot
+ * as ADMIN.
+ *
+ * @param name - Display name for the workspace.
+ * @param description - Workspace description.
+ * @param id - Authenticated user's ID (becomes OWNER).
+ * @returns ServerResponse with the created workspace summary or an error.
+ */
 export const createWorkspace = async (
   name: string,
   description: string,
@@ -69,6 +92,12 @@ export const createWorkspace = async (
   }
 };
 
+/**
+ * Lists workspaces the user belongs to, newest-first.
+ *
+ * @param id - Authenticated user's ID.
+ * @returns Workspaces with member id/image/role summaries.
+ */
 export const getMyWorkspaces = async (id: string) => {
   try {
     const workspaces = await prisma.workspace.findMany({
@@ -130,6 +159,15 @@ export const getMyWorkspaces = async (id: string) => {
   }
 };
 
+/**
+ * Fetches one workspace by URL slug id, membership-scoped.
+ *
+ * 404 covers both missing workspaces and non-members (avoids leaking
+ * existence to outsiders).
+ *
+ * @param slugId - Auto-increment URL identifier (stringified int).
+ * @param id - Authenticated user's ID (must be a member).
+ */
 export const getWorkspaceBySlugId = async (slugId: string, id: string) => {
   try {
     const workspace = await prisma.workspace.findFirst({
@@ -191,6 +229,12 @@ export const getWorkspaceBySlugId = async (slugId: string, id: string) => {
   }
 };
 
+/**
+ * Joins a workspace via invite code (default MEMBER role).
+ *
+ * @param inviteCode - Workspace invite code.
+ * @param id - Joining user's ID; rejected when already a member.
+ */
 export const joinWorkspace = async (inviteCode: string, id: string) => {
   try {
     const workspace = await prisma.workspace.findFirst({
@@ -227,6 +271,12 @@ export const joinWorkspace = async (inviteCode: string, id: string) => {
   }
 };
 
+/**
+ * Rotates the invite code (ADMIN/OWNER only, invalidates the old code).
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID.
+ */
 export const regenerateInviteCode = async (wsid: string, id: string) => {
   try {
     const member = await prisma.workspaceMember.findUnique({
@@ -262,6 +312,17 @@ export const regenerateInviteCode = async (wsid: string, id: string) => {
   }
 };
 
+/**
+ * Changes a member's role, enforcing the OWNER/ADMIN invariants.
+ *
+ * Guards: caller must be ADMIN/OWNER; nobody can be made OWNER; the OWNER's
+ * role is immutable; ADMINs cannot promote others to ADMIN.
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID.
+ * @param memberId - Target member's user ID.
+ * @param role - Desired role (OWNER requests are always rejected).
+ */
 export const updateMemberRole = async (
   wsid: string,
   id: string,
@@ -321,6 +382,13 @@ export const updateMemberRole = async (
   }
 };
 
+/**
+ * Removes a member (ADMIN/OWNER only; OWNER is unremovable).
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID.
+ * @param memberId - Member to remove.
+ */
 export const removeMember = async (
   wsid: string,
   id: string,
@@ -368,6 +436,14 @@ export const removeMember = async (
   }
 };
 
+/**
+ * Renames / re-describes a workspace (ADMIN/OWNER only, members excluded).
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID (must be a member, then ADMIN/OWNER).
+ * @param name - New display name.
+ * @param description - New description.
+ */
 export const updateWorkspace = async (
   wsid: string,
   id: string,
@@ -420,6 +496,12 @@ export const updateWorkspace = async (
   }
 };
 
+/**
+ * Deletes a workspace (OWNER only; cascades to documents/members via schema).
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID (must hold the OWNER role).
+ */
 export const deleteWorkspace = async (wsid: string, id: string) => {
   try {
     const workspace = await prisma.workspace.findUnique({

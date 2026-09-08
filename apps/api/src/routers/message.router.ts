@@ -1,3 +1,8 @@
+/**
+ * @module api/routers/message
+ * @description Chat history endpoint (`GET /api/messages/:wsid` → latest 50).
+ * Membership enforcement lives in the controller.
+ */
 import express from "express";
 import { getWorkspaceMessages } from "../controllers/message.controller";
 

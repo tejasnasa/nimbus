@@ -1,3 +1,8 @@
+/**
+ * @module api/routers/turn
+ * @description WebRTC credential endpoint (`GET /api/turn/credentials` →
+ * ICE server list with time-boxed TURN auth).
+ */
 import express from "express";
 import { getTurnCredentials } from "../controllers/turn.controller";
 

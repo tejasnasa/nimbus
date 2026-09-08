@@ -1,3 +1,9 @@
+/**
+ * @module api/routers/document
+ * @description Document REST endpoints (`/api/document/*`): create (Zod
+ * validated), list-by-workspace, fetch-one, and delete. Membership and
+ * delete-role checks live in the controller layer.
+ */
 import { documentSchema } from "@nimbus/types";
 import express from "express";
 import validate from "../middleware/validate.middleware";

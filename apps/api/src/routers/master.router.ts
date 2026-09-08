@@ -1,3 +1,9 @@
+/**
+ * @module api/routers/master
+ * @description Top-level `/api` composition: mounts the four domain routers,
+ * each behind `authCheck` so every REST endpoint is authenticated by default.
+ * (better-auth's own `/api/auth/*` is mounted separately in `src/index.ts`.)
+ */
 import express from "express";
 import authCheck from "../middleware/authCheck.middleware";
 import documentRouter from "./document.router";

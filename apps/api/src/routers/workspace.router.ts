@@ -1,3 +1,10 @@
+/**
+ * @module api/routers/workspace
+ * @description Workspace REST endpoints (`/api/workspace/*`): create (Zod
+ * validated), list, join, invite rotation, role/member management, update,
+ * delete, and slug lookup. All routes inherit `authCheck` from the master
+ * router; `req.user` is guaranteed present.
+ */
 import { workspaceSchema } from "@nimbus/types";
 import express from "express";
 import validate from "../middleware/validate.middleware";

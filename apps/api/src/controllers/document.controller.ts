@@ -1,8 +1,22 @@
+/**
+ * @module api/controllers/document
+ * @description Document CRUD scoped by workspace membership. Deletes require
+ * ADMIN/OWNER and also evict the in-memory Yjs (`docs`) / canvas (`canvases`)
+ * entries so deleted documents cannot be resurrected by a stale socket room.
+ */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { canvases } from "../socket/canvas";
 import { docs } from "../socket/document";
 
+/**
+ * Creates a CANVAS (empty `canvasData`) or MARKDOWN document.
+ *
+ * @param title - Document title.
+ * @param workspaceId - Owning workspace (caller must be a member).
+ * @param userId - Acting user's ID.
+ * @param type - Document kind.
+ */
 export const createDocument = async (
   title: string,
   workspaceId: string,
@@ -35,6 +49,12 @@ export const createDocument = async (
   }
 };
 
+/**
+ * Lists a workspace's documents, most-recently-updated first.
+ *
+ * @param workspaceId - Workspace to list.
+ * @param userId - Acting user's ID (must be a member).
+ */
 export const getWorkspaceDocuments = async (
   workspaceId: string,
   userId: string,
@@ -57,6 +77,10 @@ export const getWorkspaceDocuments = async (
   }
 };
 
+/**
+ * Fetches one document after verifying workspace membership via the
+ * document's parent workspace.
+ */
 export const getDocument = async (docId: string, userId: string) => {
   try {
     const document = await prisma.document.findUnique({
@@ -76,6 +100,12 @@ export const getDocument = async (docId: string, userId: string) => {
   }
 };
 
+/**
+ * Deletes a document (ADMIN/OWNER only) and evicts its live socket state.
+ *
+ * NOTE: the `canvases`/`docs` evictions prevent a deleted doc from being
+ * re-persisted by the debounced socket save after deletion.
+ */
 export const deleteDocument = async (docId: string, userId: string) => {
   try {
     const document = await prisma.document.findUnique({

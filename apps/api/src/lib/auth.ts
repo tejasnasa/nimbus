@@ -1,8 +1,21 @@
+/**
+ * @module api/lib/auth
+ * @description better-auth singleton: Prisma/Postgres adapter, email+password
+ * with required verification, Google OAuth, and Resend-backed verification /
+ * reset emails.
+ *
+ * @important Cookie config is production-shaped (`secure: true`,
+ *            `domain: ".tejasnasa.me"`, `trustHost: true`) with `trustedOrigins`
+ *            restricted to FRONTEND_URL — cross-subdomain session cookies break
+ *            if these drift from the deploy domains. Requires BETTER_AUTH_URL,
+ *            GOOGLE_CLIENT_ID/SECRET and FRONTEND_URL.
+ */
 import { prisma } from "@nimbus/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { sendEmail, sendPasswordResetEmail } from "./email";
 
+/** Shared better-auth instance consumed by REST middleware, socket auth, and route handlers. */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -18,6 +31,8 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     callbackURL: `${process.env.FRONTEND_URL}/email-verified`,
     sendVerificationEmail: async ({ user, url }) => {
+      // NOTE: rewrite better-auth's callback to the frontend route — the raw
+      // `url` points at the API, which the user should never land on directly.
       const verifyUrl = new URL(url);
       verifyUrl.searchParams.set(
         "callbackURL",

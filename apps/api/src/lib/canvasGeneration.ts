@@ -1,7 +1,25 @@
+/**
+ * @module api/lib/canvasGeneration
+ * @description LLM→JSON→Excalidraw pipeline for AI diagram generation.
+ *
+ * Flow: OpenAI (reasoning + `json_object` mode) returns `{ nodes, edges }`
+ * logical JSON → tolerant parse (fence strip, brace-match, truncated-JSON
+ * salvage) → label-fit sizing → layout (rank-based layered flow when edges
+ * exist, grid fallback otherwise) → Excalidraw shapes + bound text + elbowed
+ * arrow connectors. Only nodes carry visible text; edges are logical and the
+ * app draws the arrows.
+ *
+ * @important Requires OPENAI_API_KEY / OPENAI_MODEL. Progress and reasoning
+ *            stream through `onStatus` / `onReasoning` for socket relay.
+ */
 import openaiClient from "./openaiClient";
 
+/** Hard cap for the diagram JSON response. */
 const CANVAS_MAX_OUTPUT_TOKENS = 8_192;
 
+/* ═══ Label metrics & node sizing ═══
+ * LABEL_CHAR_WIDTH is a heuristic (~0.68em) for word-wrap estimation; exact
+ * text measurement happens client-side in Excalidraw. */
 const LABEL_FONT_SIZE = 16;
 const LABEL_LINE_HEIGHT = 1.35;
 const LABEL_CHAR_WIDTH = LABEL_FONT_SIZE * 0.68;
@@ -11,7 +29,9 @@ const NODE_MIN_WIDTH = 180;
 const NODE_MIN_HEIGHT = 88;
 const NODE_MAX_WIDTH = 360;
 
+/** Shapes the LLM may request; anything else falls back to rectangle. */
 const SHAPE_TYPES = new Set(["rectangle", "ellipse", "diamond"]);
+/** Soft fills cycled across nodes missing an explicit backgroundColor. */
 const PALETTE = [
   "#e3faf2",
   "#e8f0fe",
@@ -21,6 +41,10 @@ const PALETTE = [
   "#d3f9d8",
 ];
 
+/* ═══ Intermediate diagram types ═══
+ * DiagramNode/Edge are the validated logical model; ExcalidrawShape is the
+ * minimal shape view needed for arrow binding math. */
+/** Logical node: x/y are hints — the layout pass overwrites them. */
 type DiagramNode = {
   id: string;
   shape: "rectangle" | "ellipse" | "diamond";
@@ -33,16 +57,19 @@ type DiagramNode = {
   strokeColor?: string;
 };
 
+/** Logical connection between two node ids (the app draws the arrow). */
 type DiagramEdge = {
   from: string;
   to: string;
 };
 
+/** Validated LLM output: sized nodes plus deduped, referentially-safe edges. */
 type Diagram = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
 };
 
+/** Minimal live-shape view used for center/binding calculations. */
 type ExcalidrawShape = {
   id: string;
   x: number;
@@ -53,15 +80,24 @@ type ExcalidrawShape = {
   boundElements: { id: string; type: "text" | "arrow" }[] | null;
 };
 
+/** Generates a 10-char Excalidraw-compatible element id. */
 function generateExcalidrawId() {
   return Math.random().toString(36).substring(2, 12);
 }
 
+/** Coerces unknown LLM numbers, falling back when NaN/Infinity. */
 function numOrDefault(value: unknown, fallback: number) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
 
+/* ═══ LLM prompt & tolerant JSON extraction ═══ */
+/**
+ * Builds the system prompt constraining the model to nodes+edges JSON only.
+ *
+ * Sizing/coordinates are hints — `fitNodesToLabels` + `layoutDiagram`
+ * recompute the final geometry, so the prompt asks for flow placement only.
+ */
 function buildCanvasSystemPrompt(title: string) {
   return `You are an expert information architect creating Excalidraw-ready diagrams.
 
@@ -104,6 +140,15 @@ Rules:
 - Coordinates: canvas origin top-left, x increases right, y increases down.`;
 }
 
+/**
+ * Extracts the first balanced `{…}` object, tolerating fences and prose.
+ *
+ * Strips ```json fences, then brace-matches while respecting strings and
+ * escapes. Falls back to `trySalvageIncompleteJson` for truncated streams.
+ *
+ * @param text - Raw model output.
+ * @returns Balanced JSON substring, or null when none is recoverable.
+ */
 function extractJsonObject(text: string): string | null {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -140,6 +185,11 @@ function extractJsonObject(text: string): string | null {
   return trySalvageIncompleteJson(source, start);
 }
 
+/**
+ * Salvages truncated JSON by trimming the dangling tail and auto-closing
+ * brackets. Guards against mismatched closers and re-validates with
+ * `JSON.parse` before returning.
+ */
 function trySalvageIncompleteJson(
   source: string,
   start: number,
@@ -191,6 +241,15 @@ function trySalvageIncompleteJson(
   }
 }
 
+/* ═══ Validation & label fitting ═══ */
+/**
+ * Validates raw nodes/edges into a `Diagram`, applying safe defaults.
+ *
+ * Unknown shapes → rectangle, missing ids/labels → generated, bad colors →
+ * palette rotation, bad coords → grid fallback positions; edges referencing
+ * missing ids, self-loops, or duplicates are dropped. Sizes via
+ * `fitNodesToLabels`.
+ */
 function parseDiagramRecord(record: {
   nodes?: unknown;
   edges?: unknown;
@@ -263,6 +322,13 @@ function parseDiagramRecord(record: {
   return { nodes, edges };
 }
 
+/**
+ * Parses model output, trying the raw string then the extracted object.
+ *
+ * @param raw - Full model response text.
+ * @returns Validated diagram.
+ * @throws When neither candidate parses (logs a 160-char preview).
+ */
 function parseDiagramPayload(raw: string): Diagram {
   const sources = [raw.trim()];
   const extracted = extractJsonObject(raw);
@@ -288,6 +354,10 @@ function parseDiagramPayload(raw: string): Diagram {
   );
 }
 
+/**
+ * Greedy word-wrap honoring explicit `\n` paragraphs; overlong words are
+ * hard-split. Returns at least one line so empty labels still size a node.
+ */
 function wrapLabelLines(label: string, maxCharsPerLine: number): string[] {
   const lines: string[] = [];
 
@@ -322,6 +392,10 @@ function wrapLabelLines(label: string, maxCharsPerLine: number): string[] {
   return lines.length > 0 ? lines : [label.trim() || " "];
 }
 
+/**
+ * Resizes each node to its wrapped label, clamped to min/max bounds.
+ * Diamonds/ellipses get +8–20% headroom since their bounds clip corners.
+ */
 function fitNodesToLabels(nodes: DiagramNode[]) {
   const maxContentWidth = NODE_MAX_WIDTH - NODE_H_PADDING;
   const maxCharsPerLine = Math.max(
@@ -353,6 +427,8 @@ function fitNodesToLabels(nodes: DiagramNode[]) {
   }
 }
 
+/* ═══ Excalidraw element builders ═══ */
+/** Shared Excalidraw defaults (seeded randomness, solid fill, v1 versioning). */
 function baseFields(type: string, index: string, strokeColor: string) {
   const seed = Math.floor(Math.random() * 2e9);
   const versionNonce = Math.floor(Math.random() * 2e9);
@@ -379,6 +455,7 @@ function baseFields(type: string, index: string, strokeColor: string) {
   };
 }
 
+/** Builds the shape element for a node (text + arrows bound later). */
 function buildShapeElement(node: DiagramNode, index: string) {
   const id = generateExcalidrawId();
   return {
@@ -393,6 +470,10 @@ function buildShapeElement(node: DiagramNode, index: string) {
   };
 }
 
+/**
+ * Builds the center-aligned bound text (inset 12px) and links it onto the
+ * shape's `boundElements` so Excalidraw treats it as container text.
+ */
 function buildBoundTextElement(
   shape: ExcalidrawShape,
   label: string,
@@ -427,11 +508,17 @@ function buildBoundTextElement(
   return textEl;
 }
 
+/** Center point of a shape, used as the arrow-aim reference. */
 function shapeCenter(shape: ExcalidrawShape) {
   return { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 };
 }
 
-/** Normalized attach point on shape bounds (0–1), used by Excalidraw elbow bindings. */
+/* ═══ Arrow binding math ═══ */
+/**
+ * Picks the shape edge facing `toward`, spreading multi-edges along it.
+ * Normalized 0–1 fixed point for Excalidraw elbow bindings: dominant axis
+ * decides the side, `slotIndex/slotCount` fans parallel arrows (0.2–0.8).
+ */
 function bindingFixedPoint(
   shape: ExcalidrawShape,
   toward: { x: number; y: number },
@@ -451,6 +538,7 @@ function bindingFixedPoint(
   return dy > 0 ? [along, 1] : [along, 0];
 }
 
+/** Converts a normalized fixed point to canvas coordinates. */
 function fixedPointToGlobal(
   shape: ExcalidrawShape,
   fixedPoint: [number, number],
@@ -461,6 +549,7 @@ function fixedPointToGlobal(
   };
 }
 
+/** Registers an arrow id on a shape so selection/deletion stays linked. */
 function addArrowBinding(shape: ExcalidrawShape, arrowId: string) {
   shape.boundElements = [
     ...(shape.boundElements ?? []),
@@ -468,6 +557,11 @@ function addArrowBinding(shape: ExcalidrawShape, arrowId: string) {
   ];
 }
 
+/**
+ * Builds an elbowed arrow between two shapes with start/end bindings.
+ * Points are stored relative to the start anchor; width/height are clamped
+ * to ≥1px so zero-length connectors never produce degenerate elements.
+ */
 function buildConnector(
   fromShape: ExcalidrawShape,
   toShape: ExcalidrawShape,
@@ -531,11 +625,13 @@ function buildConnector(
   return arrow;
 }
 
+/* ═══ Layout (rank-based flow, grid fallback) ═══ */
 const LAYOUT_START_X = 80;
 const LAYOUT_START_Y = 80;
 const LAYOUT_H_GAP = 220;
 const LAYOUT_V_GAP = 140;
 
+/** AABB overlap test with padding (currently retained for overlap guards). */
 function rectsOverlap(
   a: DiagramNode,
   b: DiagramNode,
@@ -550,6 +646,11 @@ function rectsOverlap(
   );
 }
 
+/**
+ * Longest-path layering: each node's rank = 1 + max(predecessor ranks).
+ * Bellman-Ford-style relaxation (bounded iterations) tolerates cycles by
+ * settling instead of looping forever.
+ */
 function assignRanks(nodeIds: string[], edges: DiagramEdge[]) {
   const rank = new Map(nodeIds.map((id) => [id, 0]));
   const iterations = Math.max(nodeIds.length, edges.length) + 1;
@@ -569,6 +670,10 @@ function assignRanks(nodeIds: string[], edges: DiagramEdge[]) {
   return rank;
 }
 
+/**
+ * Mean neighbor center-Y for crossing reduction: orders each layer by the
+ * average position of its already-placed neighbors (incoming side).
+ */
 function barycenterY(
   nodeId: string,
   edges: DiagramEdge[],
@@ -585,6 +690,7 @@ function barycenterY(
   return sum / neighbors.length;
 }
 
+/** Row-wrapped grid fallback for edgeless diagrams (√n columns). */
 function gridLayout(nodes: DiagramNode[]) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
   let x = LAYOUT_START_X;
@@ -609,6 +715,11 @@ function gridLayout(nodes: DiagramNode[]) {
   }
 }
 
+/**
+ * Left-to-right layered layout: ranks become columns, each column is
+ * barycenter-ordered and vertically centered against the tallest column.
+ * Wider layers get extra vertical breathing room.
+ */
 function rankBasedLayout(nodes: DiagramNode[], edges: DiagramEdge[]) {
   const nodeIds = nodes.map((n) => n.id);
   const rank = assignRanks(nodeIds, edges);
@@ -670,6 +781,10 @@ function rankBasedLayout(nodes: DiagramNode[], edges: DiagramEdge[]) {
   }
 }
 
+/**
+ * Dispatches layout: grid when edgeless, rank-based flow otherwise.
+ * Mutates node coordinates in place and returns the same diagram.
+ */
 function layoutDiagram(diagram: Diagram): Diagram {
   const { nodes, edges } = diagram;
 
@@ -684,6 +799,11 @@ function layoutDiagram(diagram: Diagram): Diagram {
   return diagram;
 }
 
+/**
+ * Emits Excalidraw elements: shape + bound text per node, then one elbowed
+ * connector per edge (parallel edges fanned via slot indices). Skips edges
+ * whose endpoints vanished during validation.
+ */
 function buildExcalidrawFromDiagram(diagram: Diagram) {
   const output: Record<string, unknown>[] = [];
   const shapeByNodeId = new Map<string, ExcalidrawShape>();
@@ -724,6 +844,8 @@ function buildExcalidrawFromDiagram(diagram: Diagram) {
   return output;
 }
 
+/* ═══ Streaming orchestration ═══ */
+/** Pulls the first `output_text` string from a completed Responses API output. */
 function extractResponseText(
   output: Array<{
     type: string;
@@ -739,6 +861,22 @@ function extractResponseText(
   return "";
 }
 
+/**
+ * Generates Excalidraw elements for a natural-language diagram prompt.
+ *
+ * Streams reasoning deltas to `onReasoning` and lifecycle milestones to
+ * `onStatus`. Prefers the fast path (`output_parsed` nodes on
+ * `response.completed`); otherwise accumulates streamed text with
+ * `output_text.done`/completed-output reconciliation, then parses with a
+ * thinking-log fallback for truncated JSON.
+ *
+ * @param prompt - User's description of the desired diagram.
+ * @param label - Diagram title injected into the system prompt.
+ * @param onReasoning - Called per reasoning delta (socket relay).
+ * @param onStatus - Called per milestone (planning → parsing → layout → drawing → done).
+ * @returns Excalidraw element array plus the accumulated reasoning log.
+ * @throws When credentials are missing, the model returns empty text, or no elements are built.
+ */
 export async function generateCanvasDocument(
   prompt: string,
   label: string,
@@ -789,6 +927,8 @@ export async function generateCanvasDocument(
       content += event.delta;
       continue;
     }
+    // `done` carries the authoritative full text — adopt it only when it
+    // extends what the deltas accumulated (guards out-of-order delivery).
     if (event.type === "response.output_text.done" && event.text) {
       if (event.text.length >= content.length) {
         content = event.text;
@@ -797,6 +937,7 @@ export async function generateCanvasDocument(
     }
     if (event.type === "response.completed") {
       completedOutput = event.response.output;
+      // Reconcile streamed deltas against the final snapshot (same guard).
       const fromResponse = extractResponseText(event.response.output);
       if (fromResponse.length >= content.length) {
         content = fromResponse;
@@ -840,6 +981,8 @@ export async function generateCanvasDocument(
   try {
     diagram = parseDiagramPayload(content);
   } catch {
+    // Last resort: the JSON may have bled into the reasoning channel, so
+    // retry extraction over content + thinking combined before failing.
     const fallback = extractJsonObject(`${content}\n${thinkingLog}`);
     if (!fallback) throw new Error("Canvas model returned invalid JSON");
     diagram = parseDiagramPayload(fallback);

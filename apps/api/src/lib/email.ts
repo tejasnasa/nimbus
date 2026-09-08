@@ -1,7 +1,20 @@
+/**
+ * @module api/lib/email
+ * @description Resend-backed transactional emails (verification + password
+ * reset) with table-based dark-theme HTML templates. Called by the
+ * better-auth config in `lib/auth.ts`. Requires RESEND_API_KEY; sender is
+ * fixed to `noreply@tejasnasa.me`.
+ */
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/**
+ * Sends the password-reset email (link valid ~1h per better-auth default).
+ *
+ * @param props.to - Recipient address.
+ * @param props.url - Fully-formed reset URL from better-auth.
+ */
 export async function sendPasswordResetEmail({
   to,
   url,
@@ -77,6 +90,12 @@ export async function sendPasswordResetEmail({
   });
 }
 
+/**
+ * Sends the signup verification email.
+ *
+ * @param props.to - Recipient address.
+ * @param props.url - Verification URL (already rewritten to the frontend route by `lib/auth.ts`).
+ */
 export async function sendEmail({ to, url }: { to: string; url: string }) {
   await resend.emails.send({
     from: "noreply@tejasnasa.me",

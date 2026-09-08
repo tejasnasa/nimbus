@@ -1,7 +1,26 @@
+/**
+ * @module api/lib/bot
+ * @description NimbusBot chat pipeline: loads the last 20 workspace messages
+ * as LLM history (bot rows → assistant, others prefixed `Name:`), calls Groq
+ * with a strict `create_document` tool (MARKDOWN for text, CANVAS for
+ * diagrams), and returns a discriminated `BotResult` (`create_document` |
+ * `reply`). Plain-text replies only — no Markdown formatting.
+ *
+ * @important Requires BOT_USERID (identifies prior bot messages) and
+ *            GROQ_MODEL. Never throws — LLM/DB failures degrade to a
+ *            fallback `reply` so chat handlers stay simple.
+ */
 import { prisma } from "@nimbus/db";
 import { BotResult } from "@nimbus/types";
 import groqClient from "./groqClient";
 
+/**
+ * Generates the bot's next action for a workspace conversation.
+ *
+ * @param workspaceId - Workspace whose recent history seeds the prompt.
+ * @returns `create_document` (with type/label/prompt + interim chatMessage)
+ *          when the tool fires, otherwise a plain-text `reply`.
+ */
 export async function generateBotResponse(
   workspaceId: string,
 ): Promise<BotResult> {
@@ -15,6 +34,8 @@ export async function generateBotResponse(
       },
     });
 
+    // Chronological order for the model: newest-first DB rows reversed, bot
+    // rows as `assistant`, user rows prefixed so the model sees speaker names.
     const history = messages.reverse().map((msg) => ({
       role:
         msg.userId === process.env.BOT_USERID
@@ -91,9 +112,12 @@ STRICT RULES:
       (item) => item.type === "function_call",
     ) as any;
 
+    // Only `create_document` is offered, but guard the name anyway — an
+    // unexpected tool must fall through to a text reply, not crash chat.
     if (toolCall && toolCall.name === "create_document") {
       try {
         const args = JSON.parse(toolCall.arguments);
+        // Default to MARKDOWN on unrecognized types rather than rejecting.
         const type = args.type === "CANVAS" ? "CANVAS" : "MARKDOWN";
         const label = args.label || "Untitled Document";
         const prompt = args.prompt || "";

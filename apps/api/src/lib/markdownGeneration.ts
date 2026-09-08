@@ -1,5 +1,22 @@
+/**
+ * @module api/lib/markdownGeneration
+ * @description Streaming Groq Markdown generator: system prompt frames the
+ * model as a technical writer (headings, lists, code blocks, tables,
+ * blockquotes), then each `output_text.delta` is appended and forwarded via
+ * `onToken` for live socket relay, with reasoning deltas on `onThinking`.
+ * Requires GROQ_MODEL.
+ */
 import groqClient from "./groqClient";
 
+/**
+ * Streams a full Markdown document for a prompt.
+ *
+ * @param prompt - User's description of the desired document.
+ * @param label - Document title injected into the system prompt.
+ * @param onToken - Called per text delta (socket relay) as content streams.
+ * @param onThinking - Called per reasoning delta (defaults to no-op).
+ * @returns The accumulated `fullContent` once the stream completes.
+ */
 export async function generateMarkdownDocument(
   prompt: string,
   label: string,

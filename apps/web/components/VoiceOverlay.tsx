@@ -25,6 +25,9 @@ export default function VoiceOverlay() {
   >(new Map());
   const prevSpeakingRef = useRef<Set<string>>(new Set());
 
+  // Diff the talking set: newcomers appear instantly (Infinity = "talking now"),
+  // quitters stamp Date.now() so the sweeper below can linger them 1.5s.
+  // No-op when nothing changed to avoid churning the speaker map.
   useEffect(() => {
     const prev = prevSpeakingRef.current;
     const next = new Set(speakingUsers);

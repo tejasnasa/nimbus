@@ -16,6 +16,8 @@ import crypto from "crypto";
 export function generateTurnCredentials(userId: string) {
   const secret = process.env.TURN_SECRET!;
   const ttl = 86400; // 24 hours
+  // coturn parses the expiry from the username prefix and rejects expired
+  // allocations, so clocks only need to be roughly in sync.
   const timestamp = Math.floor(Date.now() / 1000) + ttl;
   const username = `${timestamp}:${userId}`;
 

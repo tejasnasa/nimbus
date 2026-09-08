@@ -72,6 +72,9 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
     }
   });
 
+  // Signaling is pure relay: the server never inspects SDP, it just stamps
+  // the sender id and forwards. A missing target means that peer left or
+  // reconnected — safe to drop, the mesh heals on the next join event.
   socket.on(
     "voice:offer",
     (data: {
@@ -139,6 +142,8 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
     },
   );
 
+  // `disconnecting` still has room membership: evict from every voice roster
+  // so abrupt closes (tab kill, network drop) don't leave ghost participants.
   socket.on("disconnecting", async () => {
     try {
       const voiceRooms = [...socket.rooms].filter((r) =>

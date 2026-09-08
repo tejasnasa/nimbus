@@ -19,7 +19,6 @@ export const voicePresenceService = {
    * @param user - Full VoiceUser payload stored as JSON.
    */
   async userJoined(workspaceId: string, user: VoiceUser) {
-  async userJoined(workspaceId: string, user: VoiceUser) {
     const key = getKey(workspaceId);
     await pubClient.hset(key, user.userId, JSON.stringify(user));
     await pubClient.expire(key, 86400);
@@ -44,6 +43,8 @@ export const voicePresenceService = {
    */
   async updateMuteState(workspaceId: string, userId: string, isMuted: boolean) {
     const key = getKey(workspaceId);
+    // Read-modify-write on one hash field: last writer wins, which is fine
+    // because only the owning user ever writes their own mute flag.
     const existing = await pubClient.hget(key, userId);
     if (existing) {
       const user = JSON.parse(existing) as VoiceUser;

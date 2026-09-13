@@ -18,7 +18,6 @@ export const presenceService = {
    * @param userId - User to mark online.
    */
   async userJoined(workspaceId: string, userId: string) {
-  async userJoined(workspaceId: string, userId: string) {
     const key = getKey(workspaceId);
     await pubClient.sadd(key, userId);
     await pubClient.expire(key, 86400, "NX");

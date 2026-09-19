@@ -1,7 +1,7 @@
 /**
  * @module api/lib/redis
  * @description Dual ioredis connections backing the Socket.IO Redis adapter
- * (`pubClient`/`subClient` in `src/index.ts`) plus the presence services.
+ * (`pubClient`/`subClient` in `src/app.ts`) plus the presence services.
  * A single connection cannot serve as both publisher and subscriber, hence
  * the pair.
  *
@@ -49,9 +49,17 @@ const CONNECT_WATCHDOG_MS = 10_000;
  */
 const hostOf = (url: string) => {
   const withoutScheme = url.replace(/^rediss?:\/\//i, "");
-  const afterCredentials = withoutScheme.split("@").pop() ?? "";
-  return afterCredentials.split(/[/:?#]/)[0] ?? "";
+  // `lastIndexOf` rather than `split` so an "@" inside a password cannot shift
+  // the boundary.
+  const afterCredentials = withoutScheme.slice(
+    withoutScheme.lastIndexOf("@") + 1,
+  );
+  return afterCredentials.split(/[/:?#]/)[0];
 };
+
+/** Loopback, the private IPv4 ranges, and link-local. */
+const PRIVATE_IPV4 =
+  /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/;
 
 /**
  * Whether a host is only reachable from inside the deployment.
@@ -65,12 +73,7 @@ const isInternalHost = (host: string) => {
   if (!host || host.startsWith("[")) return true;
   if (!host.includes(".")) return true;
 
-  return (
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  );
+  return PRIVATE_IPV4.test(host);
 };
 
 /** `REDIS_TLS` override; any other value (including unset) means "derive it". */

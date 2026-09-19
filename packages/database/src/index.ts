@@ -7,5 +7,5 @@
  * here rather than instantiating their own client.
  */
 
-export { prisma } from "./client"; // exports instance of prisma
+export { prisma, createPrismaClient } from "./client"; // prisma instance + test-scoped factory
 export * from "./generated/prisma/client"; // exports generated types from prisma

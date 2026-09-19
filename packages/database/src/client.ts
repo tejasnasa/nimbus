@@ -12,22 +12,33 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 import pg from "pg";
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30_000,
-});
+/**
+ * Creates an independent Prisma client with its own connection pool.
+ *
+ * Use this instead of the {@link prisma} singleton when a caller must target a
+ * specific database — notably tests, which point at a throwaway test database
+ * and need a pool they can close without disturbing the singleton.
+ *
+ * @param connectionString - Postgres URL; defaults to `process.env.DATABASE_URL`.
+ * @returns A PrismaClient with its own pg Pool (max 10 connections).
+ */
+export const createPrismaClient = (connectionString?: string) => {
+  const pool = new pg.Pool({
+    connectionString: connectionString ?? process.env.DATABASE_URL,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+  });
 
-const adapter = new PrismaPg(pool);
+  return new PrismaClient({
+    adapter: new PrismaPg(pool),
+  });
+};
 
 // Cache on globalThis so Next.js HMR doesn't open a new connection pool
 // on every hot reload. Skipped in production where each process starts once.
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    adapter,
-  });
+export const prisma: PrismaClient =
+  globalForPrisma.prisma || createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

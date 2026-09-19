@@ -8,7 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:e2e:ui": "playwright test --config e2e/playwright.config.ts --ui"
   },
   "dependencies": {
     "@better-auth/infra": "^0.2.6",
@@ -42,10 +47,18 @@
   "devDependencies": {
     "@nimbus/eslint-config": "*",
     "@nimbus/typescript-config": "*",
+    "@playwright/test": "^1.56.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^9.39.1",
-    "typescript": "5.9.2"
+    "happy-dom": "^20.14.5",
+    "msw": "^2.15.0",
+    "typescript": "5.9.2",
+    "vitest": "^5.0.0"
   }
 }

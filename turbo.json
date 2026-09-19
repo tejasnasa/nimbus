@@ -32,12 +32,12 @@
       "passThroughEnv": ["DATABASE_URL"]
     },
     "test": {
-      "dependsOn": ["^db:generate"],
+      "dependsOn": ["^db:generate", "db:generate"],
       "cache": false,
       "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]
     },
     "test:coverage": {
-      "dependsOn": ["^db:generate"],
+      "dependsOn": ["^db:generate", "db:generate"],
       "cache": false,
       "outputs": ["coverage/**"],
       "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]

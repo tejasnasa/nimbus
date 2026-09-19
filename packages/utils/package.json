@@ -14,10 +14,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@nimbus/typescript-config": "*"
+    "@nimbus/typescript-config": "*",
+    "@vitest/coverage-v8": "^5.0.0",
+    "vitest": "^5.0.0"
   },
   "keywords": [],
   "author": "",

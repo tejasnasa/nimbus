@@ -8,14 +8,19 @@
     "build": "prisma generate && tsc",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@nimbus/typescript-config": "*",
+    "@vitest/coverage-v8": "^5.0.0",
     "prisma": "^7.5.0",
-    "@nimbus/typescript-config": "*"
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",

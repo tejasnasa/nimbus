@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Mirrors the committed .env.test, so Prisma's config and Vitest resolve the same
+# values locally and in CI. The service containers below publish these ports.
+env:
+  DATABASE_URL: "postgresql://nimbus:nimbus@localhost:5434/nimbus_test"
+  REDIS_URL: "redis://localhost:6381"
+
+jobs:
+  lint-typecheck:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # `api`, `web` and `ui` all declare both scripts. `check-types` runs
+      # `dependsOn: ["^build"]`, so this also builds `@nimbus/db` first — the one
+      # workspace that resolves through `dist` rather than source.
+      - name: Typecheck
+        run: npx turbo run check-types --affected
+      # `apps/web` carries 10 standing ESLint warnings while its script runs with
+      # --max-warnings 0, so this step fails on an untouched checkout. Left
+      # non-blocking so the result stays visible without gating every PR; make
+      # it blocking once those warnings are cleared. `apps/api` lints without
+      # `--max-warnings 0` for the same reason and does pass.
+      - name: Lint (non-blocking)
+        run: npx turbo run lint --affected
+        continue-on-error: true
+
+  api-tests:
+    name: API (smoke · unit · integration · security)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nimbus
+          POSTGRES_PASSWORD: nimbus
+          POSTGRES_DB: nimbus_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U nimbus -d nimbus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply the Prisma schema to the test database
+        run: npx turbo run db:deploy --filter=@nimbus/db
+      - run: npx turbo run test:coverage --filter=api
+      # The floor is a ratchet: it is whatever the suite last achieved, so it
+      # only fails when coverage actually drops. See scripts/check-coverage.mjs.
+      - name: Coverage ratchet
+        run: node scripts/check-coverage.mjs apps/api
+
+  web-tests:
+    name: Web (unit · component)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx turbo run test:coverage --filter=web
+      - name: Coverage ratchet
+        run: node scripts/check-coverage.mjs apps/web
+
+  package-tests:
+    name: Shared packages
+    runs-on: ubuntu-latest
+    # `@nimbus/db` asserts schema and constraint behaviour against a real
+    # Postgres, so this job needs the same service containers as `api-tests`.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nimbus
+          POSTGRES_PASSWORD: nimbus
+          POSTGRES_DB: nimbus_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U nimbus -d nimbus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply the Prisma schema to the test database
+        run: npx turbo run db:deploy --filter=@nimbus/db
+      - run: >-
+          npx turbo run test:coverage
+          --filter=@nimbus/utils
+          --filter=@nimbus/ui
+          --filter=@nimbus/db
+      - name: Coverage ratchet
+        run: >-
+          node scripts/check-coverage.mjs
+          packages/utils
+          packages/ui
+          packages/database

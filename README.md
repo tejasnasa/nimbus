@@ -115,6 +115,85 @@ Want to run Nimbus locally or contribute to the project? Follow these steps.
 
 ---
 
+## 🧪 Running Tests
+
+Tests are orchestrated by Turborepo and sharded by workspace. Integration and
+smoke suites run against **real** Postgres and Redis (never mocks) — only external
+APIs such as Groq, OpenAI, and Resend are stubbed.
+
+```bash
+# 1. Start the test Postgres + Redis (host ports 5434 / 6381)
+docker compose -f docker-compose.test.yml up -d
+
+# 2. Apply the Prisma schema to the test database
+#    (needed on first run, and after pulling a migration)
+npx turbo run db:deploy --filter=@nimbus/db
+
+# 3. Run everything
+npm test
+```
+
+`make` wraps the same steps — run `make help` for the full list:
+
+```bash
+make test-infra-up   # start Postgres + Redis
+make test-schema     # apply migrations to the test DB
+make test            # all suites, turbo cache bypassed
+make test-suite SUITE=smoke   # one API shard
+```
+
+Run a narrower slice directly:
+
+```bash
+npx turbo run test --filter=api     # API only
+npx turbo run test --filter=web     # web only
+
+cd apps/api && npx vitest run src/__tests__/smoke                # one shard
+cd apps/api && npx vitest run src/__tests__/smoke/boot.test.ts   # one file
+```
+
+Test configuration lives in the committed `.env.test` (throwaway local values, not
+secrets). API suites are selected by directory — `src/__tests__/{smoke,unit,integration,security}`
+— which is also how CI shards them.
+
+Two suites need the database for different reasons, so they use **different databases**
+on the same server: `apps/api` runs against `nimbus_test`, and `packages/database` creates
+and migrates its own `nimbus_schema_test` before its workers start. They used to share one,
+and `apps/api`'s per-test `TRUNCATE` would wipe the schema suite's fixtures mid-assertion.
+
+### Coverage
+
+Each package carries a `.coverage-floor` file, and
+`node scripts/check-coverage.mjs <package-dir>…` fails if a package has dropped below it.
+It is a ratchet rather than a target: the floor is whatever the package last achieved, so
+coverage can only fall if someone edits the floor deliberately in review.
+
+```bash
+make test-coverage         # every suite with coverage
+make test-coverage-check   # the same, then fail on any regression
+```
+
+### End-to-end
+
+`make test-e2e` runs the Playwright suite in `apps/web/e2e` against chromium. It
+seeds the test database, starts both processes itself, and drives real browsers, so
+it is slower than everything above and runs nightly in CI rather than on every PR.
+
+```bash
+make test-e2e        # start Postgres + Redis, seed, boot both servers, run
+make test-e2e-seed   # re-seed the fixtures without running the suite
+```
+
+Two things are worth knowing before editing these specs. The auth cookie is pinned
+to `Domain=.tejasnasa.me` in production config, which a browser will not store from
+`localhost`; `e2e/auth.setup.ts` therefore signs in over the HTTP API and re-scopes
+the cookie, and specs that need a second identity ask for the `memberPage` fixture
+instead of filling in the sign-in form. And the API is started with
+`DOTENV_CONFIG_PATH` pointing at `.env.test`, which is what keeps the suite off any
+real database — do not remove it.
+
+---
+
 ## 🏗 Architecture Overview
 
 Nimbus uses a monorepo structure managed by Turborepo, separating concerns while maintaining shared type safety.

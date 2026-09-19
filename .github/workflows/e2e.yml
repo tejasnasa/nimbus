@@ -1,0 +1,75 @@
+name: E2E
+
+# Deliberately not part of `ci.yml`: the suite boots two servers, a real Postgres,
+# a real Redis, and a browser, so it is minutes rather than seconds. Running it
+# nightly, and on demand, keeps the PR signal fast while still catching the
+# integration regressions that unit and component tests structurally cannot see —
+# socket delivery, the auth cookie path, and the workspace-creation transaction.
+on:
+  schedule:
+    # 03:23 UTC — off the hour so it does not contend with other scheduled work.
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+# Mirrors the committed `.env.test`; the service containers publish these ports.
+env:
+  DATABASE_URL: "postgresql://nimbus:nimbus@localhost:5434/nimbus_test"
+  REDIS_URL: "redis://localhost:6381"
+
+jobs:
+  playwright:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nimbus
+          POSTGRES_PASSWORD: nimbus
+          POSTGRES_DB: nimbus_test
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U nimbus -d nimbus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply the Prisma schema to the test database
+        run: npx turbo run db:deploy --filter=@nimbus/db
+      # Chromium only. The suite is pinned to one engine, so pulling WebKit and
+      # Firefox would triple the download for tests that never run.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      # `global-setup.ts` seeds the database itself, so there is no seed step here.
+      - name: Run the suite
+        run: npm run test:e2e -w apps/web
+        env:
+          CI: "true"
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/e2e/playwright-report/
+          retention-days: 14

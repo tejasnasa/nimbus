@@ -29,6 +29,17 @@
     },
     "db:deploy": {
       "cache": false
+    },
+    "test": {
+      "dependsOn": ["^db:generate"],
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]
+    },
+    "test:coverage": {
+      "dependsOn": ["^db:generate"],
+      "cache": false,
+      "outputs": ["coverage/**"],
+      "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]
     }
   }
 }

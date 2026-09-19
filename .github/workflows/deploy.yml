@@ -1,15 +1,42 @@
 name: Deploy to DigitalOcean
 
+# Deploys are gated on CI rather than raced against it. A push to `main` starts
+# CI; this workflow only fires once that run has finished, and the job below
+# proceeds only if it concluded successfully. Deploying on `push` directly would
+# ship a commit that the test suite is still judging — and that would ship it
+# even when it fails.
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
+  # Escape hatch for re-deploying the current `main` without pushing a new commit.
+  workflow_dispatch:
+
+# Never let two deploys race for the same droplet; the newest wins.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # `workflow_dispatch` carries no `workflow_run` payload, so the guard is
+    # written to pass for a manual trigger.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
+      # Check out the exact commit CI validated, not whatever `main` points at
+      # by the time this job starts.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to GHCR
         uses: docker/login-action@v3

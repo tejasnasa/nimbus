@@ -80,13 +80,33 @@ type ExcalidrawShape = {
   boundElements: { id: string; type: "text" | "arrow" }[] | null;
 };
 
-/** Generates a 10-char Excalidraw-compatible element id. */
+/**
+ * Generates a 10-char Excalidraw-compatible element id.
+ *
+ * `toString(36)` emits as many digits as the value needs, so the slice is
+ * occasionally only 9 characters (~0.74% of draws). Padding rather than
+ * redrawing keeps the id shape — lowercase alphanumeric, fixed width — that
+ * everything downstream already assumes; the entropy lost is irrelevant for an
+ * element identifier.
+ */
 function generateExcalidrawId() {
-  return Math.random().toString(36).substring(2, 12);
+  return Math.random().toString(36).substring(2, 12).padEnd(10, "0");
 }
 
-/** Coerces unknown LLM numbers, falling back when NaN/Infinity. */
+/**
+ * Coerces a numeric hint, falling back when the value is absent or unusable.
+ *
+ * Numeric strings are accepted (`"120"` → `120`) because the prompt asks the
+ * model for coordinates and it frequently answers with strings. Values that
+ * `Number()` maps to a finite `0` while meaning "no hint" — `null`, `""`,
+ * booleans and arrays — fall back instead: reading one as `0` places the node
+ * at the canvas origin deliberately, which reorders the first layout column
+ * against the flow the model described.
+ */
 function numOrDefault(value: unknown, fallback: number) {
+  if (value === null || value === "") return fallback;
+  if (typeof value === "boolean" || typeof value === "object") return fallback;
+
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
@@ -349,8 +369,15 @@ function parseDiagramPayload(raw: string): Diagram {
 
   const preview = raw.trim().slice(0, 160).replace(/\s+/g, " ");
   console.error("[canvas] invalid JSON preview:", preview);
+
+  // `errors` holds each candidate's real failure, which is usually the
+  // validator's complaint rather than a syntax problem — a payload that parsed
+  // perfectly and was rejected for having no nodes was previously reported as
+  // unparseable, pointing debugging at the parser instead of the prompt.
+  const detail = errors.length > 0 ? `: ${errors.slice(-1)[0]}` : "";
+
   throw new Error(
-    `Canvas model returned invalid JSON${preview ? ` (${preview}…)` : ""}`,
+    `Canvas model returned invalid JSON${preview ? ` (${preview}…)` : ""}${detail}`,
   );
 }
 
@@ -648,12 +675,16 @@ function rectsOverlap(
 
 /**
  * Longest-path layering: each node's rank = 1 + max(predecessor ranks).
- * Bellman-Ford-style relaxation (bounded iterations) tolerates cycles by
- * settling instead of looping forever.
+ * Bellman-Ford-style relaxation tolerates cycles by settling instead of
+ * looping forever.
+ *
+ * The pass count is the longest path a DAG can have, `n - 1`, rather than the
+ * edge count: on a cycle the relaxation never converges, so a larger bound only
+ * inflates the ranks further before giving up.
  */
 function assignRanks(nodeIds: string[], edges: DiagramEdge[]) {
   const rank = new Map(nodeIds.map((id) => [id, 0]));
-  const iterations = Math.max(nodeIds.length, edges.length) + 1;
+  const iterations = Math.max(nodeIds.length - 1, 0);
 
   for (let i = 0; i < iterations; i++) {
     let changed = false;
@@ -719,15 +750,23 @@ function gridLayout(nodes: DiagramNode[]) {
  * Left-to-right layered layout: ranks become columns, each column is
  * barycenter-ordered and vertically centered against the tallest column.
  * Wider layers get extra vertical breathing room.
+ *
+ * Ranks are compressed onto consecutive columns first. A DAG's ranks are always
+ * dense, so this is a no-op for the common case, but a cycle leaves gaps — and
+ * a column is allocated per integer rank, so even one gap pushes the whole
+ * drawing off the visible canvas.
  */
 function rankBasedLayout(nodes: DiagramNode[], edges: DiagramEdge[]) {
   const nodeIds = nodes.map((n) => n.id);
   const rank = assignRanks(nodeIds, edges);
-  const maxRank = Math.max(...rank.values(), 0);
-  const layers: string[][] = Array.from({ length: maxRank + 1 }, () => []);
+
+  const usedRanks = [...new Set(rank.values())].sort((a, b) => a - b);
+  const columnOfRank = new Map(usedRanks.map((r, column) => [r, column]));
+  const layers: string[][] = Array.from({ length: usedRanks.length }, () => []);
 
   for (const id of nodeIds) {
-    layers[rank.get(id) ?? 0]!.push(id);
+    const column = columnOfRank.get(rank.get(id) ?? 0) ?? 0;
+    layers[column]!.push(id);
   }
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -913,6 +952,8 @@ export async function generateCanvasDocument(
 
   let content = "";
   let completedOutput: Parameters<typeof extractResponseText>[0] | undefined;
+  /** Why the structured fast path was abandoned, if it was. */
+  let fastPathError: string | null = null;
 
   for await (const event of stream) {
     if (event.type === "response.reasoning_text.delta") {
@@ -949,42 +990,72 @@ export async function generateCanvasDocument(
         typeof parsed === "object" &&
         Array.isArray((parsed as { nodes?: unknown }).nodes)
       ) {
-        onStatus("Parsing diagram structure…");
-        const diagram = parseDiagramRecord(
-          parsed as { nodes?: unknown; edges?: unknown },
-        );
-        onStatus(
-          `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
-        );
-        layoutDiagram(diagram);
-        onStatus("Drawing shapes and connectors…");
-        const canvasData = buildExcalidrawFromDiagram(diagram);
-        if (canvasData.length === 0) {
-          throw new Error("Canvas builder produced no elements");
+        // An optimisation, never the only route to an answer. The streamed text
+        // and the structured payload are two deliveries of the same reply, so a
+        // payload that fails validation must fall through to `content` rather
+        // than discarding a diagram that is already sitting there. The reason is
+        // kept so a failure of both can name both.
+        try {
+          onStatus("Parsing diagram structure…");
+          const diagram = parseDiagramRecord(
+            parsed as { nodes?: unknown; edges?: unknown },
+          );
+          onStatus(
+            `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
+          );
+          layoutDiagram(diagram);
+          onStatus("Drawing shapes and connectors…");
+          const canvasData = buildExcalidrawFromDiagram(diagram);
+          if (canvasData.length === 0) {
+            throw new Error("Canvas builder produced no elements");
+          }
+          onStatus(`Done — ${canvasData.length} canvas elements`);
+          return { canvasData, thinking: thinkingLog };
+        } catch (err) {
+          fastPathError = err instanceof Error ? err.message : String(err);
+          console.error("[canvas] structured payload rejected:", fastPathError);
         }
-        onStatus(`Done — ${canvasData.length} canvas elements`);
-        return { canvasData, thinking: thinkingLog };
       }
     }
   }
+
+  /**
+   * Names the structured payload's rejection alongside a fallback failure, so
+   * a run that exhausted both deliveries says so instead of implying the model
+   * produced nothing usable.
+   */
+  const withFastPathReason = (message: string) =>
+    fastPathError
+      ? `${message} (structured payload rejected: ${fastPathError})`
+      : message;
 
   if (!content.trim() && completedOutput) {
     content = extractResponseText(completedOutput);
   }
 
   if (!content.trim()) {
-    throw new Error("OpenAI returned an empty canvas response");
+    throw new Error(
+      withFastPathReason("OpenAI returned an empty canvas response"),
+    );
   }
 
   onStatus("Parsing diagram structure…");
   let diagram: Diagram;
   try {
     diagram = parseDiagramPayload(content);
-  } catch {
+  } catch (contentError) {
     // Last resort: the JSON may have bled into the reasoning channel, so
     // retry extraction over content + thinking combined before failing.
     const fallback = extractJsonObject(`${content}\n${thinkingLog}`);
-    if (!fallback) throw new Error("Canvas model returned invalid JSON");
+    if (!fallback) {
+      throw new Error(
+        withFastPathReason(
+          contentError instanceof Error
+            ? contentError.message
+            : "Canvas model returned invalid JSON",
+        ),
+      );
+    }
     diagram = parseDiagramPayload(fallback);
   }
 

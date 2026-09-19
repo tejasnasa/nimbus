@@ -2,7 +2,7 @@
  * @module web/api/workspace
  * @description Server-side workspace fetch helpers. Forward the request
  * cookies to the API (session auth) with `cache: "no-store"`, and strip the
- * NimbusBot pseudo-member (`NEXT_PUBLIC_BOTUSER_ID`) so it never renders as
+ * NimbusBot pseudo-member (`NEXT_PUBLIC_BOT_USERID`) so it never renders as
  * a human collaborator.
  */
 "use server";
@@ -32,7 +32,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
 
   const workspaces = data.responseObject.map((workspace: Workspace) => {
     const members = workspace.members.filter(
-      (member) => member.id !== process.env.NEXT_PUBLIC_BOTUSER_ID,
+      (member) => member.id !== process.env.NEXT_PUBLIC_BOT_USERID,
     );
     return { ...workspace, members };
   });
@@ -62,7 +62,7 @@ export async function getWorkspace(workspaceId: string): Promise<Workspace> {
   const workspace = (await res.json()).responseObject;
 
   const members = workspace.members.filter(
-    (member: Member) => member.id !== process.env.NEXT_PUBLIC_BOTUSER_ID,
+    (member: Member) => member.id !== process.env.NEXT_PUBLIC_BOT_USERID,
   );
 
   return { ...workspace, members };
@@ -82,7 +82,6 @@ export async function deleteWorkspace(workspaceId: string): Promise<void> {
       headers: { cookie: (await headers()).get("cookie") ?? "" },
     },
   );
-  console.log("Delete response:", res);
 
   if (!res.ok) throw new Error("Failed to delete workspace");
 

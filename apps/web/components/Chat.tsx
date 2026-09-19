@@ -13,9 +13,10 @@ import { ClientDocument } from "../api/document";
 /**
  * @module web/components/Chat
  * @description Workspace chat panel: joins/leaves the workspace room,
- * appends `message:new` live, tracks `presence:*` for online dots, and
- * auto-scrolls on new messages. Own messages render right (`ChatMsgB`),
- * others/bot left (`ChatMsgA`); Enter sends, Shift+Enter newlines.
+ * appends `message:new` live, tracks `presence:*` for online dots, surfaces a
+ * refused join (`workspace:error`) as a dismissible banner, and auto-scrolls on
+ * new messages. Own messages render right (`ChatMsgB`), others/bot left
+ * (`ChatMsgA`); Enter sends, Shift+Enter newlines.
  */
 import { socket } from "../lib/socket";
 import VoiceControls from "./VoiceControls";
@@ -43,6 +44,7 @@ export default function Chat({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,6 +68,18 @@ export default function Chat({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // A refused workspace join otherwise leaves the panel connected but inert —
+  // no messages, no presence, and nothing to distinguish it from a slow load.
+  useEffect(() => {
+    function onWorkspaceError(message: string) {
+      setWorkspaceError(message);
+    }
+    socket.on("workspace:error", onWorkspaceError);
+    return () => {
+      socket.off("workspace:error", onWorkspaceError);
+    };
+  }, []);
 
   function handleSend() {
     if (!content.trim()) return;
@@ -109,6 +123,23 @@ export default function Chat({
   return (
     <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
       <VoiceControls workspaceData={workspaceData} documents={documents} />
+
+      {workspaceError && (
+        <div
+          role="alert"
+          className="mx-2 mt-2 flex items-start justify-between gap-2 rounded-lg border border-(--destructive)/40 bg-(--destructive)/10 px-3 py-2 text-xs text-(--destructive)"
+        >
+          <span>{workspaceError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setWorkspaceError(null)}
+            className="shrink-0 hover:cursor-pointer text-(--muted-foreground)"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 scrollbar-thin">
         {messages.length === 0 && (

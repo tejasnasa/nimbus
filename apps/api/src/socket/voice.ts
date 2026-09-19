@@ -31,7 +31,12 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
       const member = await prisma.workspaceMember.findUnique({
         where: { userId_workspaceId: { userId: user.id, workspaceId } },
       });
-      if (!member) return;
+      if (!member) {
+        // Same refusal as `workspace:join`: reported on the workspace channel
+        // rather than silently, so a refused voice join is not indistinguishable
+        // from a slow connection.
+        return socket.emit("workspace:error", "Not a member of this workspace");
+      }
 
       await voicePresenceService.userJoined(workspaceId, {
         userId: user.id,

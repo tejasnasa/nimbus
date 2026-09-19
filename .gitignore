@@ -15,6 +15,13 @@ node_modules
 # Testing
 coverage
 
+# Playwright: minted storage states and run artifacts
+apps/web/e2e/.auth
+apps/web/e2e/.playwright-report
+apps/web/e2e/test-results
+playwright-report
+test-results
+
 # Turbo
 .turbo
 
@@ -36,5 +43,9 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+.claude
+CLAUDE.md
+.zed
 
 packages/database/generated

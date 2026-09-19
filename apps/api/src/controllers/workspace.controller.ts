@@ -163,16 +163,26 @@ export const getMyWorkspaces = async (id: string) => {
  * Fetches one workspace by URL slug id, membership-scoped.
  *
  * 404 covers both missing workspaces and non-members (avoids leaking
- * existence to outsiders).
+ * existence to outsiders); 400 covers a slug that is not an id at all.
  *
  * @param slugId - Auto-increment URL identifier (stringified int).
  * @param id - Authenticated user's ID (must be a member).
+ * @returns The workspace, or 400/404.
  */
 export const getWorkspaceBySlugId = async (slugId: string, id: string) => {
+  // A path segment is unvalidated input: a stale link, a crawler or a typo
+  // reaches here as easily as a real id. `parseInt` would hand Prisma a `NaN`,
+  // which is not a valid `Int` and surfaces as a validation throw — reported to
+  // the caller as a 500 for what is permanently bad input.
+  const parsedSlugId = Number(slugId);
+  if (!Number.isInteger(parsedSlugId) || parsedSlugId <= 0) {
+    return ServerResponse.badRequest("Invalid workspace id");
+  }
+
   try {
     const workspace = await prisma.workspace.findFirst({
       where: {
-        slugId: parseInt(slugId),
+        slugId: parsedSlugId,
         members: {
           some: {
             userId: id,

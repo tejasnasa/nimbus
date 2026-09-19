@@ -23,9 +23,6 @@ export function useWorkspaceForm() {
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
-      console.log(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/create`,
-      );
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/create`,
         {

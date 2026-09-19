@@ -9,6 +9,45 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+/** The fields every transactional email in this module supplies. */
+type EmailPayload = {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+};
+
+/**
+ * Sends one email, reporting a failure rather than propagating it.
+ *
+ * The SDK resolves with `{ data, error }` instead of throwing on API errors, so
+ * an unchecked send is indistinguishable from a successful one — a
+ * misconfigured `RESEND_API_KEY` silently disables both sign-up verification
+ * and password reset, and the only symptom is users who cannot get in. The
+ * request deliberately still succeeds: by the time a verification email is
+ * sent the account row already exists, so making the send fatal would both fail
+ * a sign-up that partially succeeded and leave the retry hitting "email already
+ * in use". The failure is made loud here instead of made fatal.
+ *
+ * @param flow - Names the flow in the log line, so the two are tellable apart.
+ * @param payload - Resend send payload.
+ */
+async function deliver(flow: string, payload: EmailPayload) {
+  try {
+    const { error } = await resend.emails.send(payload);
+    if (!error) return;
+
+    console.error(
+      `[email] ${flow} was not delivered — check RESEND_API_KEY and the ` +
+        "sender domain. The request succeeded, so the recipient got nothing.",
+      error,
+    );
+  } catch (err) {
+    // Reaching Resend at all can fail (network, DNS); same reasoning applies.
+    console.error(`[email] ${flow} failed before reaching Resend:`, err);
+  }
+}
+
 /**
  * Sends the password-reset email (link valid ~1h per better-auth default).
  *
@@ -22,7 +61,7 @@ export async function sendPasswordResetEmail({
   to: string;
   url: string;
 }) {
-  await resend.emails.send({
+  await deliver("password reset", {
     from: "noreply@tejasnasa.me",
     to,
     subject: "Reset your Nimbus Password",
@@ -97,7 +136,7 @@ export async function sendPasswordResetEmail({
  * @param props.url - Verification URL (already rewritten to the frontend route by `lib/auth.ts`).
  */
 export async function sendEmail({ to, url }: { to: string; url: string }) {
-  await resend.emails.send({
+  await deliver("email verification", {
     from: "noreply@tejasnasa.me",
     to,
     subject: "Verify your Nimbus Email Address",

@@ -37,8 +37,6 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
 
   /** Join flow: verify member → join room → mark present → notify room + replay roster. */
   socket.on("workspace:join", async (workspaceId: string) => {
-    console.log("JOIN EVENT RECEIVED:", workspaceId, "from", user.id);
-
     try {
       const member = await prisma.workspaceMember.findUnique({
         where: {
@@ -50,15 +48,12 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
       });
 
       if (!member) {
-        console.log("NOT A MEMBER:", user.id);
-        return;
+        // Told, not just logged: the client would otherwise sit connected but
+        // non-functional with no way to tell "denied" from "still connecting".
+        return socket.emit("workspace:error", "Not a member of this workspace");
       }
 
-      console.log("JOINING ROOM:", workspaceId);
-
       socket.join(workspaceId);
-
-      console.log("ROOMS AFTER JOIN:", socket.rooms);
 
       await presenceService.userJoined(workspaceId, user.id);
 
@@ -68,8 +63,6 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
       });
 
       const onlineUserIds = await presenceService.getOnlineUsers(workspaceId);
-
-      console.log("ONLINE USERS:", onlineUserIds);
 
       socket.emit("presence:online_users", onlineUserIds);
     } catch (err) {

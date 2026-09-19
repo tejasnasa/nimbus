@@ -5,7 +5,7 @@ import type { VoiceUser } from "./voice";
 /**
  * Events emitted by the client and handled by the API server.
  *
- * Event names follow the `namespace:verb` convention (AGENTS.md §5).
+ * Event names follow the `namespace:verb` convention.
  * All connections are pre-authenticated by the Socket.IO handshake middleware,
  * so handlers can trust `socket.data.user`.
  */
@@ -78,6 +78,12 @@ export type ServerToClientEvents = {
   "presence:online_users": (userIds: string[]) => void;
   "typing:start": (data: { userId: string; name: string }) => void;
   "typing:stop": (data: { userId: string; name: string }) => void;
+  /**
+   * A workspace-scoped request was refused — currently a `workspace:join` or
+   * `voice:join` from a non-member. Sent instead of failing silently, so the
+   * client can distinguish a denial from a request still in flight.
+   */
+  "workspace:error": (message: string) => void;
 
   // ── Canvas ──
   /** Initial full elements array on join. */

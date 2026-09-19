@@ -48,8 +48,6 @@ export function useWorkspaceDocumentForm(
         },
       );
 
-      console.log(res);
-
       if (!res.ok) {
         const error = await res.json();
         throw new Error(

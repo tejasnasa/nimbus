@@ -117,6 +117,16 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
 
   socket.on("doc:update", (docId: string, update: number[]) => {
     try {
+      // Room presence stands in for a membership check: `doc:join` verifies the
+      // caller belongs to the document's workspace before joining the room, so
+      // only a socket that passed that gate is in it. Without this, any
+      // authenticated socket that knows a docId can mutate a live document and
+      // have the change broadcast to real participants and written to the
+      // database. `canvas:update` guards the same way — keep the two in step.
+      if (!socket.rooms.has(DOC_ROOM(docId))) {
+        return socket.emit("doc:error", "Not joined to document");
+      }
+
       const doc = docs.get(docId);
       if (!doc) return;
 

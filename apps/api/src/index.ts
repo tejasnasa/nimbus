@@ -7,20 +7,30 @@
  * Redis pub/sub adapter → handshake auth → per-socket handler registration
  * (chat, document, canvas, voice).
  *
- * @important Requires FRONTEND_URL, DATABASE_URL, REDIS_URL and BETTER_AUTH_SECRET.
- *            The Redis adapter is what allows multi-instance horizontal scaling —
- *            without it, rooms and broadcasts are process-local.
+ * @important Required configuration is validated at startup by `lib/env`, which
+ *            fails the process naming any missing variable. See that module for
+ *            the required/optional split.
+ *
+ * @important The Redis adapter is what allows multi-instance horizontal
+ *            scaling — without it, rooms and broadcasts are process-local.
  */
 import { createAdapter } from "@socket.io/redis-adapter";
 import { toNodeHandler } from "better-auth/node";
 import cors from "cors";
 import "dotenv/config";
+// Validates required configuration before anything below is composed. Must stay
+// after `dotenv/config`, which is what makes the file's values visible.
+import "./lib/env";
 import express from "express";
 import { createServer } from "http";
 import morgan from "morgan";
 import { Server } from "socket.io";
 import { auth } from "./lib/auth";
 import { pubClient, subClient } from "./lib/redis";
+import {
+  apiNotFoundHandler,
+  errorHandler,
+} from "./middleware/error.middleware";
 import applySocketAuth from "./middleware/socket.middleware";
 import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
@@ -45,9 +55,16 @@ app.use(morgan("dev"));
 app.all("/api/auth/{*any}", toNodeHandler(auth));
 app.use("/api", masterRouter);
 
+// Unknown /api/* paths answer in the same envelope as every real endpoint, so a
+// client never has to JSON-parse an HTML error page.
+app.use("/api", apiNotFoundHandler);
+
 app.get("/", (req, res) => {
   res.send("Hello World to u!");
 });
+
+// Last, so it catches anything the route stack above did not handle.
+app.use(errorHandler);
 
 const httpServer = createServer(app);
 

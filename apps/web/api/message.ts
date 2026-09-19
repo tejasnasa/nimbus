@@ -21,11 +21,9 @@ export async function getMessages(id: string): Promise<Message[]> {
     },
   );
 
-  console.log(res);
   if (!res.ok) throw new Error("Failed to fetch messages");
 
   const data = await res.json();
-  console.log(data.responseObject);
 
   return data.responseObject;
 }

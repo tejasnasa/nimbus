@@ -17,10 +17,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.0"
-  },
   "devDependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@nimbus/typescript-config": "*"
   },
   "author": "",

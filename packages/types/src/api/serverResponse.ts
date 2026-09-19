@@ -1,9 +1,9 @@
 /**
  * Standardized REST API response envelope returned by every controller.
  *
- * All responses must go through this wrapper (see AGENTS.md §5) so the client
- * can rely on a consistent `{ success, message, responseObject, statusCode }`
- * shape. Use the static factory methods instead of the constructor.
+ * All responses must go through this wrapper so the client can rely on a
+ * consistent `{ success, message, responseObject, statusCode }` shape. Use the
+ * static factory methods instead of the constructor.
  */
 export class ServerResponse<T = null> {
   success: boolean;

@@ -41,6 +41,7 @@ import { betterAuth, type User } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { cascadeOwnedWorkspaces } from "./accountDeletion";
 import { resolveCookieAttributes } from "./cookieAttributes";
+import { destroyAvatar } from "./cloudinary";
 import { sendEmail, sendPasswordResetEmail } from "./email";
 
 /**
@@ -76,17 +77,15 @@ const beforeDelete = async (user: User): Promise<void> => {
 };
 
 /**
- * Best-effort post-deletion hook. Cloudinary asset cleanup is wired here in
- * Phase 2 — the hook is reserved so the deletion flow's shape is fixed now
- * rather than after the Cloudinary controller lands.
+ * Best-effort post-deletion hook. Removes the user's Cloudinary avatar
+ * asset if one exists. `destroyAvatar` swallows its own errors (logs and
+ * returns), so a Cloudinary outage cannot break account deletion.
  *
- * @param _user - The just-deleted user. Unused for now; required by the
- *                better-auth contract.
+ * @param user - The just-deleted user. Required by the better-auth contract;
+ *               used to derive the deterministic `public_id`.
  */
-const afterDelete = async (_user: User): Promise<void> => {
-  // Phase 2 will call Cloudinary's admin API here to remove the user's
-  // avatar asset. Failure is deliberately non-fatal: the user is already
-  // gone, so the worst case is a stray image in Cloudinary's free tier.
+const afterDelete = async (user: User): Promise<void> => {
+  await destroyAvatar(user.id);
 };
 
 /** Shared better-auth instance consumed by REST middleware, socket auth, and route handlers. */

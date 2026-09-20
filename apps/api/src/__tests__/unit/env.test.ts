@@ -26,6 +26,9 @@ const completeEnv = {
   RESEND_API_KEY: "resend-key",
   GOOGLE_CLIENT_ID: "google-id",
   GOOGLE_CLIENT_SECRET: "google-secret",
+  CLOUDINARY_CLOUD_NAME: "cloudinary-cloud",
+  CLOUDINARY_API_KEY: "cloudinary-key",
+  CLOUDINARY_API_SECRET: "cloudinary-secret",
 } satisfies NodeJS.ProcessEnv;
 
 describe("lib/env", () => {

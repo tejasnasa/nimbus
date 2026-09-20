@@ -9,6 +9,7 @@ import authCheck from "../middleware/authCheck.middleware";
 import documentRouter from "./document.router";
 import messageRouter from "./message.router";
 import turnRouter from "./turn.router";
+import uploadRouter from "./upload.router";
 import workspaceRouter from "./workspace.router";
 
 const masterRouter = express.Router();
@@ -17,5 +18,6 @@ masterRouter.use("/workspace", authCheck, workspaceRouter);
 masterRouter.use("/messages", authCheck, messageRouter);
 masterRouter.use("/document", authCheck, documentRouter);
 masterRouter.use("/turn", authCheck, turnRouter);
+masterRouter.use("/upload", authCheck, uploadRouter);
 
 export default masterRouter;

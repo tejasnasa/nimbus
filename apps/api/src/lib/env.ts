@@ -61,6 +61,17 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: required,
   GOOGLE_CLIENT_SECRET: required,
 
+  // ── Avatar storage (Cloudinary) ──
+  // Used by the `/api/upload/avatar-signature` endpoint and the
+  // post-deletion cleanup hook. Cloudinary uploads must be signed so the
+  // browser can write with `overwrite: true` against a per-user
+  // `public_id`; unsigned uploads cannot set `overwrite`, and we need
+  // in-place replacement so a `User.image` derived from `secure_url`
+  // always points at a single owned asset (plan §2.3).
+  CLOUDINARY_CLOUD_NAME: required,
+  CLOUDINARY_API_KEY: required,
+  CLOUDINARY_API_SECRET: required,
+
   // ── Optional ──
   TURN_SERVER_URL: z.string().min(1).optional(),
   TURNS_SERVER_URL: z.string().min(1).optional(),

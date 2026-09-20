@@ -38,6 +38,7 @@ const ROUTE_CONTRACT = [
   ["get", "/api/document/:docId"],
   ["delete", "/api/document/:docId"],
   ["get", "/api/turn/credentials"],
+  ["get", "/api/upload/avatar-signature"],
 ] as const;
 
 /** Concrete values stand in for path params. */

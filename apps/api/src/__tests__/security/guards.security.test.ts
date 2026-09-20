@@ -60,6 +60,7 @@ const ROUTES = [
   { method: "get", path: `/api/document/${R}` },
   { method: "delete", path: `/api/document/${R}` },
   { method: "get", path: "/api/turn/credentials" },
+  { method: "get", path: "/api/upload/avatar-signature" },
 ] as const;
 
 const send = (route: (typeof ROUTES)[number]) => {

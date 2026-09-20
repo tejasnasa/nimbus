@@ -16,9 +16,14 @@ import { ClientDocument } from "../api/document";
  * appends `message:new` live, tracks `presence:*` for online dots, surfaces a
  * refused join (`workspace:error`) as a dismissible banner, and auto-scrolls on
  * new messages. Own messages render right (`ChatMsgB`), others/bot left
- * (`ChatMsgA`); Enter sends, Shift+Enter newlines.
+ * (`ChatMsgA`); Enter sends, Shift+Enter newlines. Typing indicators are
+ * wired through `useTypingIndicator` so the composer emits throttled
+ * `typing:start`/`typing:stop` events and renders peers' status as a
+ * reserved-height line below the message list.
  */
+import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import { socket } from "../lib/socket";
+import TypingIndicator from "./TypingIndicator";
 import VoiceControls from "./VoiceControls";
 
 /**
@@ -46,6 +51,13 @@ export default function Chat({
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Throttled outbound + debounced inbound typing. The hook owns every timer
+  // and clears them on unmount, so the composer never has to.
+  const { typingNames, handleTypingInput, stopTyping } = useTypingIndicator({
+    wsid,
+    currentUserId: userId,
+  });
 
   useEffect(() => {
     if (!wsid) return;
@@ -83,14 +95,32 @@ export default function Chat({
 
   function handleSend() {
     if (!content.trim()) return;
-    socket.emit("message:send", { workspaceId: wsid, content: content.trim() });
+    socket.emit("message:send", {
+      workspaceId: wsid,
+      content: content.trim(),
+    });
     setContent("");
+    // Sending also stops typing — the composer is empty, and a sent message
+    // is a clear "I'm done" signal.
+    stopTyping();
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setContent(e.target.value);
+    // An empty composer is not typing. The hook's idle timer would catch this
+    // anyway, but checking here means the network event fires immediately
+    // rather than after a 3s wait.
+    if (e.target.value === "") {
+      stopTyping();
+    } else {
+      handleTypingInput();
     }
   }
 
@@ -178,13 +208,15 @@ export default function Chat({
       </div>
 
       <div className="p-2 pt-0">
+        <TypingIndicator names={typingNames} />
         <form className="relative" onSubmit={(e) => e.preventDefault()}>
           <Textarea
             className="text-xs w-full rounded-xl bg-(--muted)/50"
             placeholder="Type a message..."
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
+            onBlur={stopTyping}
           />
           <Button
             size="xs"

@@ -79,4 +79,28 @@ describe("lib/env", () => {
       parseEnv("nonsense" as unknown as NodeJS.ProcessEnv),
     ).toThrow(/\(root\)/);
   });
+
+  it("treats `AUTH_COOKIE_DOMAIN` as optional and surfaces it when set", () => {
+    // Phase 0: a missing `AUTH_COOKIE_DOMAIN` must not block boot, since a
+    // single-host HTTPS deployment (and every HTTP deployment, which uses the
+    // domain only for `crossSubDomainCookies`) does not need one. When it is
+    // set, the parsed env exposes it so `lib/cookieAttributes` can read it.
+    const withoutDomain = parseEnv(completeEnv);
+    expect(withoutDomain.AUTH_COOKIE_DOMAIN).toBeUndefined();
+
+    const withDomain = parseEnv({
+      ...completeEnv,
+      AUTH_COOKIE_DOMAIN: ".tejasnasa.me",
+    });
+    expect(withDomain.AUTH_COOKIE_DOMAIN).toBe(".tejasnasa.me");
+  });
+
+  it("treats an empty `AUTH_COOKIE_DOMAIN` as missing, not as a value", () => {
+    // Same rule as the rest of the optional block: an empty string is as
+    // broken as an absent one, and accepting it would silently disable
+    // `crossSubDomainCookies` downstream.
+    expect(() =>
+      parseEnv({ ...completeEnv, AUTH_COOKIE_DOMAIN: "" }),
+    ).toThrow(/AUTH_COOKIE_DOMAIN/);
+  });
 });

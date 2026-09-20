@@ -67,6 +67,7 @@ const envSchema = z.object({
   EXTERNAL_IP: z.string().min(1).optional(),
   GROQ_CANVAS_MODEL: z.string().min(1).optional(),
   BETTER_AUTH_API_KEY: z.string().min(1).optional(),
+  AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
 });
 
 /** The validated environment. */
@@ -90,8 +91,8 @@ export function parseEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
     throw new Error(
       `Invalid environment configuration:\n${details}\n` +
-        "Set the missing values (see .env.example) and restart. Refusing to " +
-        "start rather than serving with the affected features broken.",
+      "Set the missing values (see .env.example) and restart. Refusing to " +
+      "start rather than serving with the affected features broken.",
     );
   }
 

@@ -15,7 +15,32 @@ import "dotenv/config";
 // Validates required configuration before anything below is composed. Must stay
 // after `dotenv/config`, which is what makes the file's values visible.
 import "./lib/env";
+import { auth } from "./lib/auth";
+import {
+  describeCookieAttributes,
+  resolveCookieAttributes,
+} from "./lib/cookieAttributes";
 import { createHttpServer } from "./app";
+
+/**
+ * Log the cookie attributes resolved from `BETTER_AUTH_URL` + `AUTH_COOKIE_DOMAIN`.
+ * The attributes are coupled to those variables by construction; logging them
+ * here is the only observable signal that the coupling landed where expected.
+ * See errors.md #13.
+ */
+console.log(
+  `[auth] session cookie: ${describeCookieAttributes(
+    resolveCookieAttributes({
+      baseUrl: process.env.BETTER_AUTH_URL ?? "",
+      cookieDomain: process.env.AUTH_COOKIE_DOMAIN,
+    }),
+  )} (baseURL=${process.env.BETTER_AUTH_URL ?? "(unset)"})`,
+);
+
+// Touching `auth` here forces the module to load now, ahead of the server
+// binding, so any better-auth configuration error surfaces at boot rather than
+// on the first request.
+void auth;
 
 const { httpServer } = createHttpServer();
 

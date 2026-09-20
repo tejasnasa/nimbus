@@ -5,11 +5,11 @@
  * through the real sign-up → verify → sign-in flow (never a forged cookie), so
  * the auth configuration under test is the one that actually runs.
  *
- * @important The issued cookie is `Domain=.tejasnasa.me; Secure` — see the note
- *            in `src/lib/auth.ts`. No browser would store that on localhost, and
- *            a naive cookie jar would drop it. Requests here therefore replay
- *            only the `name=value` pair and discard the attributes, which the
- *            server accepts regardless of `Domain`/`Secure`.
+ * @important Requests here replay only the `name=value` pair and discard the
+ *            attributes (`HttpOnly`, `Secure`, `Domain`, …). supertest accepts
+ *            a cookie without enforcing those attributes, so the suite keeps
+ *            working even when the server is configured with attributes a real
+ *            browser would not store.
  */
 import { randomUUID } from "node:crypto";
 import type { Express } from "express";

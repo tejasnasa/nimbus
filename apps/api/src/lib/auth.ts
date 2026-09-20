@@ -15,10 +15,31 @@
  * @important `trustedOrigins` is restricted to FRONTEND_URL — cross-subdomain
  *            session cookies break if these drift from the deploy domains.
  *            Requires BETTER_AUTH_URL, GOOGLE_CLIENT_ID/SECRET and FRONTEND_URL.
+ *
+ * @important Account deletion cascades owned workspaces (Phase 1, plan §1.2).
+ *            `Workspace` has no `ownerId` column — ownership lives in
+ *            `WorkspaceMember.role === "OWNER"`, so the only place to learn
+ *            what a user owns is the membership row, which Prisma cascades
+ *            the moment `User` is deleted. The owned-workspace delete must
+ *            therefore run in `beforeDelete`, while the membership rows still
+ *            exist, or those workspaces become permanently ownerless. See
+ *            plan §1.2 for the full orderability argument.
+ *
+ * @important Two consequences of `deleteUser` documented per plan §1.5:
+ *            (1) `Message.user` is `onDelete: Cascade`, so deleting an
+ *                account removes that person's chat history everywhere,
+ *                leaving holes in other members' logs with no tombstone.
+ *                The delete dialog must say so, not imply only the user's
+ *                own data is affected.
+ *            (2) `beforeDelete` is not atomic with `internalAdapter.deleteUser`
+ *                — a crash between the two leaves owned workspaces deleted
+ *                and the account alive. `beforeDelete` is idempotent and
+ *                logs loudly on re-entry so a retry is harmless.
  */
 import { prisma } from "@nimbus/db";
-import { betterAuth } from "better-auth";
+import { betterAuth, type User } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { cascadeOwnedWorkspaces } from "./accountDeletion";
 import { resolveCookieAttributes } from "./cookieAttributes";
 import { sendEmail, sendPasswordResetEmail } from "./email";
 
@@ -31,6 +52,43 @@ const cookieAttributes = resolveCookieAttributes({
   cookieDomain: process.env.AUTH_COOKIE_DOMAIN,
 });
 
+/**
+ * Cascade-deletes every workspace the user is the sole OWNER of, *before*
+ * better-auth's own `internalAdapter.deleteUser` cascades the membership rows
+ * that record ownership. Runs as one transaction so a partial failure rolls
+ * back and re-entry is harmless. Delegates the actual policy to
+ * `lib/accountDeletion` so the unit tests can exercise the cascade without
+ * booting better-auth.
+ *
+ * @important Skipped for NimbusBot. The bot is seeded as ADMIN into every
+ *            workspace and cannot sign in, so the delete path should be
+ *            unreachable in practice — but if it ever is reached, the bot
+ *            owns no workspaces (the guard prevents mass workspace deletion)
+ *            while better-auth's own delete still cascades the bot's
+ *            membership and message rows.
+ *
+ * @param user - The user about to be deleted. The Prisma transaction runs
+ *               against the shared `prisma` client, not the better-auth
+ *               adapter, so the cascade is fully under our control.
+ */
+const beforeDelete = async (user: User): Promise<void> => {
+  await cascadeOwnedWorkspaces(user);
+};
+
+/**
+ * Best-effort post-deletion hook. Cloudinary asset cleanup is wired here in
+ * Phase 2 — the hook is reserved so the deletion flow's shape is fixed now
+ * rather than after the Cloudinary controller lands.
+ *
+ * @param _user - The just-deleted user. Unused for now; required by the
+ *                better-auth contract.
+ */
+const afterDelete = async (_user: User): Promise<void> => {
+  // Phase 2 will call Cloudinary's admin API here to remove the user's
+  // avatar asset. Failure is deliberately non-fatal: the user is already
+  // gone, so the worst case is a stray image in Cloudinary's free tier.
+};
+
 /** Shared better-auth instance consumed by REST middleware, socket auth, and route handlers. */
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -39,6 +97,12 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+    // Force every other live session off when the password is reset. A
+    // password reset is exactly the control a compromised account exercises,
+    // and leaving the attacker's session alive would defeat the point.
+    // Surface this through the UI as a checkbox in 1a (Phase 6) and offer
+    // it explicitly in 1e (Phase 7).
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       await sendPasswordResetEmail({ to: user.email, url });
     },
@@ -58,6 +122,21 @@ export const auth = betterAuth({
         to: user.email,
         url: verifyUrl.toString(),
       });
+    },
+  },
+  user: {
+    deleteUser: {
+      enabled: true,
+      beforeDelete,
+      afterDelete,
+      // Intentionally NOT setting `sendDeleteAccountVerification`. The branch
+      // is unconditional: if configured, *every* delete request sends a
+      // verification email and returns early — before the password check
+      // and before `beforeDelete`. It would replace the inline confirmation
+      // flow entirely (and add an email template + a landing route). The
+      // Google-only case is handled by the freshness gate (plan §1.3):
+      // re-login yields a fresh session, and `password` re-authenticates
+      // credential users.
     },
   },
   experimental: { joins: true },

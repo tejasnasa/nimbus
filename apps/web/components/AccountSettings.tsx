@@ -11,12 +11,16 @@
 
 import Avatar from "@nimbus/ui/Avatar";
 import Button from "@nimbus/ui/Button";
+import Clock from "@nimbus/ui/icons/Clock";
+import Delete from "@nimbus/ui/icons/Delete";
 import Edit from "@nimbus/ui/icons/Edit";
 import Error from "@nimbus/ui/icons/Error";
 import Input from "@nimbus/ui/Input";
 import SettingTabs from "@nimbus/ui/SettingTabs";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { useRef } from "react";
+import { describeUserAgent } from "../lib/parseUserAgent";
+import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
 import { useProfileForm } from "../hooks/useProfileForm";
@@ -51,13 +55,7 @@ export default function AccountSettings({ user }: { user: SessionUser }) {
           },
           {
             label: "Sessions",
-            content: (
-              <div className="space-y-4">
-                <p className="text-sm text-(--muted-foreground)">
-                  Devices currently signed in to your account.
-                </p>
-              </div>
-            ),
+            content: <ActiveSessionsPanel />,
           },
           {
             label: "Danger Zone",
@@ -401,4 +399,132 @@ function GoogleOnlyPasswordContent({
       )}
     </div>
   );
+}
+
+/**
+ * Sessions tab. Renders one row per active device with a revoke button;
+ * the current session is labelled and its revoke control is disabled
+ * (revoking your own session from this list is a confusing way to sign
+ * out, and there is a dedicated Sign Out for that). A bulk
+ * "Sign out of all other devices" affordance sits at the bottom.
+ *
+ * Because `SettingTabs` unmounts inactive panels, the hook refetches
+ * on every visit — a deliberate design property, not a bug.
+ */
+function ActiveSessionsPanel() {
+  const { state, revokeSession, revokeOtherSessions, revoking } =
+    useActiveSessions();
+
+  if (state.kind === "loading") {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <p className="text-sm text-(--muted-foreground)">
+          Loading your active sessions…
+        </p>
+      </div>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
+          <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+          <span className="text-xs text-(--destructive)">{state.message}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const { sessions, currentToken } = state;
+  const otherCount = sessions.filter((s) => s.token !== currentToken).length;
+
+  return (
+    <div className="space-y-6" aria-label="active-sessions">
+      <p className="text-sm text-(--muted-foreground)">
+        Devices currently signed in to your account.
+      </p>
+
+      <ul className="divide-y divide-(--border) rounded-xl border border-(--border)">
+        {sessions.map((session) => {
+          const isCurrent = session.token === currentToken;
+          const isRevokingThis = revoking === session.token;
+          return (
+            <li
+              key={session.token}
+              className="flex items-center justify-between gap-4 px-4 py-3"
+              data-testid="session-row"
+              data-current={isCurrent ? "true" : undefined}
+            >
+              <div className="flex flex-col gap-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-(--foreground) truncate">
+                    {describeUserAgent(session.userAgent)}
+                  </span>
+                  {isCurrent && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-(--primary)/15 text-(--primary)">
+                      This device
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-xs text-(--muted-foreground)">
+                  <span>{session.ipAddress ?? "Unknown IP"}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Active {formatRelativeTime(session.updatedAt)}
+                  </span>
+                </div>
+              </div>
+              <Button
+                size="xs"
+                type="button"
+                className="bg-transparent text-(--muted-foreground) hover:bg-(--muted) border border-(--border) rounded-xl"
+                onClick={() => void revokeSession(session.token)}
+                loading={isRevokingThis}
+                disabled={isCurrent || revoking !== null}
+                aria-label={`Sign out of ${describeUserAgent(session.userAgent)}`}
+              >
+                <Delete className="w-3.5 h-3.5 mr-1" />
+                Sign out
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {otherCount > 0 && (
+        <div className="flex justify-end pt-2">
+          <Button
+            size="sm"
+            type="button"
+            className="hover:cursor-pointer rounded-xl"
+            onClick={() => void revokeOtherSessions()}
+            loading={revoking === "others"}
+            disabled={revoking !== null && revoking !== "others"}
+          >
+            Sign out of all other devices
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Formats a date (ISO string or Date) as a coarse "5 minutes ago"-style
+ * relative time. Returns "just now" for sub-minute deltas, "X
+ * minutes/hours/days ago" up to a week, otherwise a short absolute date.
+ */
+function formatRelativeTime(input: Date | string): string {
+  const then = typeof input === "string" ? new Date(input) : input;
+  const diffMs = Date.now() - then.getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return then.toLocaleDateString();
 }

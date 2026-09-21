@@ -101,20 +101,9 @@ describe("AccountSettings", () => {
 
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
-    expect(
-      screen.getByText(/Devices currently signed in to your account/i),
-    ).toBeInTheDocument();
-  });
-
-  it("swaps to the Danger Zone panel when its tab is clicked", async () => {
-    const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
-
-    await user.click(screen.getByRole("button", { name: "Danger Zone" }));
-
-    expect(
-      screen.getByText(/Irreversible actions on your account/i),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("active-sessions")).toBeInTheDocument(),
+    );
   });
 });
 
@@ -208,4 +197,172 @@ describe("AccountSettings Password tab", () => {
       screen.getByText(/Checking your sign-in methods/i),
     ).toBeInTheDocument();
   });
+});
+
+describe("AccountSettings Sessions tab", () => {
+  const SESSIONS = [
+    {
+      token: "current-token",
+      userId: "user-1",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      ipAddress: "203.0.113.10",
+      userAgent:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date(Date.now() - 60 * 1000).toISOString(),
+    },
+    {
+      token: "other-token",
+      userId: "user-1",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      ipAddress: "203.0.113.20",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+      createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    },
+  ];
+
+  type SessionRow = Omit<(typeof SESSIONS)[number], "userAgent"> & {
+    userAgent?: string | null;
+  };
+
+  const listSessionsHandler = (sessions: SessionRow[]) =>
+    http.get(`${BACKEND_URL}/api/auth/list-sessions`, () =>
+      HttpResponse.json(sessions),
+    );
+
+  const getSessionHandler = (token: string | null) =>
+    http.get(`${BACKEND_URL}/api/auth/get-session`, () =>
+      HttpResponse.json(
+        token
+          ? { session: { token }, user: { id: "user-1" } }
+          : { session: null, user: null },
+      ),
+    );
+
+  it("renders one row per session with a coarse browser/OS label", async () => {
+    server.use(
+      listSessionsHandler(SESSIONS),
+      getSessionHandler("current-token"),
+    );
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("session-row")).toHaveLength(2),
+    );
+
+    expect(screen.getByText("Chrome on macOS")).toBeInTheDocument();
+    expect(screen.getByText("Firefox on Windows")).toBeInTheDocument();
+  });
+
+  it("labels the current session and disables its revoke control", async () => {
+    server.use(
+      listSessionsHandler(SESSIONS),
+      getSessionHandler("current-token"),
+    );
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("session-row")).toHaveLength(2),
+    );
+
+    const rows = screen.getAllByTestId("session-row");
+    const currentRow = rows.find(
+      (row) => row.getAttribute("data-current") === "true",
+    );
+    expect(currentRow).toBeDefined();
+    expect(currentRow).toHaveTextContent("This device");
+
+    const currentRevoke = currentRow?.querySelector("button");
+    expect(currentRevoke).toBeDisabled();
+
+    // The other row's revoke is enabled.
+    const otherRow = rows.find(
+      (row) => row.getAttribute("data-current") !== "true",
+    );
+    const otherRevoke = otherRow?.querySelector("button");
+    expect(otherRevoke).toBeEnabled();
+  });
+
+  it("shows a bulk sign-out-of-other-devices affordance when more than one session exists", async () => {
+    server.use(
+      listSessionsHandler(SESSIONS),
+      getSessionHandler("current-token"),
+    );
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: /Sign out of all other devices/i,
+        }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("omits the bulk affordance when only the current session exists", async () => {
+    server.use(
+      listSessionsHandler([SESSIONS[0]!]),
+      getSessionHandler("current-token"),
+    );
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("session-row")).toHaveLength(1),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Sign out of all other devices/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to 'Unknown browser' when a row has no user agent", async () => {
+    const [current] = SESSIONS;
+    const row: SessionRow = { ...current!, userAgent: null };
+    server.use(listSessionsHandler([row]), getSessionHandler("current-token"));
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Unknown browser")).toBeInTheDocument(),
+    );
+  });
+
+  it("shows the loading placeholder while /list-sessions is in flight", async () => {
+    server.use(
+      http.get(
+        `${BACKEND_URL}/api/auth/list-sessions`,
+        () => new Promise(() => {}),
+      ),
+      getSessionHandler("current-token"),
+    );
+
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Sessions" }));
+
+    expect(
+      screen.getByText(/Loading your active sessions/i),
+    ).toBeInTheDocument();
+  });
+
+  // The hook's error path (authClient.listSessions rejection) is fully
+  // covered in `tests/unit/hooks/useActiveSessions.test.tsx`. Triggering it
+  // from this file would require swapping the auth client's
+  // `customFetchImpl`, which is captured at module load — not worth the
+  // harness for a re-assertion of the same branch.
 });

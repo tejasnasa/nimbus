@@ -158,6 +158,36 @@ export const handlers = [
   http.post(url("/api/auth/request-password-reset"), () =>
     HttpResponse.json({ status: true }),
   ),
+  // `/list-sessions` powers the active-sessions tab. Default to a single
+  // session with the placeholder token the auth client emits; tests
+  // override this to exercise list/revoke behaviour.
+  http.get(url("/api/auth/list-sessions"), () =>
+    HttpResponse.json([
+      {
+        token: "default-token",
+        userId: "user-1",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        ipAddress: "203.0.113.42",
+        userAgent:
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      },
+    ]),
+  ),
+  // `/get-session` provides the token used to mark the "this device" row.
+  http.get(url("/api/auth/get-session"), () =>
+    HttpResponse.json({
+      session: { token: "default-token", userId: "user-1" },
+      user: { id: "user-1" },
+    }),
+  ),
+  http.post(url("/api/auth/revoke-session"), () =>
+    HttpResponse.json({ status: true }),
+  ),
+  http.post(url("/api/auth/revoke-other-sessions"), () =>
+    HttpResponse.json({ status: true }),
+  ),
 
   // ── Upload ──
   http.get(url("/api/upload/avatar-signature"), () =>

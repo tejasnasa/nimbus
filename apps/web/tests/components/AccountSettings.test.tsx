@@ -366,3 +366,65 @@ describe("AccountSettings Sessions tab", () => {
   // `customFetchImpl`, which is captured at module load — not worth the
   // harness for a re-assertion of the same branch.
 });
+
+describe("AccountSettings Danger Zone tab", () => {
+  const goToDangerZone = async () => {
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} />);
+    await user.click(screen.getByRole("button", { name: "Danger Zone" }));
+    return user;
+  };
+
+  it("renders the destructive Delete Account button", async () => {
+    await goToDangerZone();
+    expect(
+      screen.getByRole("button", { name: /Delete Account/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the confirmation dialog with the user's email shown in the copy", async () => {
+    const user = await goToDangerZone();
+    await user.click(screen.getByTestId("open-delete-account-dialog"));
+
+    expect(screen.getByLabelText("delete-account-form")).toBeInTheDocument();
+    // The user's email is shown verbatim in the dialog copy so the typed
+    // confirmation has a clear target to match against.
+    expect(screen.getByText(USER.email)).toBeInTheDocument();
+  });
+
+  it("disables the destructive confirm button until the typed email matches", async () => {
+    const user = await goToDangerZone();
+    await user.click(screen.getByTestId("open-delete-account-dialog"));
+
+    const confirm = screen.getByTestId("delete-account-confirm");
+    expect(confirm).toBeDisabled();
+
+    const input = screen.getByTestId("delete-account-confirm-email");
+    await user.type(input, "almost-there@example.test");
+    expect(confirm).toBeDisabled();
+
+    await user.clear(input);
+    await user.type(input, USER.email);
+    expect(confirm).toBeEnabled();
+  });
+
+  it("renders the password field for credential users", async () => {
+    // Default MSW `/list-accounts` returns a credential account, which is
+    // the branch the form needs to render the password input.
+    const user = await goToDangerZone();
+    await user.click(screen.getByTestId("open-delete-account-dialog"));
+
+    expect(screen.getByTestId("delete-account-password")).toBeInTheDocument();
+  });
+
+  it("omits the password field for Google-only users", async () => {
+    server.use(listAccountsHandler([{ providerId: "google", id: "g-1" }]));
+
+    const user = await goToDangerZone();
+    await user.click(screen.getByTestId("open-delete-account-dialog"));
+
+    expect(
+      screen.queryByTestId("delete-account-password"),
+    ).not.toBeInTheDocument();
+  });
+});

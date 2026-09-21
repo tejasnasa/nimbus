@@ -10,6 +10,7 @@
 "use client";
 
 import Avatar from "@nimbus/ui/Avatar";
+import AlertDialog from "@nimbus/ui/AlertDialog";
 import Button from "@nimbus/ui/Button";
 import Clock from "@nimbus/ui/icons/Clock";
 import Delete from "@nimbus/ui/icons/Delete";
@@ -23,6 +24,7 @@ import { describeUserAgent } from "../lib/parseUserAgent";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 import { useProfileForm } from "../hooks/useProfileForm";
 
 /** The session-shaped user the profile form is seeded from. */
@@ -59,13 +61,7 @@ export default function AccountSettings({ user }: { user: SessionUser }) {
           },
           {
             label: "Danger Zone",
-            content: (
-              <div className="space-y-4">
-                <p className="text-sm text-(--muted-foreground)">
-                  Irreversible actions on your account.
-                </p>
-              </div>
-            ),
+            content: <DangerZonePanel email={user.email} />,
           },
         ]}
       />
@@ -527,4 +523,204 @@ function formatRelativeTime(input: Date | string): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
   return then.toLocaleDateString();
+}
+
+/**
+ * Danger Zone tab. Holds the `AlertDialog`-based account-delete
+ * confirmation, mirroring the visual vocabulary shared with the
+ * workspace-delete dialog: a destructive-tinted icon header, a muted
+ * paragraph spelling out the cascade, typed-email confirmation (the
+ * account-level equivalent of "type the workspace name"), and an
+ * optional password field for credential users.
+ *
+ * Because `SettingTabs` unmounts inactive panels, the form state resets
+ * on each visit. `useDeleteAccount` returns a discriminated `state`; the
+ * loading branch shows a placeholder while the credential probe is in
+ * flight.
+ */
+function DangerZonePanel({ email }: { email: string }) {
+  const state = useDeleteAccount(email);
+
+  if (state.kind === "loading") {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <p className="text-sm text-(--muted-foreground)">
+          {state.loadError ?? "Loading account settings\u2026"}
+        </p>
+      </div>
+    );
+  }
+
+  const {
+    register,
+    firstError,
+    isSubmitting,
+    needsPassword,
+    expectedEmail,
+    confirmMatches,
+    onSubmit,
+    submitError,
+    deleted,
+  } = state;
+
+  return (
+    <div className="space-y-4" aria-label="danger-zone">
+      <p className="text-sm text-(--muted-foreground)">
+        Irreversible actions on your account.
+      </p>
+
+      <div className="p-4 rounded-xl border border-(--destructive)/20 bg-(--destructive)/5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-(--destructive)/15 flex items-center justify-center">
+            <Delete className="w-4 h-4 text-(--destructive)" />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-(--destructive)">
+              Delete Account
+            </div>
+            <div className="text-xs text-(--muted-foreground)">
+              Permanently remove your account and your owned workspaces
+            </div>
+          </div>
+        </div>
+
+        <AlertDialog
+          trigger={
+            <Button
+              type="button"
+              size="sm"
+              data-testid="open-delete-account-dialog"
+              className="hover:cursor-pointer rounded-xl bg-(--destructive) hover:bg-(--destructive)/80"
+            >
+              <Delete className="w-4 h-4" />
+              Delete Account
+            </Button>
+          }
+        >
+          <div
+            className="relative z-50 w-110 rounded-2xl border border-(--border) bg-(--card) shadow-2xl p-6"
+            aria-label="delete-account-form"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-(--destructive)/15 flex items-center justify-center shrink-0">
+                <Delete className="w-5 h-5 text-(--destructive)" />
+              </div>
+              <h3 className="font-semibold">Delete your account?</h3>
+            </div>
+
+            <p className="text-sm text-(--muted-foreground) mb-3">
+              This will permanently delete your account. Any workspaces you own
+              will be deleted along with their documents and every
+              member&rsquo;s messages. Your messages in other people&rsquo;s
+              workspaces will be removed too, leaving gaps. This action cannot
+              be undone.
+            </p>
+            <p className="text-sm text-(--muted-foreground) mb-6">
+              Type <span className="font-mono">{expectedEmail}</span> below to
+              confirm.
+            </p>
+
+            <form
+              onSubmit={onSubmit}
+              className="space-y-4"
+              aria-label="delete-account-confirmation"
+            >
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="delete-account-confirm-email-input"
+                  className="text-sm font-medium text-(--muted-foreground)"
+                >
+                  Confirm email
+                </label>
+                <Input
+                  id="delete-account-confirm-email-input"
+                  type="email"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={expectedEmail}
+                  disabled={isSubmitting || deleted}
+                  data-testid="delete-account-confirm-email"
+                  {...register("confirmEmail")}
+                />
+              </div>
+
+              {needsPassword && (
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="delete-account-password-input"
+                    className="text-sm font-medium text-(--muted-foreground)"
+                  >
+                    Your password
+                  </label>
+                  <Input
+                    id="delete-account-password-input"
+                    type="password"
+                    autoComplete="current-password"
+                    disabled={isSubmitting || deleted}
+                    data-testid="delete-account-password"
+                    {...register("password")}
+                  />
+                </div>
+              )}
+
+              {firstError && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20"
+                  data-testid="delete-account-form-error"
+                >
+                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+                  <span className="text-xs text-(--destructive)">
+                    {firstError}
+                  </span>
+                </div>
+              )}
+
+              {submitError && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20"
+                  data-testid="delete-account-submit-error"
+                >
+                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+                  <span className="text-xs text-(--destructive)">
+                    {submitError}
+                  </span>
+                </div>
+              )}
+
+              {deleted && (
+                <p
+                  className="text-xs text-(--muted-foreground)"
+                  data-testid="delete-account-deleted"
+                >
+                  Account deleted. Redirecting\u2026
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  data-alert-dialog-close
+                  className="bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted) rounded-xl"
+                  disabled={isSubmitting || deleted}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  loading={isSubmitting}
+                  disabled={deleted || !confirmMatches}
+                  data-testid="delete-account-confirm"
+                  className="bg-(--destructive) hover:bg-(--destructive)/80 rounded-xl"
+                >
+                  Delete Forever
+                </Button>
+              </div>
+            </form>
+          </div>
+        </AlertDialog>
+      </div>
+    </div>
+  );
 }

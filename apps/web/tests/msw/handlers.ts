@@ -188,6 +188,14 @@ export const handlers = [
   http.post(url("/api/auth/revoke-other-sessions"), () =>
     HttpResponse.json({ status: true }),
   ),
+  // `/delete-user` is the irreversible account-deletion endpoint. Default
+  // to a success response mirroring better-auth's own shape (`{ success,
+  // message }` rather than the `{ status: true }` shape used by other
+  // endpoints); tests swap this for the `SESSION_EXPIRED` failure path
+  // when exercising the freshness-gate recovery flow.
+  http.post(url("/api/auth/delete-user"), () =>
+    HttpResponse.json({ success: true, message: "User deleted" }),
+  ),
 
   // ── Upload ──
   http.get(url("/api/upload/avatar-signature"), () =>

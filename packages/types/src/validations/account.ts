@@ -1,11 +1,13 @@
 /**
  * @module validations/account
  * @description Zod schemas for the account-settings forms: profile (name +
- * avatar) and change-password (current/new/confirm). The change-password
+ * avatar), change-password (current/new/confirm), and account deletion
+ * (typed email confirmation, optional password). The change-password
  * schema is the same surface used to *set* a password for Google-only users
  * the "current" field is omitted there, but that branch lives
  * in the hook (it uses `requestPasswordReset` instead of `changePassword`),
- * not in this schema.
+ * not in this schema. The deletion schema similarly keeps the password
+ * optional: the Google-only branch never sends one.
  *
  * @important `updateUser`'s body is `z.record(z.string(), z.any())` on the
  *            server, and it throws `EMAIL_CAN_NOT_BE_UPDATED` if the body
@@ -56,3 +58,27 @@ export const changePasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+/** Account-deletion payload. The dialog gates the destructive button on a
+ *  typed `confirmEmail` match, which is the account-level equivalent of the
+ *  workspace-delete "type the workspace name" gate. The match is exact and
+ *  case-insensitive so a stray capital does not let a user through by
+ *  mistake but a near-match with one character changed is still rejected.
+ *
+ *  `password` is required for users with a credential account (it
+ *  re-authenticates an irreversible action *and* bypasses the 24h
+ *  freshness gate). Google-only users have no password to send; the hook
+ *  omits the field entirely for that branch. The schema marks it as
+ *  optional so the hook can build the wire payload off the user branch.
+ *
+ *  The wire payload never carries `callbackURL` — `deleteUser` does not
+ *  redirect, and the client navigates explicitly in its success path. */
+export const deleteAccountSchema = z.object({
+  confirmEmail: z
+    .string()
+    .min(1, { message: "Type your email to confirm." })
+    .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), {
+      message: "Enter your full email address.",
+    }),
+  password: z.string().optional(),
+});

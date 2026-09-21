@@ -50,6 +50,7 @@ export default async function SettingsPage() {
               user={{
                 id: session.user.id,
                 name: session.user.name,
+                email: session.user.email,
                 image: session.user.image,
               }}
             />

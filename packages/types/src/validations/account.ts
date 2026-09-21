@@ -34,7 +34,13 @@ export const profileSchema = z.object({
 /** Change-password payload. Password length is the minimum `resetSchema`
  *  already enforces (8 chars), not the stricter `signupSchema` rules — a
  *  user who signed up before the rules tightened must still be able to
- *  change their own password. */
+ *  change their own password.
+ *
+ *  `revokeOtherSessions` is optional in the schema; the hook seeds `true`
+ *  in `defaultValues` so a user who never opens the toggle still signs
+ *  every other device out — the security-relevant default that
+ *  `apps/api/src/lib/auth.ts` reflects with its
+ *  `revokeSessionsOnPasswordReset: true` setting. */
 export const changePasswordSchema = z
   .object({
     currentPassword: z
@@ -44,7 +50,7 @@ export const changePasswordSchema = z
       .string()
       .min(8, { message: "Password must be at least 8 characters." }),
     confirmPassword: z.string(),
-    revokeOtherSessions: z.boolean().default(true),
+    revokeOtherSessions: z.boolean().optional(),
   })
   .refine((d) => d.newPassword === d.confirmPassword, {
     message: "Passwords do not match",

@@ -1,6 +1,7 @@
 {
+  "_comment": "Per-package coverage ratchet. CI fails if coverage drops below these percentages. Raise a value in the same change that adds the coverage — never lower one to make a build pass.",
   "statements": 80,
   "branches": 70,
-  "functions": 72,
-  "lines": 82
+  "functions": 73,
+  "lines": 83
 }

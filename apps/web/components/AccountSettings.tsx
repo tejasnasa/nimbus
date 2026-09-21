@@ -1,8 +1,8 @@
 /**
  * @module web/components/AccountSettings
  * @description Account-level settings page shell: vertical `SettingTabs`.
- * The Profile tab is wired up (name + avatar); the remaining
- * three tabs render a placeholder identifying the phase that lands them.
+ * Profile and Password tabs are wired up; the remaining two tabs
+ * render placeholders until later work lands them.
  *
  * Each tab is its own panel; switching tabs unmounts inactive panels (see
  * `SettingTabs.tsx:33`), so per-tab form state resets on visit.
@@ -18,21 +18,23 @@ import SettingTabs from "@nimbus/ui/SettingTabs";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { useRef } from "react";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
+import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
 import { useProfileForm } from "../hooks/useProfileForm";
 
 /** The session-shaped user the profile form is seeded from. */
 type SessionUser = {
   id: string;
   name: string;
+  email: string;
   image?: string | null;
 };
 
 /**
  * Account settings shell: renders the four-tab layout.
  *
- * @param props.user - The current session user. Only the Profile tab
- *                     consumes it today; the remaining tabs render
- *                     placeholders until later phases land.
+ * @param props.user - The current session user. The Profile tab seeds
+ *                     name + image from it; the Password tab uses `email`
+ *                     for the Google-only reset branch.
  */
 export default function AccountSettings({ user }: { user: SessionUser }) {
   return (
@@ -45,13 +47,7 @@ export default function AccountSettings({ user }: { user: SessionUser }) {
           },
           {
             label: "Password",
-            content: (
-              <div className="space-y-4">
-                <p className="text-sm text-(--muted-foreground)">
-                  Change the password that backs this account.
-                </p>
-              </div>
-            ),
+            content: <ChangePasswordPanel email={user.email} />,
           },
           {
             label: "Sessions",
@@ -211,5 +207,198 @@ function ProfilePanel({ user }: { user: SessionUser }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Password tab. Renders one of three shapes depending on the result of
+ * `authClient.listAccounts()`:
+ *
+ * - **Loading**: a muted placeholder while the account probe is in flight.
+ * - **Has-password**: the Current / New / Confirm form (`changePassword`)
+ *   with a default-on `revokeOtherSessions` checkbox.
+ * - **Google-only**: a single "Send me a set-password link" button
+ *   (`requestPasswordReset`) — the credential account is created when the
+ *   emailed reset link is followed, which is the linchpin of the
+ *   Google-only reset flow.
+ */
+function ChangePasswordPanel({ email }: { email: string }) {
+  const state = useChangePasswordForm(email);
+
+  if (state.kind === "loading") {
+    return (
+      <div className="space-y-4" aria-busy="true">
+        <p className="text-sm text-(--muted-foreground)">
+          Checking your sign-in methods…
+        </p>
+        {state.loadError && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
+            <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+            <span className="text-xs text-(--destructive)">
+              {state.loadError}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (state.kind === "google-only") {
+    return <GoogleOnlyPasswordContent state={state} />;
+  }
+
+  return <WithPasswordContent state={state} />;
+}
+
+/** Change-password form for credential users. */
+function WithPasswordContent({
+  state,
+}: {
+  state: Extract<
+    ReturnType<typeof useChangePasswordForm>,
+    { kind: "with-password" }
+  >;
+}) {
+  const { register, firstError, isSubmitting, onSubmit } = state;
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="space-y-6"
+      aria-label="change-password-form"
+    >
+      <p className="text-sm text-(--muted-foreground)">
+        Change the password that backs this account.
+      </p>
+
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor="current-password"
+          className="text-sm font-medium text-(--muted-foreground)"
+        >
+          Current password
+        </label>
+        <Input
+          id="current-password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          className="w-full"
+          {...register("currentPassword")}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor="new-password"
+          className="text-sm font-medium text-(--muted-foreground)"
+        >
+          New password
+        </label>
+        <Input
+          id="new-password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="••••••••"
+          className="w-full"
+          {...register("newPassword")}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label
+          htmlFor="confirm-password"
+          className="text-sm font-medium text-(--muted-foreground)"
+        >
+          Confirm new password
+        </label>
+        <Input
+          id="confirm-password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="••••••••"
+          className="w-full"
+          {...register("confirmPassword")}
+        />
+      </div>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 rounded border-(--border) accent-(--primary) cursor-pointer"
+          {...register("revokeOtherSessions")}
+        />
+        <span className="text-sm text-(--muted-foreground)">
+          Sign out of all other devices where this account is signed in.
+        </span>
+      </label>
+
+      {firstError && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
+          <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+          <span className="text-xs text-(--destructive)">{firstError}</span>
+        </div>
+      )}
+
+      <div className="flex justify-end pt-2">
+        <Button
+          type="submit"
+          size="sm"
+          className="hover:cursor-pointer rounded-xl"
+          loading={isSubmitting}
+        >
+          Change password
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** Single-button "Set a password" affordance for Google-only users. */
+function GoogleOnlyPasswordContent({
+  state,
+}: {
+  state: Extract<
+    ReturnType<typeof useChangePasswordForm>,
+    { kind: "google-only" }
+  >;
+}) {
+  const { onSubmit, submitting, sent, error } = state;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-(--muted-foreground)">
+        You signed in with Google, so this account has no password yet.
+        We&rsquo;ll email you a link to set one.
+      </p>
+
+      <div className="flex justify-end pt-2">
+        <Button
+          type="button"
+          size="sm"
+          className="hover:cursor-pointer rounded-xl"
+          onClick={() => void onSubmit()}
+          loading={submitting}
+          disabled={sent}
+        >
+          {sent ? "Link sent" : "Send me a set-password link"}
+        </Button>
+      </div>
+
+      {sent && (
+        <p
+          className="text-xs text-(--muted-foreground)"
+          aria-label="set-password-sent"
+        >
+          Check your inbox for the link. Following it will create a password for
+          your account, after which you can change it from this tab.
+        </p>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
+          <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+          <span className="text-xs text-(--destructive)">{error}</span>
+        </div>
+      )}
+    </div>
   );
 }

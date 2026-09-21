@@ -92,7 +92,9 @@ describe("http: auth", () => {
       .send({ email, password: TEST_PASSWORD });
 
     const setCookie = (res.headers["set-cookie"] as unknown as string[]) ?? [];
-    const sessionCookie = setCookie.find((c) => c.startsWith("better-auth.session_token"));
+    const sessionCookie = setCookie.find((c) =>
+      c.startsWith("better-auth.session_token"),
+    );
 
     expect(sessionCookie).toBeDefined();
     expect(sessionCookie).toMatch(/HttpOnly/i);
@@ -166,7 +168,11 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
     await addMember(sharedWs.id, victim.id, "MEMBER");
     await createDocument(sharedWs.id, { title: "Shared doc" });
     await createMessage(sharedWs.id, victim.id, "Victim's shared message");
-    await createMessage(sharedWs.id, bystander.id, "Bystander's shared message");
+    await createMessage(
+      sharedWs.id,
+      bystander.id,
+      "Bystander's shared message",
+    );
 
     const res = await as(app, victim)
       .post("/api/auth/delete-user")
@@ -199,7 +205,10 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
     await expect(
       testPrisma.workspaceMember.findUnique({
         where: {
-          userId_workspaceId: { userId: bystander.id, workspaceId: sharedWs.id },
+          userId_workspaceId: {
+            userId: bystander.id,
+            workspaceId: sharedWs.id,
+          },
         },
       }),
     ).resolves.toMatchObject({ role: "OWNER" });
@@ -306,10 +315,7 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
   // returns zero deleted workspaces. The cascade must not error.
   it("is a no-op for a user who owns no workspaces", async () => {
     const owner = await createUser("Plain user");
-    const sharedWs = await createWorkspace(
-      (await mintUser(app)).id,
-      "Shared",
-    );
+    const sharedWs = await createWorkspace((await mintUser(app)).id, "Shared");
     await addMember(sharedWs.id, owner.id, "MEMBER");
 
     const result = await cascadeOwnedWorkspaces({ id: owner.id });
@@ -370,6 +376,187 @@ describe("http: auth — password reset (Phase 1, plan §1.4)", () => {
       where: { userId: user.id },
     });
     expect(remaining).toEqual([]);
+  });
+});
+
+describe("http: auth — change-password", () => {
+  beforeEach(resetDatabase);
+
+  // Happy path: a credential user changes their password and the new one
+  // is what signs them in next.
+  it("changes the password and the new password signs in afterwards", async () => {
+    const user = await mintUser(app);
+
+    const change = await as(app, user).post("/api/auth/change-password").send({
+      currentPassword: TEST_PASSWORD,
+      newPassword: "Brand-New-Password-456!",
+      revokeOtherSessions: true,
+    });
+
+    expect(change.status).toBe(200);
+    expect(change.body).toMatchObject({ user: { id: user.id } });
+
+    // The old password no longer signs the user in — pins that the change
+    // actually persisted to the `Account.password` column rather than
+    // just returning 200.
+    const oldSignIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: TEST_PASSWORD });
+    expect(oldSignIn.status).toBeGreaterThanOrEqual(400);
+
+    // The new password does — confirm the password hash got updated, not
+    // the user re-issued.
+    const newSignIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: "Brand-New-Password-456!" });
+    expect(newSignIn.status).toBe(200);
+  });
+
+  // The obvious failure: the supplied `currentPassword` does not match.
+  // better-auth returns INVALID_PASSWORD.
+  it("rejects a wrong current password", async () => {
+    const user = await mintUser(app);
+
+    const res = await as(app, user).post("/api/auth/change-password").send({
+      currentPassword: "definitely-not-the-password",
+      newPassword: "Whatever-New-Password-123!",
+      revokeOtherSessions: false,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "INVALID_PASSWORD" });
+
+    // The original password still works — the rejection did not silently
+    // change anything.
+    const still = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: TEST_PASSWORD });
+    expect(still.status).toBe(200);
+  });
+
+  // The server enforces `minPasswordLength` (8 chars by default) on the
+  // new password — the client schema mirrors this, but the server is the
+  // authoritative check.
+  it("rejects a too-short new password", async () => {
+    const user = await mintUser(app);
+
+    const res = await as(app, user).post("/api/auth/change-password").send({
+      currentPassword: TEST_PASSWORD,
+      newPassword: "short",
+      revokeOtherSessions: false,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "PASSWORD_TOO_SHORT" });
+  });
+
+  // The Google-only trap: a user with no credential account would crash
+  // the change-password form on the client with CREDENTIAL_ACCOUNT_NOT_FOUND
+  // if the branching logic ever regressed. This pins the server-side
+  // contract that makes the branching load-bearing.
+  it("returns CREDENTIAL_ACCOUNT_NOT_FOUND for a user with no credential account", async () => {
+    const user = await mintUser(app);
+
+    // Strip the credential account — the user is left with whatever
+    // better-auth added (none), or we explicitly attach a Google-only
+    // account to model the OAuth-first flow.
+    await testPrisma.account.deleteMany({ where: { userId: user.id } });
+    await testPrisma.account.create({
+      data: {
+        id: `acct-google-${user.id}`,
+        providerId: "google",
+        accountId: user.id,
+        userId: user.id,
+      },
+    });
+
+    const res = await as(app, user).post("/api/auth/change-password").send({
+      currentPassword: TEST_PASSWORD,
+      newPassword: "Whatever-New-Password-123!",
+      revokeOtherSessions: false,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ code: "CREDENTIAL_ACCOUNT_NOT_FOUND" });
+  });
+});
+
+describe("http: auth — set-password for a Google-only user", () => {
+  beforeEach(resetDatabase);
+
+  // The linchpin of 6.2: the existing `requestPasswordReset` →
+  // `resetPassword` flow creates a credential account when one is
+  // absent. This is the *server* property that justifies the Google-only
+  // decision to reuse 1b rather than reaching for a non-existent
+  // `setPassword` client method.
+  it("creates a credential account when a Google-only user follows the reset link", async () => {
+    const user = await mintUser(app);
+
+    // Make the user Google-only: delete the credential account and
+    // attach a Google account instead, mirroring what `signIn.social`
+    // would have done.
+    await testPrisma.account.deleteMany({ where: { userId: user.id } });
+    await testPrisma.account.create({
+      data: {
+        id: `acct-google-${user.id}`,
+        providerId: "google",
+        accountId: user.id,
+        userId: user.id,
+      },
+    });
+
+    // Sanity check: there is no credential account yet.
+    const before = await testPrisma.account.findFirst({
+      where: { userId: user.id, providerId: "credential" },
+    });
+    expect(before).toBeNull();
+
+    // Request a reset link.
+    await request(app)
+      .post("/api/auth/request-password-reset")
+      .send({ email: user.email, redirectTo: "http://localhost:3000/reset" });
+
+    // Read the reset token out of the Verification table.
+    const verification = await testPrisma.verification.findFirst({
+      where: {
+        identifier: { startsWith: "reset-password:" },
+        value: user.id,
+      },
+    });
+    expect(verification).not.toBeNull();
+    const token = verification!.identifier.split("reset-password:")[1];
+
+    // Follow the reset link.
+    const reset = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ newPassword: "Freshly-Set-Password-789!", token });
+
+    expect(reset.status).toBe(200);
+    expect(reset.body).toMatchObject({ status: true });
+
+    // The credential account now exists — this is the new credential
+    // row the flow just created. The old password is gone; the new
+    // password is what the credential account carries.
+    const after = await testPrisma.account.findFirst({
+      where: { userId: user.id, providerId: "credential" },
+    });
+    expect(after).not.toBeNull();
+    expect(after?.accountId).toBe(user.id);
+    expect(after?.password).toBeTruthy();
+
+    // The Google account is untouched — the reset creates the credential
+    // row *alongside* the existing Google one, not in place of it.
+    const google = await testPrisma.account.findFirst({
+      where: { userId: user.id, providerId: "google" },
+    });
+    expect(google).not.toBeNull();
+
+    // The new password signs the user in via the credential path —
+    // confirms the hashed password is usable.
+    const signIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: "Freshly-Set-Password-789!" });
+    expect(signIn.status).toBe(200);
   });
 });
 

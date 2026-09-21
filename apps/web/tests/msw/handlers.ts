@@ -134,6 +134,30 @@ export const handlers = [
   http.post(url("/api/auth/update-user"), () =>
     HttpResponse.json({ status: true }),
   ),
+  // `/list-accounts` is the has-password signal used by the Password
+  // tab to branch between the change-password form (credential user) and
+  // the set-password reset-link flow (Google-only). Default to a
+  // credential account so the form renders; tests override this when
+  // exercising the Google-only branch.
+  http.get(url("/api/auth/list-accounts"), () =>
+    HttpResponse.json([
+      {
+        id: "acct-credential",
+        providerId: "credential",
+        accountId: "user-1",
+        userId: "user-1",
+        createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+        scopes: [],
+      },
+    ]),
+  ),
+  http.post(url("/api/auth/change-password"), () =>
+    HttpResponse.json({ token: null, user: { id: "user-1" } }),
+  ),
+  http.post(url("/api/auth/request-password-reset"), () =>
+    HttpResponse.json({ status: true }),
+  ),
 
   // ── Upload ──
   http.get(url("/api/upload/avatar-signature"), () =>

@@ -27,7 +27,7 @@ export async function generateBotResponse(
   try {
     const messages = await prisma.message.findMany({
       where: { workspaceId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 20,
       include: {
         user: true,

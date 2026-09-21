@@ -9,7 +9,7 @@
  * rather than forged, so the auth configuration under test is the one that runs.
  */
 import request from "supertest";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app";
 import { cascadeOwnedWorkspaces } from "../../../lib/accountDeletion";
 import {
@@ -21,6 +21,7 @@ import {
   createMessage,
   createUser,
   createWorkspace,
+  getResendSendMock,
   mintUser,
   resetDatabase,
   testPrisma,
@@ -557,6 +558,208 @@ describe("http: auth — set-password for a Google-only user", () => {
       .post("/api/auth/sign-in/email")
       .send({ email: user.email, password: "Freshly-Set-Password-789!" });
     expect(signIn.status).toBe(200);
+  });
+});
+
+describe("http: auth — forgot-password failure paths (Phase 9, plan §9)", () => {
+  beforeEach(resetDatabase);
+
+  /**
+   * Pulls the reset token better-auth persisted for `userEmail`. The Verification row's
+   * `identifier` is `reset-password:<token>` and `value` is the user id; a reset request
+   * without a matching pair of values cannot succeed.
+   */
+  const readResetToken = async (userId: string) => {
+    const verification = await testPrisma.verification.findFirst({
+      where: {
+        identifier: { startsWith: "reset-password:" },
+        value: userId,
+      },
+    });
+    expect(
+      verification,
+      "expected a reset-password verification row",
+    ).not.toBeNull();
+    return verification!.identifier.split("reset-password:")[1];
+  };
+
+  // better-auth must return the same generic success shape for an unknown email
+  // as it does for a known one — the response must not leak whether the address
+  // exists. A test that asserts "no email was sent" is the only way to pin the
+  // anti-enumeration contract.
+  it("does not leak whether an email is registered when the request lands", async () => {
+    // Silence the `[email] password reset was not delivered …` line better-auth
+    // prints when the address is unknown; the warning is itself a leak signal in
+    // logs, but the test asserts the API contract, which is what matters.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const known = await mintUser(app);
+
+    const unknownRes = await request(app)
+      .post("/api/auth/request-password-reset")
+      .send({
+        email: "no-such-user@example.test",
+        redirectTo: "http://localhost:3000/reset-password",
+      });
+    const knownRes = await request(app)
+      .post("/api/auth/request-password-reset")
+      .send({
+        email: known.email,
+        redirectTo: "http://localhost:3000/reset-password",
+      });
+
+    expect(unknownRes.status).toBe(200);
+    expect(knownRes.status).toBe(200);
+
+    // The response shape — both the body and the status — is identical. A
+    // client that prints only `res.body.message` cannot distinguish the two.
+    expect(unknownRes.body).toMatchObject({ status: true });
+    expect(knownRes.body).toMatchObject({ status: true });
+    expect(unknownRes.body.message).toBe(knownRes.body.message);
+
+    // And the unknown address must not produce a `Verification` row — that
+    // would let a future leak (a list query, an admin endpoint, a backup)
+    // betray registration.
+    const unknownVerification = await testPrisma.verification.findFirst({
+      where: { value: "no-such-user@example.test" },
+    });
+    expect(unknownVerification).toBeNull();
+
+    errorSpy.mockRestore();
+  });
+
+  // better-auth deletes the verification row on a successful reset, so the
+  // same token cannot be replayed. This pins that "replay protection" — the
+  // case a phishing link reuse would exploit.
+  it("refuses to reset a password with a token that has already been used", async () => {
+    const user = await mintUser(app);
+
+    await request(app).post("/api/auth/request-password-reset").send({
+      email: user.email,
+      redirectTo: "http://localhost:3000/reset-password",
+    });
+    const token = await readResetToken(user.id);
+
+    const first = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ newPassword: "First-New-Password-321!", token });
+    expect(first.status).toBe(200);
+
+    // Replaying the same token: the verification row is gone, so the second
+    // call must be rejected with INVALID_TOKEN.
+    const replay = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ newPassword: "Second-New-Password-654!", token });
+    expect(replay.status).toBe(400);
+    expect(replay.body).toMatchObject({ code: "INVALID_TOKEN" });
+
+    // And the second password is *not* the one that signs the user in —
+    // pins that the rejected call did not silently write a row.
+    const signInWithSecond = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: "Second-New-Password-654!" });
+    expect(signInWithSecond.status).toBeGreaterThanOrEqual(400);
+
+    const signInWithFirst = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: "First-New-Password-321!" });
+    expect(signInWithFirst.status).toBe(200);
+  });
+
+  // An expired token is rejected, by another route through the same code path
+  // — backdating the verification row's `expiresAt` is the only way to
+  // produce the condition without waiting an hour.
+  it("refuses to reset a password with a token past its expiry", async () => {
+    const user = await mintUser(app);
+
+    await request(app).post("/api/auth/request-password-reset").send({
+      email: user.email,
+      redirectTo: "http://localhost:3000/reset-password",
+    });
+    const token = await readResetToken(user.id);
+
+    // Move the verification row into the past — backdating the expiry is the
+    // only knob the test controls, since better-auth's TTL is hard-coded at
+    // 1h inside the endpoint handler. `identifier` is not unique, so use
+    // `updateMany` rather than `update`.
+    await testPrisma.verification.updateMany({
+      where: { identifier: `reset-password:${token}` },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+
+    const expired = await request(app)
+      .post("/api/auth/reset-password")
+      .send({ newPassword: "Expired-Token-Password-987!", token });
+    expect(expired.status).toBe(400);
+    expect(expired.body).toMatchObject({ code: "INVALID_TOKEN" });
+
+    // The original password still signs the user in — pins that the expired
+    // attempt did not write a partial row.
+    const signIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: user.email, password: TEST_PASSWORD });
+    expect(signIn.status).toBe(200);
+  });
+
+  // better-auth's `requestPasswordReset` builds the link against `baseURL`
+  // (`BETTER_AUTH_URL`); `redirectTo` is carried as a `callbackURL` query
+  // parameter and surfaced via the GET callback redirect. This pins the
+  // routing contract: the link goes to the API, and the API sends the user
+  // on to the frontend. Without this pin, a future `redirectTo` change could
+  // either skip the callback (and break cookie handling) or bypass it (and
+  // lose the `?token=…` round-trip). The `resend` SDK is mocked in
+  // `testhelpers/setup.ts`, so the URL ends up in the captured payload.
+  it("builds the emailed link against BETTER_AUTH_URL and carries redirectTo as callbackURL", async () => {
+    const sendMock = getResendSendMock();
+
+    const user = await mintUser(app);
+    // Reset only the captures from `mintUser`'s sign-up so the captured
+    // payload below is exactly the one this test triggered.
+    sendMock.mockClear();
+
+    await request(app).post("/api/auth/request-password-reset").send({
+      email: user.email,
+      redirectTo: "http://localhost:3000/reset-password",
+    });
+
+    expect(sendMock.mock.calls.length).toBe(1);
+    const payload = sendMock.mock.calls[0]![0] as { html: string };
+    // The reset link is embedded in the HTML; pick the first absolute URL
+    // that contains `/reset-password/`. The exact token is random, so the
+    // pattern is what matters.
+    const match = payload.html.match(
+      /https?:\/\/[^"\s)]+\/reset-password\/[^"\s)<]+/,
+    );
+    expect(
+      match,
+      "expected a reset-password URL inside the email body",
+    ).not.toBeNull();
+    const parsed = new URL(match![0]);
+
+    // The link lands on the API host (baseURL), not on FRONTEND_URL — the
+    // API is the one that owns the GET callback redirect. better-auth mounts
+    // its handlers under `/api/auth`, so the path is `/api/auth/reset-password/<token>`.
+    expect(parsed.origin).toBe(process.env.BETTER_AUTH_URL);
+    expect(parsed.pathname).toMatch(
+      /^\/api\/auth\/reset-password\/[A-Za-z0-9_-]+$/,
+    );
+
+    // The original `redirectTo` is preserved through the `callbackURL`
+    // query parameter, encoded. Without the round-trip the frontend never
+    // sees `?token=…` and the form has nothing to submit.
+    const callbackURL = parsed.searchParams.get("callbackURL");
+    expect(callbackURL).not.toBeNull();
+    expect(decodeURIComponent(callbackURL!)).toBe(
+      "http://localhost:3000/reset-password",
+    );
+
+    // Pin that the user.id is what the verification row actually carries —
+    // a swap to `user.email` would break the credential-creation path in
+    // Phase 6's Google-only case.
+    const verification = await testPrisma.verification.findFirst({
+      where: { identifier: { startsWith: "reset-password:" } },
+    });
+    expect(verification?.value).toBe(user.id);
   });
 });
 

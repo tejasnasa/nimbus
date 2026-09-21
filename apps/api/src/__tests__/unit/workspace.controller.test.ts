@@ -36,18 +36,31 @@ describe("controllers/workspace", () => {
     it("seeds a canvas, a markdown doc, the creator as OWNER and the bot as ADMIN", async () => {
       const creator = await createUser("Creator");
 
-      const response = await createWorkspace("My Workspace", "desc", creator.id);
+      const response = await createWorkspace(
+        "My Workspace",
+        "desc",
+        creator.id,
+      );
       expect(response.statusCode).toBe(201);
 
       const wsId = response.responseObject.workspaceId;
 
-      const documents = await testPrisma.document.findMany({ where: { workspaceId: wsId } });
-      expect(documents.map((d) => d.type).sort()).toEqual(["CANVAS", "MARKDOWN"]);
+      const documents = await testPrisma.document.findMany({
+        where: { workspaceId: wsId },
+      });
+      expect(documents.map((d) => d.type).sort()).toEqual([
+        "CANVAS",
+        "MARKDOWN",
+      ]);
 
-      const members = await testPrisma.workspaceMember.findMany({ where: { workspaceId: wsId } });
+      const members = await testPrisma.workspaceMember.findMany({
+        where: { workspaceId: wsId },
+      });
       expect(members).toHaveLength(2);
       expect(members.find((m) => m.userId === creator.id)?.role).toBe("OWNER");
-      expect(members.find((m) => m.userId === process.env.BOT_USERID)?.role).toBe("ADMIN");
+      expect(
+        members.find((m) => m.userId === process.env.BOT_USERID)?.role,
+      ).toBe("ADMIN");
     });
 
     it("generates a slug and a unique invite code", async () => {
@@ -58,8 +71,12 @@ describe("controllers/workspace", () => {
 
       expect(first.responseObject.slug).toBeTruthy();
       expect(first.responseObject.inviteCode).toBeTruthy();
-      expect(second.responseObject.inviteCode).not.toBe(first.responseObject.inviteCode);
-      expect(second.responseObject.slugId).not.toBe(first.responseObject.slugId);
+      expect(second.responseObject.inviteCode).not.toBe(
+        first.responseObject.inviteCode,
+      );
+      expect(second.responseObject.slugId).not.toBe(
+        first.responseObject.slugId,
+      );
     });
   });
 
@@ -77,7 +94,10 @@ describe("controllers/workspace", () => {
       await expect(
         testPrisma.workspaceMember.findUnique({
           where: {
-            userId_workspaceId: { userId: joiner.id, workspaceId: created.responseObject.workspaceId },
+            userId_workspaceId: {
+              userId: joiner.id,
+              workspaceId: created.responseObject.workspaceId,
+            },
           },
         }),
       ).resolves.toMatchObject({ role: "MEMBER" });
@@ -86,7 +106,8 @@ describe("controllers/workspace", () => {
     it("rejects a second join", async () => {
       const owner = await createUser("Owner");
       const joiner = await createUser("Joiner");
-      const { inviteCode } = (await createWorkspace("Joinable", "", owner.id)).responseObject;
+      const { inviteCode } = (await createWorkspace("Joinable", "", owner.id))
+        .responseObject;
 
       await joinWorkspace(inviteCode, joiner.id);
       const again = await joinWorkspace(inviteCode, joiner.id);
@@ -133,7 +154,8 @@ describe("controllers/workspace", () => {
   describe("getWorkspaceBySlugId", () => {
     it("returns the workspace to a member", async () => {
       const owner = await createUser("Owner");
-      const { slugId } = (await createWorkspace("Visible", "", owner.id)).responseObject;
+      const { slugId } = (await createWorkspace("Visible", "", owner.id))
+        .responseObject;
 
       const response = await getWorkspaceBySlugId(String(slugId), owner.id);
 
@@ -144,11 +166,29 @@ describe("controllers/workspace", () => {
     it("hides the workspace from a non-member as 404", async () => {
       const owner = await createUser("Owner");
       const outsider = await createUser("Outsider");
-      const { slugId } = (await createWorkspace("Hidden", "", owner.id)).responseObject;
+      const { slugId } = (await createWorkspace("Hidden", "", owner.id))
+        .responseObject;
 
       const response = await getWorkspaceBySlugId(String(slugId), outsider.id);
 
       expect(response.statusCode).toBe(404);
+    });
+
+    it("returns 400 for a non-numeric slug", async () => {
+      const caller = await createUser("Caller");
+
+      // Garbage input is permanently bad — 400, not 500.
+      const response = await getWorkspaceBySlugId("not-a-number", caller.id);
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it("returns 400 for a slug of zero", async () => {
+      const caller = await createUser("Caller");
+
+      const response = await getWorkspaceBySlugId("0", caller.id);
+
+      expect(response.statusCode).toBe(400);
     });
   });
 
@@ -159,7 +199,10 @@ describe("controllers/workspace", () => {
       const created = await createWorkspace("Rotating", "", owner.id);
       const original = created.responseObject.inviteCode;
 
-      const response = await regenerateInviteCode(created.responseObject.workspaceId, owner.id);
+      const response = await regenerateInviteCode(
+        created.responseObject.workspaceId,
+        owner.id,
+      );
 
       expect(response.statusCode).toBe(200);
       expect(response.responseObject.inviteCode).not.toBe(original);
@@ -174,7 +217,10 @@ describe("controllers/workspace", () => {
       const created = await createWorkspace("Rotating", "", owner.id);
       await addMember(created.responseObject.workspaceId, member.id, "MEMBER");
 
-      const response = await regenerateInviteCode(created.responseObject.workspaceId, member.id);
+      const response = await regenerateInviteCode(
+        created.responseObject.workspaceId,
+        member.id,
+      );
 
       expect(response.statusCode).toBe(403);
     });
@@ -247,6 +293,19 @@ describe("controllers/workspace", () => {
 
       expect(response.statusCode).toBe(200);
     });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const caller = await createUser("Caller");
+
+      const response = await updateWorkspace(
+        "clxxxxxxxxxxxxxxxxxxxxxx",
+        caller.id,
+        "Anything",
+        "",
+      );
+
+      expect(response.statusCode).toBe(404);
+    });
   });
 
   describe("deleteWorkspace", () => {
@@ -258,13 +317,26 @@ describe("controllers/workspace", () => {
       const response = await deleteWorkspace(wsId, owner.id);
 
       expect(response.statusCode).toBe(200);
-      await expect(testPrisma.workspace.findUnique({ where: { id: wsId } })).resolves.toBeNull();
+      await expect(
+        testPrisma.workspace.findUnique({ where: { id: wsId } }),
+      ).resolves.toBeNull();
       await expect(
         testPrisma.document.count({ where: { workspaceId: wsId } }),
       ).resolves.toBe(0);
       await expect(
         testPrisma.workspaceMember.count({ where: { workspaceId: wsId } }),
       ).resolves.toBe(0);
+    });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const owner = await createUser("Owner");
+
+      const response = await deleteWorkspace(
+        "clxxxxxxxxxxxxxxxxxxxxxx",
+        owner.id,
+      );
+
+      expect(response.statusCode).toBe(404);
     });
   });
 });

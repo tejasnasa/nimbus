@@ -115,6 +115,17 @@ describe("socket: document", () => {
       expect(docs.has(doc.id)).toBe(false);
     });
 
+    it("refuses a documentId that does not exist", async () => {
+      const socket = await openSocket(server, owner);
+
+      const failure = waitForEvent<string>(socket, "doc:error");
+      // A valid cuid-shape but no row — `findUnique` returns null and the
+      // handler must tell the client rather than hang the join.
+      socket.emit("doc:join", "clxxxxxxxxxxxxxxxxxxxxxx");
+
+      await expect(failure).resolves.toBe("Document not found");
+    });
+
     it("keeps the document in memory for the life of the room", async () => {
       const doc = await createDocument(wsId, { type: "MARKDOWN" });
       const socket = await openSocket(server, owner);
@@ -137,7 +148,11 @@ describe("socket: document", () => {
       const incoming = waitForEvent<number[]>(peerSocket, "doc:update");
       const local = new Y.Doc();
       local.getText("content").insert(0, "typed live");
-      ownerSocket.emit("doc:update", doc.id, Array.from(Y.encodeStateAsUpdate(local)));
+      ownerSocket.emit(
+        "doc:update",
+        doc.id,
+        Array.from(Y.encodeStateAsUpdate(local)),
+      );
 
       Y.applyUpdate(peerLocal, Uint8Array.from(await incoming));
       expect(peerLocal.getText("content").toString()).toBe("typed live");
@@ -189,7 +204,9 @@ describe("socket: document", () => {
       const socket = await openSocket(server, owner);
       await joinDoc(socket, doc.id);
 
-      const stored = await testPrisma.document.findUnique({ where: { id: doc.id } });
+      const stored = await testPrisma.document.findUnique({
+        where: { id: doc.id },
+      });
       expect(stored?.initialContent).toBeNull();
     });
   });
@@ -202,7 +219,11 @@ describe("socket: document", () => {
 
       const change = new Y.Doc();
       change.getText("content").insert(0, "saved on leave");
-      socket.emit("doc:update", doc.id, Array.from(Y.encodeStateAsUpdate(change)));
+      socket.emit(
+        "doc:update",
+        doc.id,
+        Array.from(Y.encodeStateAsUpdate(change)),
+      );
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       socket.emit("doc:leave", doc.id);
@@ -210,7 +231,9 @@ describe("socket: document", () => {
 
       expect(docs.has(doc.id)).toBe(false);
 
-      const stored = await testPrisma.document.findUnique({ where: { id: doc.id } });
+      const stored = await testPrisma.document.findUnique({
+        where: { id: doc.id },
+      });
       const restored = new Y.Doc();
       if (stored?.yjsState) Y.applyUpdate(restored, stored.yjsState);
       expect(restored.getText("content").toString()).toBe("saved on leave");

@@ -118,6 +118,16 @@ describe("socket: canvas", () => {
       await expect(failure).resolves.toBe("Not a member");
       expect(canvases.has(canvasId)).toBe(false);
     });
+
+    it("refuses a canvasId that does not exist", async () => {
+      const socket = await openSocket(server, owner);
+
+      const failure = waitForEvent<string>(socket, "canvas:error");
+      socket.emit("canvas:join", "clxxxxxxxxxxxxxxxxxxxxxx");
+
+      await expect(failure).resolves.toBe("Canvas not found");
+      expect(canvases.has("clxxxxxxxxxxxxxxxxxxxxxx")).toBe(false);
+    });
   });
 
   describe("updates", () => {
@@ -128,7 +138,10 @@ describe("socket: canvas", () => {
       const peerSocket = await openSocket(server, peer);
       await joinCanvas(peerSocket, canvasId);
 
-      const incoming = waitForEvent<{ elements: unknown[] }>(peerSocket, "canvas:update");
+      const incoming = waitForEvent<{ elements: unknown[] }>(
+        peerSocket,
+        "canvas:update",
+      );
       ownerSocket.emit("canvas:update", {
         documentId: canvasId,
         elements: [element("drawn-1"), element("drawn-2")],
@@ -157,6 +170,42 @@ describe("socket: canvas", () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(canvases.get(canvasId)).toHaveLength(1);
+    });
+
+    it("debounces rapid-fire updates into a single 3s save", async () => {
+      const socket = await openSocket(server, owner);
+      await joinCanvas(socket, canvasId);
+
+      // Three updates inside the debounce window — every emit except the
+      // first lands on an existing timer and triggers the `clearTimeout`
+      // branch (line 62), which is the line this test is here to cover.
+      socket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("first")],
+      });
+      socket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("second")],
+      });
+      socket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("third")],
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // Only the last value is retained in memory; persistence debounces 3s,
+      // so before that fires only the in-memory state should reflect the
+      // changes.
+      expect(canvases.get(canvasId)).toHaveLength(1);
+      expect(canvases.get(canvasId)?.[0]).toMatchObject({ id: "third" });
+
+      // Flush the debounce so a snapshot lands and the test cleans up after
+      // itself — persistence is covered by the other suite.
+      await new Promise((resolve) => setTimeout(resolve, 3_500));
+      const stored = await testPrisma.document.findUnique({
+        where: { id: canvasId },
+      });
+      expect(stored?.canvasData).toHaveLength(1);
     });
 
     it("accepts an empty update when the canvas is already empty", async () => {
@@ -199,7 +248,9 @@ describe("socket: canvas", () => {
 
       expect(canvases.has(canvasId)).toBe(false);
 
-      const stored = await testPrisma.document.findUnique({ where: { id: canvasId } });
+      const stored = await testPrisma.document.findUnique({
+        where: { id: canvasId },
+      });
       expect(stored?.canvasData).toHaveLength(1);
     });
 

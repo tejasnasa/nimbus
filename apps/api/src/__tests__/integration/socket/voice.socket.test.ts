@@ -44,7 +44,10 @@ const openSocket = async (server: TestServer, user: TestUser) => {
 
 /** Joins the voice channel and waits for the joiner's roster replay. */
 const joinVoice = async (socket: ClientSocket, workspaceId: string) => {
-  const roster = waitForEvent<{ users: unknown[] }>(socket, "voice:current-users");
+  const roster = waitForEvent<{ users: unknown[] }>(
+    socket,
+    "voice:current-users",
+  );
   socket.emit("voice:join", workspaceId);
   return roster;
 };
@@ -110,7 +113,10 @@ describe("socket: voice", () => {
       const bobSocket = await openSocket(server, bob);
       await joinVoice(bobSocket, wsId);
 
-      await expect(announcement).resolves.toMatchObject({ userId: bob.id, name: bob.name });
+      await expect(announcement).resolves.toMatchObject({
+        userId: bob.id,
+        name: bob.name,
+      });
     });
 
     it("removes a leaver from the roster and tells the room", async () => {
@@ -119,11 +125,16 @@ describe("socket: voice", () => {
       const bobSocket = await openSocket(server, bob);
       await joinVoice(bobSocket, wsId);
 
-      const departure = waitForEvent<{ userId: string }>(bobSocket, "voice:user-left");
+      const departure = waitForEvent<{ userId: string }>(
+        bobSocket,
+        "voice:user-left",
+      );
       aliceSocket.emit("voice:leave", wsId);
 
       await expect(departure).resolves.toMatchObject({ userId: alice.id });
-      await expect(voicePresenceService.getVoiceUsers(wsId)).resolves.toHaveLength(1);
+      await expect(
+        voicePresenceService.getVoiceUsers(wsId),
+      ).resolves.toHaveLength(1);
     });
 
     it("clears the roster when a socket disconnects abruptly", async () => {
@@ -133,7 +144,9 @@ describe("socket: voice", () => {
       socket.close();
       await new Promise((resolve) => setTimeout(resolve, 350));
 
-      await expect(voicePresenceService.getVoiceUsers(wsId)).resolves.toHaveLength(0);
+      await expect(
+        voicePresenceService.getVoiceUsers(wsId),
+      ).resolves.toHaveLength(0);
     });
 
     it("ignores a non-member trying to join", async () => {
@@ -143,7 +156,9 @@ describe("socket: voice", () => {
       socket.emit("voice:join", wsId);
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      await expect(voicePresenceService.getVoiceUsers(wsId)).resolves.toHaveLength(0);
+      await expect(
+        voicePresenceService.getVoiceUsers(wsId),
+      ).resolves.toHaveLength(0);
     });
   });
 
@@ -190,7 +205,10 @@ describe("socket: voice", () => {
     it("relays an answer to the target peer", async () => {
       const [aliceSocket, bobSocket] = openSockets;
 
-      const relayed = waitForEvent<{ fromUserId: string }>(aliceSocket!, "voice:answer");
+      const relayed = waitForEvent<{ fromUserId: string }>(
+        aliceSocket!,
+        "voice:answer",
+      );
       bobSocket!.emit("voice:answer", {
         workspaceId: wsId,
         targetUserId: alice.id,
@@ -231,6 +249,36 @@ describe("socket: voice", () => {
 
       expect(aliceSocket!.connected).toBe(true);
     });
+
+    it("silently drops an ICE candidate aimed at an offline peer", async () => {
+      const [aliceSocket, bobSocket] = openSockets;
+      bobSocket!.close();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      aliceSocket!.emit("voice:ice-candidate", {
+        workspaceId: wsId,
+        targetUserId: bob.id,
+        candidate: { candidate: "candidate:1", sdpMid: "0" },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(aliceSocket!.connected).toBe(true);
+    });
+
+    it("silently drops an answer aimed at an offline peer", async () => {
+      const [aliceSocket, bobSocket] = openSockets;
+      bobSocket!.close();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      aliceSocket!.emit("voice:answer", {
+        workspaceId: wsId,
+        targetUserId: bob.id,
+        answer: { type: "answer", sdp: "v=0" },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      expect(aliceSocket!.connected).toBe(true);
+    });
   });
 
   describe("mute state", () => {
@@ -244,9 +292,15 @@ describe("socket: voice", () => {
         bobSocket,
         "voice:mute-state",
       );
-      aliceSocket.emit("voice:mute-state", { workspaceId: wsId, isMuted: false });
+      aliceSocket.emit("voice:mute-state", {
+        workspaceId: wsId,
+        isMuted: false,
+      });
 
-      await expect(broadcast).resolves.toMatchObject({ userId: alice.id, isMuted: false });
+      await expect(broadcast).resolves.toMatchObject({
+        userId: alice.id,
+        isMuted: false,
+      });
 
       const roster = await voicePresenceService.getVoiceUsers(wsId);
       expect(roster.find((u) => u.userId === alice.id)?.isMuted).toBe(false);

@@ -2,6 +2,7 @@
  * @module web/components/UserNavbar
  * @description Authenticated navbar wiring: adapts `authClient.signOut` to
  * the UI `Navbar`'s `logout` prop and routes to `/login` (even on failure).
+ * The Settings menu item navigates to `/settings`.
  */
 "use client";
 
@@ -40,5 +41,17 @@ export default function UserNavbar({
     }
   };
 
-  return <Navbar logout={handleLogout} id={id} avatar={avatar} name={name} />;
+  const handleSettings = () => {
+    router.push("/settings");
+  };
+
+  return (
+    <Navbar
+      logout={handleLogout}
+      onSettings={handleSettings}
+      id={id}
+      avatar={avatar}
+      name={name}
+    />
+  );
 }

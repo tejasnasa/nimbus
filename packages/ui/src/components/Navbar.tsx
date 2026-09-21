@@ -3,6 +3,11 @@
  * @description Sticky top navigation: Nimbus brand link on the left and an
  * avatar-triggered `OptionMenu` (Settings / Sign Out) on the right. Falls
  * back to `getAvatarForUser(id)` when no custom avatar URL is provided.
+ *
+ * The Settings menu item is only wired when `onSettings` is provided; when
+ * omitted, it remains in the menu for visual parity but does nothing on
+ * click. `OptionMenu` exposes only `onClick`, so navigation lives in the
+ * caller — see `apps/web/components/UserNavbar.tsx`.
  */
 import Link from "next/link";
 import Cloud from "./icons/Cloud";
@@ -16,17 +21,20 @@ import { getAvatarForUser } from "../utils/getAvatarForUser";
  * Top navigation bar.
  *
  * @param props.logout - Sign-out handler wired to the "Sign Out" menu item.
+ * @param props.onSettings - Optional handler for the "Settings" menu item.
  * @param props.avatar - Custom avatar URL; deterministic fallback when nullish.
  * @param props.id - User ID used for the fallback avatar hash.
  * @param props.name - Display name shown as the disabled menu header.
  */
 export default function Navbar({
   logout,
+  onSettings,
   avatar,
   id,
   name,
 }: {
   logout: () => void;
+  onSettings?: () => void;
   avatar?: string | null;
   id: string;
   name: string;
@@ -57,7 +65,11 @@ export default function Navbar({
           }
           items={[
             { label: name, disabled: true },
-            { label: "Settings", icon: <Settings /> },
+            {
+              label: "Settings",
+              icon: <Settings />,
+              onClick: onSettings,
+            },
             {
               label: "Sign Out",
               icon: <Logout />,

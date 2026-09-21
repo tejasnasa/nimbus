@@ -76,9 +76,16 @@ describe("UserNavbar", () => {
 
     await user.click(screen.getByAltText("Ada Lovelace"));
 
-    expect(
-      screen.getByRole("button", { name: "Ada Lovelace" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ada Lovelace" })).toBeDisabled();
+  });
+
+  it("routes the Settings menu item to /settings", async () => {
+    const user = userEvent.setup();
+    render(<UserNavbar id="user-1" name="Ada Lovelace" avatar={null} />);
+
+    await openMenuAndClick(user, "Settings");
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/settings"));
   });
 
   it("signs out and returns the user to the login page", async () => {

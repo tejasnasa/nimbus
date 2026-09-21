@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /** Prefix-matched (auth required). */
-const protectedRoutes = ["/home", "/workspace"];
+const protectedRoutes = ["/home", "/workspace", "/settings"];
 /** Exact-matched (authed users bounced to /home). */
 const publicRoutes = ["/login", "/", "/email-verified", "/reset-password"];
 

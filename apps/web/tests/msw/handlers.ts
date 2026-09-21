@@ -15,7 +15,12 @@ export const BACKEND_URL =
 
 /** Builds the standard success envelope. */
 export const ok = <T>(responseObject: T, message = "OK") =>
-  HttpResponse.json({ success: true, message, responseObject, statusCode: 200 });
+  HttpResponse.json({
+    success: true,
+    message,
+    responseObject,
+    statusCode: 200,
+  });
 
 /** Builds a failure envelope, so client error handling can be exercised. */
 export const fail = (statusCode: number, message: string) =>
@@ -53,10 +58,18 @@ export const handlers = [
   http.put(url("/api/workspace/regenerate-invite/:wsid"), () =>
     ok({ inviteCode: "rotated-code" }, "Invite code regenerated"),
   ),
-  http.put(url("/api/workspace/role/:wsid"), () => ok({ role: "ADMIN" }, "Member role updated")),
-  http.delete(url("/api/workspace/leave/:wsid"), () => ok({}, "Member removed")),
-  http.put(url("/api/workspace/update/:wsid"), () => ok({}, "Workspace updated")),
-  http.delete(url("/api/workspace/delete/:wsid"), () => ok(null, "Workspace deleted")),
+  http.put(url("/api/workspace/role/:wsid"), () =>
+    ok({ role: "ADMIN" }, "Member role updated"),
+  ),
+  http.delete(url("/api/workspace/leave/:wsid"), () =>
+    ok({}, "Member removed"),
+  ),
+  http.put(url("/api/workspace/update/:wsid"), () =>
+    ok({}, "Workspace updated"),
+  ),
+  http.delete(url("/api/workspace/delete/:wsid"), () =>
+    ok(null, "Workspace deleted"),
+  ),
   http.get(url("/api/workspace/:slugId"), () =>
     ok({
       id: "cm_workspace_0000000000000",
@@ -75,7 +88,11 @@ export const handlers = [
 
   // ── Documents ──
   http.post(url("/api/document/create"), () =>
-    ok({ id: "cm_document_00000000000000", title: "New Document", type: "CANVAS" }),
+    ok({
+      id: "cm_document_00000000000000",
+      title: "New Document",
+      type: "CANVAS",
+    }),
   ),
   http.get(url("/api/document/workspace/:workspaceId"), () => ok([])),
   http.get(url("/api/document/:docId"), () =>
@@ -91,14 +108,42 @@ export const handlers = [
     ok({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "turn:127.0.0.1:3478?transport=udp", username: "123:user-1", credential: "abc" },
+        {
+          urls: "turn:127.0.0.1:3478?transport=udp",
+          username: "123:user-1",
+          credential: "abc",
+        },
       ],
     }),
   ),
 
   // ── better-auth ──
-  http.post(url("/api/auth/sign-in/email"), () => HttpResponse.json({ token: "session-token", user: { id: "user-1" } })),
-  http.post(url("/api/auth/sign-up/email"), () => HttpResponse.json({ token: null, user: { id: "user-1" } })),
-  http.post(url("/api/auth/sign-out"), () => HttpResponse.json({ success: true })),
+  http.post(url("/api/auth/sign-in/email"), () =>
+    HttpResponse.json({ token: "session-token", user: { id: "user-1" } }),
+  ),
+  http.post(url("/api/auth/sign-up/email"), () =>
+    HttpResponse.json({ token: null, user: { id: "user-1" } }),
+  ),
+  http.post(url("/api/auth/sign-out"), () =>
+    HttpResponse.json({ success: true }),
+  ),
   http.get(url("/api/auth/get-session"), () => HttpResponse.json(null)),
+  // better-auth's success payloads are the raw values ({ status: true }, a
+  // user object, an array of sessions); its errors are `{ message, code }`
+  // with a non-2xx status — *not* the `ServerResponse` envelope above.
+  http.post(url("/api/auth/update-user"), () =>
+    HttpResponse.json({ status: true }),
+  ),
+
+  // ── Upload ──
+  http.get(url("/api/upload/avatar-signature"), () =>
+    ok({
+      cloudName: "test-cloud",
+      apiKey: "test-api-key",
+      timestamp: Math.floor(Date.now() / 1000),
+      publicId: "nimbus/avatars/test-user",
+      format: "jpg",
+      signature: "test-signature",
+    }),
+  ),
 ];

@@ -46,7 +46,13 @@ export default async function SettingsPage() {
           </div>
 
           <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
-            <AccountSettings />
+            <AccountSettings
+              user={{
+                id: session.user.id,
+                name: session.user.name,
+                image: session.user.image,
+              }}
+            />
           </div>
         </div>
       </div>

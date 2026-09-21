@@ -6,6 +6,7 @@
  * typed Socket.IO event contracts used by both `apps/api` and `apps/web`.
  */
 
+export { changePasswordSchema, profileSchema } from "./validations/account";
 export { documentSchema } from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";

@@ -15,11 +15,11 @@
  *
  * @important The "no-credential account" branch is *not* `setPassword`:
  *            better-auth's `setPassword` exists but is not wired into the
- *            client singleton the plan describes; the *resetPassword*
- *            handler creates a credential row when one is absent, so the
- *            existing 1b flow is the correct affordance. This keeps the
- *            "no new REST route" decision intact and lets 1a and 1b share
- *            one mechanism.
+ *            client singleton; the *resetPassword* handler creates a
+ *            credential row when one is absent, so the existing reset flow
+ *            is the correct affordance. This keeps the "no new REST route"
+ *            decision intact — the has-password and Google-only branches
+ *            share one mechanism.
  *
  * @important `listAccounts` (path `/list-accounts`) is the has-password
  *            signal. better-auth's react client derives method names by

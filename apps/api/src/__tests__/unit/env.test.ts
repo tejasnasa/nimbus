@@ -84,7 +84,7 @@ describe("lib/env", () => {
   });
 
   it("treats `AUTH_COOKIE_DOMAIN` as optional and surfaces it when set", () => {
-    // Phase 0: a missing `AUTH_COOKIE_DOMAIN` must not block boot, since a
+    // A missing `AUTH_COOKIE_DOMAIN` must not block boot, since a
     // single-host HTTPS deployment (and every HTTP deployment, which uses the
     // domain only for `crossSubDomainCookies`) does not need one. When it is
     // set, the parsed env exposes it so `lib/cookieAttributes` can read it.

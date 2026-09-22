@@ -26,7 +26,6 @@ import { createHttpServer } from "./app";
  * Log the cookie attributes resolved from `BETTER_AUTH_URL` + `AUTH_COOKIE_DOMAIN`.
  * The attributes are coupled to those variables by construction; logging them
  * here is the only observable signal that the coupling landed where expected.
- * See errors.md #13.
  */
 console.log(
   `[auth] session cookie: ${describeCookieAttributes(

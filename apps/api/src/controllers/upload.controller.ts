@@ -2,13 +2,12 @@
  * @module api/controllers/upload
  * @description Avatar upload signing. The browser needs a Cloudinary
  * signature to upload with `overwrite: true` and `invalidate: true`
- * (unsigned uploads cannot set those parameters — plan §2.3), but the
- * API secret must never leave the server, so the browser fetches one
- * signed payload per upload and posts it directly to Cloudinary.
+ * (unsigned uploads cannot set those parameters), but the API secret
+ * must never leave the server, so the browser fetches one signed
+ * payload per upload and posts it directly to Cloudinary.
  *
  * The response is `Cache-Control: no-store` because the payload carries
- * a temporary signature (Cloudinary expires signatures after an hour —
- * plan §2.3 rule 4).
+ * a temporary signature (Cloudinary expires signatures after an hour).
  */
 import { ServerResponse } from "@nimbus/types";
 import { signAvatarUpload } from "../lib/cloudinary";

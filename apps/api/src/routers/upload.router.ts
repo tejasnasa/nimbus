@@ -14,7 +14,7 @@ uploadRouter.get("/avatar-signature", async (req, res) => {
   const response = await getAvatarSignature(id);
 
   // The signature is time-boxed (Cloudinary rejects after ~1h), so a
-  // cached copy cannot be used past its expiry. Plan §2.2.
+  // cached copy cannot be used past its expiry.
   res.set("Cache-Control", "no-store");
 
   return res.status(response.statusCode).json(response);

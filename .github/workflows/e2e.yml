@@ -55,6 +55,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Build the API and its workspace dependencies
+        run: npx turbo run build --filter=api
       - name: Apply the Prisma schema to the test database
         run: npx turbo run db:deploy --filter=@nimbus/db
       # Chromium only. The suite is pinned to one engine, so pulling WebKit and
@@ -71,5 +73,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: apps/web/e2e/playwright-report/
+          path: apps/web/playwright-report/
           retention-days: 14

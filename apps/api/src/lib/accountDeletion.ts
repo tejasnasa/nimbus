@@ -8,7 +8,7 @@
  * @important Runs *before* better-auth's own `internalAdapter.deleteUser`,
  *            because `WorkspaceMember.user` is `onDelete: Cascade` and that
  *            destroy is the only place ownership is recorded. Once the user
- *            row goes, no code can ask "what did they own". See plan §1.2.
+ *            row goes, no code can ask "what did they own".
  *
  * @important Skips for NimbusBot. The bot is added as ADMIN to every
  *            workspace and cannot sign in, so the delete path should be

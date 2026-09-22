@@ -148,7 +148,7 @@ describe("useAvatarUpload", () => {
     });
 
     // 2. The Cloudinary POST was to the correct URL and carried exactly the
-    //    signed parameter set (plan §2.3 rule 4).
+    //    signed parameter set.
     expect(fetchMock.mock.calls[1]?.[0]).toBe(
       `https://api.cloudinary.com/v1_1/${SIG.cloudName}/image/upload`,
     );

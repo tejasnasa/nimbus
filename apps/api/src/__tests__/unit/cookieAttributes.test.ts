@@ -1,8 +1,8 @@
 /**
  * @module api/__tests__/unit/cookieAttributes
  * @description Derivation of better-auth's session-cookie attributes from the
- * API base URL. The whole point of Phase 0 (errors.md #13) is that a real
- * browser refuses the wrong shape — `supertest` ignores `Domain`/`Secure`
+ * API base URL. The whole point is that a real browser refuses the wrong
+ * shape — `supertest` ignores `Domain`/`Secure`
  * entirely, so these are the only tests that can pin the four cases without
  * booting a browser.
  */
@@ -16,9 +16,9 @@ import {
 describe("lib/cookieAttributes", () => {
   describe("resolveCookieAttributes", () => {
     it("omits both `secure` and `domain` for an HTTP localhost base URL", () => {
-      // The case errors.md #13 describes: a production-shaped cookie over
-      // localhost is silently rejected by every real browser, so the localhost
-      // shape must be plain lax.
+      // The failure mode: a production-shaped cookie over localhost is
+      // silently rejected by every real browser, so the localhost shape must
+      // be plain lax.
       const attrs = resolveCookieAttributes({
         baseUrl: "http://localhost:3001",
       });
@@ -41,14 +41,14 @@ describe("lib/cookieAttributes", () => {
         enabled: true,
         domain: ".tejasnasa.me",
       });
-      // The plan: never set both `defaultCookieAttributes.domain` and
+      // Never set both `defaultCookieAttributes.domain` and
       // `crossSubDomainCookies.domain` — they fight by better-auth's design.
       expect(attrs.domain).toBeUndefined();
     });
 
     it("sets `secure` but omits `domain` for HTTPS without a configured domain", () => {
-      // The case errors.md #13 notes its option 1 cannot express — a single
-      // HTTPS host that does not need cross-subdomain scope.
+      // The shape a cross-subdomain block cannot express — a single HTTPS
+      // host that does not need cross-subdomain scope.
       const attrs = resolveCookieAttributes({
         baseUrl: "https://api.example.com",
       });
@@ -98,8 +98,7 @@ describe("lib/cookieAttributes", () => {
     it("always uses `sameSite: lax` for the shapes this app issues", () => {
       // Cross-cutting: `lax` is the only `sameSite` value better-auth supports
       // for session cookies that has to survive a top-level navigation from
-      // the email-verification / password-reset callback. The plan does not
-      // change this.
+      // the email-verification / password-reset callback. This is fixed.
       const shapes: ResolvedCookieAttributes[] = [
         resolveCookieAttributes({ baseUrl: "http://localhost:3001" }),
         resolveCookieAttributes({

@@ -99,9 +99,8 @@ export function useAvatarUpload() {
       }
 
       // 2. POST multipart to Cloudinary. The signed field set is exactly
-      //    `public_id, timestamp, overwrite, invalidate, format` per
-      //    plan §2.3 rule 4; `file`, `api_key`, `cloud_name` are not signed
-      //    but still required.
+      //    `public_id, timestamp, overwrite, invalidate, format`; `file`,
+      //    `api_key`, `cloud_name` are not signed but still required.
       const form = new FormData();
       form.append("file", file);
       form.append("api_key", sig.apiKey);

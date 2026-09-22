@@ -9,10 +9,9 @@
  *   - `public_id` is exactly `nimbus/avatars/<userId>` — the deterministic
  *     string both the signature endpoint and `destroyAvatar` rebuild, and
  *     the one thing that lets `User.image` carry only `secure_url` with no
- *     schema change (plan §2.3);
+ *     schema change;
  *   - the SDK was called with the exact signed parameter set, so the
- *     signature the browser sends back matches what Cloudinary expects
- *     (plan §2.3 rule 4);
+ *     signature the browser sends back matches what Cloudinary expects;
  *   - the API secret never appears in the response body — pinning this
  *     on the serialized response, not just on the field map, catches a
  *     controller that builds its response from a leaking object.
@@ -110,7 +109,7 @@ describe("http: upload/avatar-signature", () => {
     expect(signature).toMatch(/^sig\(.+\)$/);
   });
 
-  it("pins `public_id` to the deterministic per-user string (plan §2.3)", async () => {
+  it("pins `public_id` to the deterministic per-user string", async () => {
     const res = await as(app, user).get("/api/upload/avatar-signature");
 
     // Deriving the public_id from the user id is what removes the need for
@@ -120,7 +119,7 @@ describe("http: upload/avatar-signature", () => {
     expect(res.body.responseObject.publicId).toBe(`nimbus/avatars/${user.id}`);
   });
 
-  it("signs exactly the documented parameter set (plan §2.3 rule 4)", async () => {
+  it("signs exactly the documented parameter set", async () => {
     await as(app, user).get("/api/upload/avatar-signature");
 
     expect(apiSignRequest).toHaveBeenCalledTimes(1);
@@ -203,14 +202,14 @@ describe("http: upload/avatar-signature", () => {
 
   it("issues a `Cache-Control: no-store` header", async () => {
     // The signature is time-boxed; a cached copy cannot be replayed past
-    // its expiry. Plan §2.2.
+    // its expiry.
     const res = await as(app, user).get("/api/upload/avatar-signature");
 
     expect(res.headers["cache-control"]).toBe("no-store");
   });
 });
 
-describe("http: upload — post-delete avatar cleanup (Phase 2, plan §2.3)", () => {
+describe("http: upload — post-delete avatar cleanup", () => {
   let user: TestUser;
 
   beforeEach(async () => {
@@ -255,8 +254,8 @@ describe("http: upload — post-delete avatar cleanup (Phase 2, plan §2.3)", ()
 
     // better-auth returns 200 on success even when our post-deletion hook
     // logged an error — the contract is "user is gone", and the worst case
-    // is an orphaned asset in Cloudinary (plan §2.3 + auth.ts afterDelete
-    // docstring).
+    // is an orphaned asset in Cloudinary (see `destroyAvatar` in
+    // `lib/cloudinary`).
     expect(res.status).toBe(200);
   });
 

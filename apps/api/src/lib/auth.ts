@@ -10,22 +10,22 @@
  *            is set), `http:` gets neither. The resolved attributes are
  *            logged at boot so the implicit coupling is observable. Changing
  *            `BETTER_AUTH_URL` therefore changes cookie behaviour by
- *            construction. See errors.md #13.
+ *            construction.
  *
  * @important `trustedOrigins` is restricted to FRONTEND_URL — cross-subdomain
  *            session cookies break if these drift from the deploy domains.
  *            Requires BETTER_AUTH_URL, GOOGLE_CLIENT_ID/SECRET and FRONTEND_URL.
  *
- * @important Account deletion cascades owned workspaces (Phase 1, plan §1.2).
+ * @important Account deletion cascades owned workspaces.
  *            `Workspace` has no `ownerId` column — ownership lives in
  *            `WorkspaceMember.role === "OWNER"`, so the only place to learn
  *            what a user owns is the membership row, which Prisma cascades
  *            the moment `User` is deleted. The owned-workspace delete must
  *            therefore run in `beforeDelete`, while the membership rows still
- *            exist, or those workspaces become permanently ownerless. See
- *            plan §1.2 for the full orderability argument.
+ *            exist, or those workspaces become permanently ownerless — the
+ *            ordering above is the whole reason the hook exists.
  *
- * @important Two consequences of `deleteUser` documented per plan §1.5:
+ * @important Two consequences of `deleteUser` that the UI must respect:
  *            (1) `Message.user` is `onDelete: Cascade`, so deleting an
  *                account removes that person's chat history everywhere,
  *                leaving holes in other members' logs with no tombstone.
@@ -99,8 +99,8 @@ export const auth = betterAuth({
     // Force every other live session off when the password is reset. A
     // password reset is exactly the control a compromised account exercises,
     // and leaving the attacker's session alive would defeat the point.
-    // Surface this through the UI as a checkbox in 1a (Phase 6) and offer
-    // it explicitly in 1e (Phase 7).
+    // The UI mirrors this with a default-on checkbox on the password-change
+    // form and on the Google-only set-password path.
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       await sendPasswordResetEmail({ to: user.email, url });
@@ -133,7 +133,7 @@ export const auth = betterAuth({
       // verification email and returns early — before the password check
       // and before `beforeDelete`. It would replace the inline confirmation
       // flow entirely (and add an email template + a landing route). The
-      // Google-only case is handled by the freshness gate (plan §1.3):
+      // Google-only case is handled by the freshness gate:
       // re-login yields a fresh session, and `password` re-authenticates
       // credential users.
     },

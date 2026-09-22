@@ -6,7 +6,7 @@
  *
  * @important The single point where `public_id` is constructed. Cloudinary
  *            matches `overwrite` on `public_id` AND `format`, so the format
- *            must be the same on every replace (plan §2.3 rule 1). Both
+ *            must be the same on every replace. Both
  *            sites — signature and destroy — reconstruct the same string,
  *            which is what makes the "one asset per user" premise hold.
  *
@@ -15,7 +15,7 @@
  *            slashes. The scheme survives only because the upload
  *            response's `secure_url` carries `/v<version>/`. `User.image`
  *            must therefore *only* ever be that `secure_url`, never a
- *            hand-built URL (plan §2.3 rule 2).
+ *            hand-built URL.
  */
 import { v2 as cloudinary } from "cloudinary";
 
@@ -23,7 +23,7 @@ import { v2 as cloudinary } from "cloudinary";
 export const AVATAR_FOLDER = "nimbus/avatars";
 
 /**
- * The exact parameter set the browser signs and sends (plan §2.3 rule 4).
+ * The exact parameter set the browser signs and sends.
  * Every field except `file`, `api_key`, `cloud_name`, `resource_type` must
  * be covered by the signature; including extra unsigned ones makes
  * Cloudinary reject the upload.
@@ -60,8 +60,7 @@ const configure = () => {
  * Builds the deterministic `public_id` for a user's avatar asset.
  *
  * `public_id = nimbus/avatars/<userId>`. With `overwrite: true, invalidate: true`
- * at upload, this is what guarantees exactly one stored asset per user
- * (plan §2.3).
+ * at upload, this is what guarantees exactly one stored asset per user.
  *
  * @param userId - The owning user's id (cuid).
  * @returns The `public_id` Cloudinary stores the asset under.

@@ -4,7 +4,7 @@
  * base URL. Production-shaped attributes that ignore the base URL (`secure`
  * over plain HTTP, a `Domain` that doesn't match `localhost`) make the cookie
  * refuse to be stored at all in a local browser — sign-in returns 200 and no
- * session is ever persisted. See errors.md #13.
+ * session is ever persisted.
  *
  * @important The derived attributes are coupled to `BETTER_AUTH_URL` by
  *            construction. A change to that variable changes cookie behaviour;
@@ -86,8 +86,8 @@ export function resolveCookieAttributes(
       secure: true,
       // Only attach the cross-subdomain block when a domain was actually
       // configured; otherwise the caller passes through a single-host HTTPS
-      // shape, which the `https:` + no-domain branch of `errors.md #13`
-      // option 1 cannot express.
+      // shape — `secure` with no `domain` — which a cross-subdomain block
+      // cannot express.
       ...(cookieDomain
         ? {
           crossSubDomainCookies: {

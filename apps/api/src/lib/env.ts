@@ -67,7 +67,7 @@ const envSchema = z.object({
   // browser can write with `overwrite: true` against a per-user
   // `public_id`; unsigned uploads cannot set `overwrite`, and we need
   // in-place replacement so a `User.image` derived from `secure_url`
-  // always points at a single owned asset (plan §2.3).
+  // always points at a single owned asset.
   CLOUDINARY_CLOUD_NAME: required,
   CLOUDINARY_API_KEY: required,
   CLOUDINARY_API_SECRET: required,

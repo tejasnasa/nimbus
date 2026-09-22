@@ -9,7 +9,7 @@ import { test, expect, e2eState } from "./fixtures";
  * that the tab navigation, the form submission, and the navbar reflection
  * work end to end with the seeded user, the real API, and a real browser.
  *
- * Three flows, one each for the tabs the plan calls out:
+ * Three flows, one each for the settings tabs:
  *
  * 1. **Profile rename** is visible in the navbar after a save (the navbar
  *    reads from a server component, so this also pins that the save triggers
@@ -19,13 +19,13 @@ import { test, expect, e2eState } from "./fixtures";
  * 3. **Change password** submits through the form and is then signed out
  *    from other devices (the `revokeOtherSessions` checkbox on by default).
  *
- * Two E2E rules from the plan (§10.1) shaped the boundaries:
+ * Two E2E rules shaped the boundaries:
  *
  * - **No real Cloudinary upload.** The avatar upload is exercised by the
  *   component and hook tests; here we assert only that the form's *rename*
  *   half works.
  * - **No delete-account against shared fixtures.** The cascade is a
- *   server-side property, fully covered by Phase 1 integration tests. The
+ *   server-side property, fully covered by the auth integration tests. The
  *   Danger Zone panel is therefore not asserted end to end.
  *
  * Read every id from the seed inside a `beforeEach` or a fixture — never at

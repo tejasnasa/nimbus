@@ -147,14 +147,14 @@ describe("http: auth", () => {
   });
 });
 
-describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
+describe("http: auth — account deletion", () => {
   beforeEach(resetDatabase);
 
   // A user owning one workspace and *belonging*
   // to another deletes their account → owned workspace gone (with its
   // documents and messages), the non-owned workspace survives, the other
   // owner's messages remain, and the user's own messages in the non-owned
-  // workspace are gone (Message.user is `onDelete: Cascade` — plan §1.5).
+  // workspace are gone (Message.user is `onDelete: Cascade`).
   it("cascades deletion to owned workspaces but leaves non-owned workspaces intact", async () => {
     const victim = await mintUser(app, { email: "victim@example.test" });
     const bystander = await mintUser(app, { email: "bystander@example.test" });
@@ -235,7 +235,7 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
 
   // The freshness gate: a session older than `freshAge` (24h)
   // cannot delete the account unless `password` is sent. This is the trap
-  // 1d has to handle in the UI.
+  // the delete dialog has to handle in the UI.
   it("refuses to delete via a >24h-old session when no password is supplied", async () => {
     const user = await mintUser(app);
 
@@ -249,12 +249,12 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
     const res = await as(app, user).post("/api/auth/delete-user").send({});
 
     // better-auth returns BAD_REQUEST for the freshness failure with code
-    // SESSION_EXPIRED — pinned as observed so a 1d dialog relying on the
+    // SESSION_EXPIRED — pinned as observed so the delete dialog relying on the
     // code (to drive the re-login flow) does not break silently.
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ code: "SESSION_EXPIRED" });
 
-    // The user row is untouched — the failure direction is safe (plan §1.3).
+    // The user row is untouched — the failure direction is safe.
     await expect(
       testPrisma.user.findUnique({ where: { id: user.id } }),
     ).resolves.toMatchObject({ email: user.email });
@@ -262,7 +262,7 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
 
   // Same backdated session, but with `password` — the freshness gate is
   // bypassed entirely and the delete succeeds. This is also the better design
-  // for an irreversible action: it re-authenticates (plan §1.3).
+  // for an irreversible action: it re-authenticates.
   it("accepts the same stale session when the correct password is supplied", async () => {
     const user = await mintUser(app);
 
@@ -328,7 +328,7 @@ describe("http: auth — account deletion (Phase 1, plan §1.1–1.3)", () => {
   });
 });
 
-describe("http: auth — password reset (Phase 1, plan §1.4)", () => {
+describe("http: auth — password reset", () => {
   beforeEach(resetDatabase);
 
   // A password reset terminates every other live session.
@@ -485,10 +485,10 @@ describe("http: auth — change-password", () => {
 describe("http: auth — set-password for a Google-only user", () => {
   beforeEach(resetDatabase);
 
-  // The linchpin of 6.2: the existing `requestPasswordReset` →
+  // The linchpin of the Google-only path: the existing `requestPasswordReset` →
   // `resetPassword` flow creates a credential account when one is
   // absent. This is the *server* property that justifies the Google-only
-  // decision to reuse 1b rather than reaching for a non-existent
+  // decision to reuse the reset flow rather than reaching for a non-existent
   // `setPassword` client method.
   it("creates a credential account when a Google-only user follows the reset link", async () => {
     const user = await mintUser(app);
@@ -561,7 +561,7 @@ describe("http: auth — set-password for a Google-only user", () => {
   });
 });
 
-describe("http: auth — forgot-password failure paths (Phase 9, plan §9)", () => {
+describe("http: auth — forgot-password failure paths", () => {
   beforeEach(resetDatabase);
 
   /**
@@ -755,7 +755,7 @@ describe("http: auth — forgot-password failure paths (Phase 9, plan §9)", () 
 
     // Pin that the user.id is what the verification row actually carries —
     // a swap to `user.email` would break the credential-creation path in
-    // Phase 6's Google-only case.
+    // the Google-only case.
     const verification = await testPrisma.verification.findFirst({
       where: { identifier: { startsWith: "reset-password:" } },
     });

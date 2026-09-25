@@ -150,12 +150,10 @@ export const auth = betterAuth({
       sameSite: cookieAttributes.sameSite,
       ...(cookieAttributes.secure ? { secure: cookieAttributes.secure } : {}),
       ...(cookieAttributes.domain ? { domain: cookieAttributes.domain } : {}),
-      ...(cookieAttributes.crossSubDomainCookies
-        ? {
-          crossSubDomainCookies: cookieAttributes.crossSubDomainCookies,
-        }
-        : {}),
     },
+    ...(cookieAttributes.crossSubDomainCookies
+      ? { crossSubDomainCookies: cookieAttributes.crossSubDomainCookies }
+      : {}),
   },
   trustedOrigins: [`${process.env.FRONTEND_URL}`],
   baseURL: `${process.env.BETTER_AUTH_URL}`,

@@ -26,6 +26,9 @@ model User {
   accounts      Account[]
   workspaceMembers WorkspaceMember[]
   messages      Message[]
+  freeDocGenerationsUsed Int @default(0)
+  aiCredentials  AiCredential[]
+  aiPreferences  AiFeaturePreference[]
 
   @@unique([email])
   @@map("user")
@@ -156,6 +159,62 @@ model Document {
   @@index([workspaceId])
 }
 
+/// A user's encrypted API key for one AI provider (BYOK).
+///
+/// One row per (user, provider) — re-saving replaces the row, so the unique
+/// constraint is the deduplication rule. The plaintext key never appears in
+/// the database: `keyEnvelope` carries `nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>`
+/// produced by `apps/api/src/lib/ai/credentialCrypto.ts`, and `keyId` is the
+/// identifier of the master key that encrypted it (so a key-rotation script
+/// can select the rows that need rewriting). `keyFingerprint` is a
+/// non-reversible ledger identity (`sha256(apiKey).slice(0,16)`), used to
+/// dedupe at-rest entries without ever seeing the secret.
+/// `validatedAt` is set by the save-time probe — a stored credential that
+/// never validated is not safe to use.
+model AiCredential {
+  id             String   @id @default(cuid())
+  userId         String
+  providerId     String
+  label          String?
+  /// nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>. Never plaintext. AAD-bound to
+  /// `<userId>:<providerId>` so a row swapped to another user/provider fails
+  /// to decrypt.
+  keyEnvelope    String
+  /// sha256(derivedKey).slice(0,8) — which master key encrypted this row.
+  keyId          String
+  /// sha256(apiKey).slice(0,16) — ledger identity, not a secret. Never
+  /// returned over HTTP.
+  keyFingerprint String
+  /// "sk-…4f2a" — safe to return.
+  maskedPreview  String
+  /// Stamped by the save-time probe. null means the key was stored unvalidated.
+  validatedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  lastUsedAt     DateTime?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerId])
+  @@index([userId])
+  @@map("ai_credential")
+}
+
+/// The user's chosen provider+model for an AI feature. Drives which BYOK
+/// credential and model a chat / markdown / canvas request uses.
+model AiFeaturePreference {
+  id         String    @id @default(cuid())
+  userId     String
+  feature    AiFeature
+  providerId String
+  modelId    String
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, feature])
+  @@index([userId])
+  @@map("ai_feature_preference")
+}
+
 /// Role-based access control levels for workspace membership.
 enum MemberRole {
   /// Creator of the workspace; full control including deletion.
@@ -172,4 +231,16 @@ enum DocumentType {
   CANVAS
   /// Milkdown + Yjs rich text doc; state stored in `Document.yjsState`.
   MARKDOWN
+}
+
+/// The three AI call sites that can be configured per user. Mirrors the
+/// `AiFeature` type in `packages/types/src/ai/providers.ts`; kept here as an
+/// enum so the database can enforce it.
+enum AiFeature {
+  /// NimbusBot chat replies.
+  CHAT
+  /// AI-generated markdown documents.
+  MARKDOWN
+  /// AI-generated canvas (Excalidraw) documents.
+  CANVAS
 }

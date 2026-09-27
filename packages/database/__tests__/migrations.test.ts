@@ -13,7 +13,9 @@ import { createTestClient, testDatabaseUrl } from "./dbTestUtils";
  * `_prisma_migrations` ledger are the only things that can tell us otherwise.
  */
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
-const migrationsDir = fileURLToPath(new URL("../prisma/migrations", import.meta.url));
+const migrationsDir = fileURLToPath(
+  new URL("../prisma/migrations", import.meta.url),
+);
 
 interface MigrationRow {
   migration_name: string;
@@ -45,24 +47,20 @@ describe("prisma migrate status", () => {
   // other workspaces are competing for the CPU. The default 5s test timeout
   // measures the spawn, not the assertion, and fails intermittently; the 120s
   // allowance below matches the subprocess timeout the call already passes.
-  it(
-    "reports the test database as up to date",
-    () => {
-      const output = execFileSync("npx", ["prisma", "migrate", "status"], {
-        cwd: packageRoot,
-        env: { ...process.env, DATABASE_URL: testDatabaseUrl },
-        encoding: "utf8",
-        shell: true,
-        timeout: 120_000,
-      }).toLowerCase();
+  it("reports the test database as up to date", () => {
+    const output = execFileSync("npx", ["prisma", "migrate", "status"], {
+      cwd: packageRoot,
+      env: { ...process.env, DATABASE_URL: testDatabaseUrl },
+      encoding: "utf8",
+      shell: true,
+      timeout: 120_000,
+    }).toLowerCase();
 
-      expect(output).toContain("up to date");
-      expect(output).not.toContain("have not yet been applied");
-      expect(output).not.toContain("following migration");
-      expect(output).not.toContain("failed");
-    },
-    120_000,
-  );
+    expect(output).toContain("up to date");
+    expect(output).not.toContain("have not yet been applied");
+    expect(output).not.toContain("following migration");
+    expect(output).not.toContain("failed");
+  }, 120_000);
 });
 
 describe("_prisma_migrations ledger", () => {
@@ -85,8 +83,14 @@ describe("_prisma_migrations ledger", () => {
 
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(row.finished_at, `${row.migration_name} never finished`).not.toBeNull();
-      expect(row.rolled_back_at, `${row.migration_name} was rolled back`).toBeNull();
+      expect(
+        row.finished_at,
+        `${row.migration_name} never finished`,
+      ).not.toBeNull();
+      expect(
+        row.rolled_back_at,
+        `${row.migration_name} was rolled back`,
+      ).toBeNull();
       expect(row.logs ?? "").toBe("");
     }
   });
@@ -100,6 +104,7 @@ describe("_prisma_migrations ledger", () => {
     expect(applied).toMatch(/add_invitation_code/);
     expect(applied).toMatch(/add_markdown_using_yjs/);
     expect(applied).toMatch(/add_initial_content/);
+    expect(applied).toMatch(/add_ai_credentials/);
   });
 });
 

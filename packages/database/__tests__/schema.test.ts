@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { DocumentType, MemberRole } from "../src/generated/prisma/enums";
+import {
+  AiFeature,
+  DocumentType,
+  MemberRole,
+} from "../src/generated/prisma/enums";
 
 /**
  * Drift guard for `prisma/schema.prisma`.
@@ -11,7 +15,9 @@ import { DocumentType, MemberRole } from "../src/generated/prisma/enums";
  * Every expectation here encodes something the application relies on, so a
  * change to it should fail loudly instead of silently changing behaviour.
  */
-const schemaPath = fileURLToPath(new URL("../prisma/schema.prisma", import.meta.url));
+const schemaPath = fileURLToPath(
+  new URL("../prisma/schema.prisma", import.meta.url),
+);
 const schema = readFileSync(schemaPath, "utf8");
 
 /** Returns the body of a `model`/`enum` block, without its braces. */
@@ -33,7 +39,9 @@ function declarations(kind: "model" | "enum", name: string): string[] {
 
 /** A single field declaration, deconstructed. */
 function field(model: string, name: string) {
-  const line = declarations("model", model).find((l) => l.startsWith(`${name} `));
+  const line = declarations("model", model).find((l) =>
+    l.startsWith(`${name} `),
+  );
   if (!line) throw new Error(`No field ${model}.${name}`);
   const [, , type, array, optional] = line.match(
     /^(\S+)\s+(\S+?)(\[\])?(\?)?(\s|$)/,
@@ -42,7 +50,14 @@ function field(model: string, name: string) {
     line,
     type: type!,
     optional: optional === "?" || array === "[]",
-    attributes: line.slice(line.indexOf(type!) + type!.length + (array ?? "").length + (optional ?? "").length).trim(),
+    attributes: line
+      .slice(
+        line.indexOf(type!) +
+          type!.length +
+          (array ?? "").length +
+          (optional ?? "").length,
+      )
+      .trim(),
   };
 }
 
@@ -55,15 +70,21 @@ const MODELS = [
   "WorkspaceMember",
   "Message",
   "Document",
+  "AiCredential",
+  "AiFeaturePreference",
 ] as const;
 
 describe("schema.prisma — datasource and generator", () => {
   it("targets the postgresql provider", () => {
-    expect(schema).toMatch(/datasource\s+db\s*\{[^}]*provider\s*=\s*"postgresql"/);
+    expect(schema).toMatch(
+      /datasource\s+db\s*\{[^}]*provider\s*=\s*"postgresql"/,
+    );
   });
 
   it("generates the client the package imports from", () => {
-    expect(schema).toMatch(/generator\s+client\s*\{[^}]*output\s*=\s*"\.\.\/src\/generated\/prisma"/);
+    expect(schema).toMatch(
+      /generator\s+client\s*\{[^}]*output\s*=\s*"\.\.\/src\/generated\/prisma"/,
+    );
   });
 });
 
@@ -86,28 +107,56 @@ describe("schema.prisma — models", () => {
       ["Account", "account"],
       ["Verification", "verification"],
     ] as const) {
-      expect(declarations("model", model).join("\n")).toContain(`@@map("${table}")`);
+      expect(declarations("model", model).join("\n")).toContain(
+        `@@map("${table}")`,
+      );
     }
   });
 });
 
 describe("schema.prisma — enums", () => {
   it("defines MemberRole as exactly OWNER, ADMIN, MEMBER in descending privilege", () => {
-    expect(declarations("enum", "MemberRole")).toEqual(["OWNER", "ADMIN", "MEMBER"]);
+    expect(declarations("enum", "MemberRole")).toEqual([
+      "OWNER",
+      "ADMIN",
+      "MEMBER",
+    ]);
   });
 
   it("defines DocumentType as exactly CANVAS and MARKDOWN", () => {
-    expect(declarations("enum", "DocumentType")).toEqual(["CANVAS", "MARKDOWN"]);
+    expect(declarations("enum", "DocumentType")).toEqual([
+      "CANVAS",
+      "MARKDOWN",
+    ]);
   });
 
   it("does not declare a second, conflicting role enum", () => {
-    const enums = [...schema.matchAll(/(?:^|\n)enum\s+(\w+)\s*\{/g)].map((m) => m[1]);
-    expect(enums.sort()).toEqual(["DocumentType", "MemberRole"]);
+    const enums = [...schema.matchAll(/(?:^|\n)enum\s+(\w+)\s*\{/g)].map(
+      (m) => m[1],
+    );
+    expect(enums.sort()).toEqual(["AiFeature", "DocumentType", "MemberRole"]);
+  });
+
+  it("defines AiFeature as exactly CHAT, MARKDOWN, CANVAS", () => {
+    expect(declarations("enum", "AiFeature")).toEqual([
+      "CHAT",
+      "MARKDOWN",
+      "CANVAS",
+    ]);
   });
 
   it("has a generated client that matches the schema enums", () => {
-    expect(Object.keys(MemberRole).sort()).toEqual(["ADMIN", "MEMBER", "OWNER"]);
+    expect(Object.keys(MemberRole).sort()).toEqual([
+      "ADMIN",
+      "MEMBER",
+      "OWNER",
+    ]);
     expect(Object.keys(DocumentType).sort()).toEqual(["CANVAS", "MARKDOWN"]);
+    expect(Object.keys(AiFeature).sort()).toEqual([
+      "CANVAS",
+      "CHAT",
+      "MARKDOWN",
+    ]);
     expect(new Set(Object.values(MemberRole))).toEqual(
       new Set(declarations("enum", "MemberRole")),
     );
@@ -194,9 +243,13 @@ describe("schema.prisma — WorkspaceMember", () => {
 describe("schema.prisma — User, Message and relations", () => {
   it("requires a unique email", () => {
     // Declared at model level, so it covers the column rather than the field.
-    expect(declarations("model", "User").join("\n")).toContain("@@unique([email])");
+    expect(declarations("model", "User").join("\n")).toContain(
+      "@@unique([email])",
+    );
     expect(field("User", "email").optional).toBe(false);
-    expect(field("User", "emailVerified").attributes).toContain("@default(false)");
+    expect(field("User", "emailVerified").attributes).toContain(
+      "@default(false)",
+    );
   });
 
   it("requires message content, author and workspace", () => {
@@ -213,11 +266,94 @@ describe("schema.prisma — User, Message and relations", () => {
     ["Message", "userId"],
     ["Message", "workspaceId"],
     ["Document", "workspaceId"],
+    ["AiCredential", "userId"],
+    ["AiFeaturePreference", "userId"],
   ] as const)("%s.%s cascades on delete", (model, name) => {
     const relation = declarations("model", model).find((line) =>
       line.includes(`fields: [${name}]`),
     );
-    expect(relation, `no relation declared over ${model}.${name}`).toBeDefined();
+    expect(
+      relation,
+      `no relation declared over ${model}.${name}`,
+    ).toBeDefined();
     expect(relation).toContain("onDelete: Cascade");
+  });
+});
+
+describe("schema.prisma — User.freeDocGenerationsUsed", () => {
+  it("is a non-optional Int with a default of 0", () => {
+    const column = field("User", "freeDocGenerationsUsed");
+    expect(column.type).toBe("Int");
+    expect(column.optional).toBe(false);
+    expect(column.attributes).toContain("@default(0)");
+  });
+});
+
+describe("schema.prisma — AiCredential", () => {
+  it("enforces one credential per (user, provider)", () => {
+    expect(declarations("model", "AiCredential").join("\n")).toContain(
+      "@@unique([userId, providerId])",
+    );
+  });
+
+  it("indexes userId for the by-user list query", () => {
+    expect(declarations("model", "AiCredential").join("\n")).toContain(
+      "@@index([userId])",
+    );
+  });
+
+  it("requires the envelope columns and the fingerprint", () => {
+    for (const name of [
+      "keyEnvelope",
+      "keyId",
+      "keyFingerprint",
+      "maskedPreview",
+    ]) {
+      expect(
+        field("AiCredential", name).optional,
+        `${name} should be required`,
+      ).toBe(false);
+    }
+  });
+
+  it("leaves the user-supplied label and the validated timestamp nullable", () => {
+    expect(field("AiCredential", "label").optional).toBe(true);
+    expect(field("AiCredential", "validatedAt").optional).toBe(true);
+    expect(field("AiCredential", "lastUsedAt").optional).toBe(true);
+  });
+
+  it("maps to the snake_case `ai_credential` table", () => {
+    expect(declarations("model", "AiCredential").join("\n")).toContain(
+      '@@map("ai_credential")',
+    );
+  });
+});
+
+describe("schema.prisma — AiFeaturePreference", () => {
+  it("enforces one preference per (user, feature)", () => {
+    expect(declarations("model", "AiFeaturePreference").join("\n")).toContain(
+      "@@unique([userId, feature])",
+    );
+  });
+
+  it("types `feature` as the AiFeature enum", () => {
+    const feature = field("AiFeaturePreference", "feature");
+    expect(feature.type).toBe("AiFeature");
+    expect(feature.optional).toBe(false);
+  });
+
+  it("requires providerId and modelId", () => {
+    for (const name of ["providerId", "modelId"]) {
+      expect(
+        field("AiFeaturePreference", name).optional,
+        `${name} should be required`,
+      ).toBe(false);
+    }
+  });
+
+  it("maps to the snake_case `ai_feature_preference` table", () => {
+    expect(declarations("model", "AiFeaturePreference").join("\n")).toContain(
+      '@@map("ai_feature_preference")',
+    );
   });
 });

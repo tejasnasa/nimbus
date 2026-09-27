@@ -75,6 +75,8 @@ describe("deployed schema — tables", () => {
       "session",
       "user",
       "verification",
+      "ai_credential",
+      "ai_feature_preference",
     ]) {
       expect(tables).toContain(table);
     }
@@ -165,6 +167,17 @@ describe("deployed schema — enums", () => {
     `;
     expect(rows.map((r) => r.label)).toEqual(["CANVAS", "MARKDOWN"]);
   });
+
+  it("declares AiFeature labels CHAT, MARKDOWN, CANVAS", async () => {
+    const rows = await client.$queryRaw<{ label: string }[]>`
+      SELECT e.enumlabel AS label
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'AiFeature'
+      ORDER BY e.enumsortorder
+    `;
+    expect(rows.map((r) => r.label)).toEqual(["CHAT", "MARKDOWN", "CANVAS"]);
+  });
 });
 
 describe("deployed schema — referential actions", () => {
@@ -176,8 +189,12 @@ describe("deployed schema — referential actions", () => {
     ["WorkspaceMember", "WorkspaceMember_userId_fkey"],
     ["session", "session_userId_fkey"],
     ["account", "account_userId_fkey"],
+    ["ai_credential", "ai_credential_userId_fkey"],
+    ["ai_feature_preference", "ai_feature_preference_userId_fkey"],
   ])("%s.%s deletes children with the parent", async (table, constraint) => {
-    const found = (await constraintsOf(table)).find((c) => c.conname === constraint);
+    const found = (await constraintsOf(table)).find(
+      (c) => c.conname === constraint,
+    );
     expect(found, `${constraint} is missing from ${table}`).toBeDefined();
     expect(found!.contype).toBe("f");
     expect(found!.confdeltype).toBe("c");
@@ -194,7 +211,9 @@ describe("deployed schema — unique constraints", () => {
     `;
 
   it("enforces one membership per user and workspace", async () => {
-    const defs = (await uniqueIndexes("WorkspaceMember")).map((r) => r.indexdef);
+    const defs = (await uniqueIndexes("WorkspaceMember")).map(
+      (r) => r.indexdef,
+    );
     expect(defs.some((d) => /userId.*workspaceId/.test(d))).toBe(true);
   });
 
@@ -214,7 +233,9 @@ describe("deployed schema — unique constraints", () => {
       (await uniqueIndexes("user")).some((r) => r.indexdef.includes("email")),
     ).toBe(true);
     expect(
-      (await uniqueIndexes("session")).some((r) => r.indexdef.includes("token")),
+      (await uniqueIndexes("session")).some((r) =>
+        r.indexdef.includes("token"),
+      ),
     ).toBe(true);
   });
 });

@@ -29,3 +29,19 @@ export type {
 export type { VoiceUser } from "./socket/voice";
 
 export type { BotResult } from "./api/bot";
+
+export {
+  AI_FEATURE_RECOMMENDED,
+  AI_FEATURE_REQUIREMENTS,
+  AI_PROVIDERS,
+  AI_PROVIDER_IDS,
+  meetsRequirements,
+  modelById,
+  modelsFor,
+  type AiCapability,
+  type AiEffort,
+  type AiFeature,
+  type AiModelSpec,
+  type AiProviderId,
+  type AiProviderSpec,
+} from "./ai/providers";

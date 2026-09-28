@@ -23,6 +23,12 @@ afterAll(closeTestResources);
 
 /** Every route the API exposes, as (method, path). Every one sits behind `authCheck`. */
 const ROUTE_CONTRACT = [
+  ["get", "/api/ai/status"],
+  ["get", "/api/ai/credentials"],
+  ["post", "/api/ai/credentials"],
+  ["delete", "/api/ai/credentials/:providerId"],
+  ["get", "/api/ai/preferences"],
+  ["put", "/api/ai/preferences"],
   ["get", "/api/workspace"],
   ["post", "/api/workspace/create"],
   ["post", "/api/workspace/join"],
@@ -43,28 +49,34 @@ const ROUTE_CONTRACT = [
 
 /** Concrete values stand in for path params. */
 const concretise = (path: string) =>
-  path.replaceAll(":wsid", "cm_contract000000000000000").replaceAll(":workspaceId", "cm_contract000000000000000")
+  path
+    .replaceAll(":wsid", "cm_contract000000000000000")
+    .replaceAll(":workspaceId", "cm_contract000000000000000")
     .replaceAll(":docId", "cm_contract000000000000000")
+    .replaceAll(":providerId", "openai")
     .replaceAll(":slugId", "1");
 
 describe("contract: REST routes", () => {
-  it.each(ROUTE_CONTRACT)("%s %s is mounted and guarded", async (method, path) => {
-    await resetDatabase();
+  it.each(ROUTE_CONTRACT)(
+    "%s %s is mounted and guarded",
+    async (method, path) => {
+      await resetDatabase();
 
-    const url = concretise(path);
-    const res =
-      method === "get"
-        ? await request(app).get(url)
-        : method === "post"
-          ? await request(app).post(url).send({})
-          : method === "put"
-            ? await request(app).put(url).send({})
-            : await request(app).delete(url).send({});
+      const url = concretise(path);
+      const res =
+        method === "get"
+          ? await request(app).get(url)
+          : method === "post"
+            ? await request(app).post(url).send({})
+            : method === "put"
+              ? await request(app).put(url).send({})
+              : await request(app).delete(url).send({});
 
-    // Anonymous callers get 401 from authCheck. A route that stopped being
-    // mounted would 404 instead — which is what this catches.
-    expect(res.status).toBe(401);
-  });
+      // Anonymous callers get 401 from authCheck. A route that stopped being
+      // mounted would 404 instead — which is what this catches.
+      expect(res.status).toBe(401);
+    },
+  );
 
   it("answers unknown /api paths with 404", async () => {
     const res = await request(app).get("/api/not-a-real-route");
@@ -105,18 +117,27 @@ describe("contract: socket events", () => {
     // Read as source text: a rename in the type module is precisely the kind of
     // silent breaking change a runtime assertion cannot see.
     const source = readFileSync(
-      fileURLToPath(new URL("../../../../../packages/types/src/socket/socketEvents.ts", import.meta.url)),
+      fileURLToPath(
+        new URL(
+          "../../../../../packages/types/src/socket/socketEvents.ts",
+          import.meta.url,
+        ),
+      ),
       "utf8",
     );
     // Bound the slice to the client→server block; splitting on the first marker
     // alone would run on into ServerToClientEvents and count both directions.
     const clientSection =
-      (source.split("ClientToServerEvents")[1] ?? "").split("ServerToClientEvents")[0] ?? "";
-    const declared = [...clientSection.matchAll(/^\s*"([a-z-]+:[a-zA-Z-]+)":/gm)].map(
-      (match) => match[1]!,
-    );
+      (source.split("ClientToServerEvents")[1] ?? "").split(
+        "ServerToClientEvents",
+      )[0] ?? "";
+    const declared = [
+      ...clientSection.matchAll(/^\s*"([a-z-]+:[a-zA-Z-]+)":/gm),
+    ].map((match) => match[1]!);
 
-    expect([...new Set(declared)].sort()).toEqual([...EXPECTED_CLIENT_EVENTS].sort());
+    expect([...new Set(declared)].sort()).toEqual(
+      [...EXPECTED_CLIENT_EVENTS].sort(),
+    );
   });
 
   it("keeps the namespace:verb convention for every event", () => {

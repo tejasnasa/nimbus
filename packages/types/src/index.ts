@@ -11,6 +11,12 @@ export {
   deleteAccountSchema,
   profileSchema,
 } from "./validations/account";
+export {
+  aiCredentialCreateSchema,
+  aiFeatureSchema,
+  aiPreferenceSchema,
+  aiProviderIdSchema,
+} from "./validations/ai";
 export { documentSchema } from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";
@@ -18,6 +24,12 @@ export { workspaceJoinSchema, workspaceSchema } from "./validations/workspace";
 
 export { ServerResponse } from "./api/serverResponse";
 
+export type {
+  AiCredentialDTO,
+  AiFeatureStatus,
+  AiPreferenceDTO,
+  AiStatusDTO,
+} from "./api/ai";
 export type { Message } from "./api/message";
 export type { Member, Workspace } from "./api/workspaces";
 

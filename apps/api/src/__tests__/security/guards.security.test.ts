@@ -45,6 +45,20 @@ afterAll(closeTestResources);
 /** Placeholder ids — `authCheck` runs before anything reads them. */
 const R = "cm_dummy_id";
 const ROUTES = [
+  { method: "get", path: "/api/ai/status" },
+  { method: "get", path: "/api/ai/credentials" },
+  {
+    method: "post",
+    path: "/api/ai/credentials",
+    body: { providerId: "openai", apiKey: "sk-test" },
+  },
+  { method: "delete", path: `/api/ai/credentials/openai` },
+  { method: "get", path: "/api/ai/preferences" },
+  {
+    method: "put",
+    path: "/api/ai/preferences",
+    body: { feature: "chat", providerId: "openai", modelId: "gpt-5-nano" },
+  },
   { method: "get", path: "/api/workspace" },
   { method: "post", path: "/api/workspace/create", body: { name: "Abc" } },
   { method: "post", path: "/api/workspace/join", body: { inviteCode: "x" } },
@@ -116,7 +130,9 @@ describe("security: cross-workspace access by a non-member", () => {
   });
 
   it("denies listing another workspace's documents", async () => {
-    const res = await as(app, outsider).get(`/api/document/workspace/${workspaceId}`);
+    const res = await as(app, outsider).get(
+      `/api/document/workspace/${workspaceId}`,
+    );
 
     expect(res.status).toBe(403);
   });
@@ -152,7 +168,9 @@ describe("security: cross-workspace access by a non-member", () => {
   });
 
   it("denies deleting someone else's workspace", async () => {
-    const res = await as(app, outsider).delete(`/api/workspace/delete/${workspaceId}`);
+    const res = await as(app, outsider).delete(
+      `/api/workspace/delete/${workspaceId}`,
+    );
 
     expect(res.status).toBe(403);
   });
@@ -238,7 +256,10 @@ describe("security: socket guards", () => {
 
     try {
       socket.emit("workspace:join", workspaceId);
-      const roster = await waitForEvent<string[]>(socket, "presence:online_users");
+      const roster = await waitForEvent<string[]>(
+        socket,
+        "presence:online_users",
+      );
 
       expect(roster).toContain(owner.id);
     } finally {
@@ -336,7 +357,9 @@ describe("security: socket guards", () => {
     const live = docs.get(docId);
     expect(live).toBeDefined();
 
-    const strangerSocket = connectClient(server.url, { Cookie: outsider.cookie });
+    const strangerSocket = connectClient(server.url, {
+      Cookie: outsider.cookie,
+    });
     await waitForEvent(strangerSocket, "connect");
 
     const forged = new Y.Doc();
@@ -350,7 +373,9 @@ describe("security: socket guards", () => {
       );
       await new Promise((resolve) => setTimeout(resolve, 400));
 
-      expect(live?.getMap("metadata").get("injectedByOutsider")).toBeUndefined();
+      expect(
+        live?.getMap("metadata").get("injectedByOutsider"),
+      ).toBeUndefined();
     } finally {
       memberSocket.close();
       strangerSocket.close();

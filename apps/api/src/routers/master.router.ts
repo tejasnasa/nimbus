@@ -6,6 +6,7 @@
  */
 import express from "express";
 import authCheck from "../middleware/authCheck.middleware";
+import aiRouter from "./ai.router";
 import documentRouter from "./document.router";
 import messageRouter from "./message.router";
 import turnRouter from "./turn.router";
@@ -14,6 +15,7 @@ import workspaceRouter from "./workspace.router";
 
 const masterRouter = express.Router();
 
+masterRouter.use("/ai", authCheck, aiRouter);
 masterRouter.use("/workspace", authCheck, workspaceRouter);
 masterRouter.use("/messages", authCheck, messageRouter);
 masterRouter.use("/document", authCheck, documentRouter);

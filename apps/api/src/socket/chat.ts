@@ -4,19 +4,33 @@
  *
  * Handles `workspace:join/leave` (membership check → room join → Redis
  * presence → `presence:*` broadcasts), `message:send` (persist → `message:new`
- * fan-out), `@nimbusbot` mentions (fire-and-forget bot reply, then
- * `doc:ai:start/thinking/complete|error` streaming for document generation),
- * ephemeral `typing:*` relays, and `disconnecting` presence cleanup.
+ * fan-out), `@nimbusbot` mentions (resolve → decide → claim → announce →
+ * generate → refund, with `ai:refused` for the targeted no-go), ephemeral
+ * `typing:*` relays, and `disconnecting` presence cleanup.
  *
  * @important Assumes handshake auth (`socket.data.user`). Bot generation runs
  *            detached so slow LLM calls never block chat delivery.
+ *
+ * @important The bot's `chatMessage` ("Sure! I am creating the document…") is
+ *            posted ONLY after a successful quota claim, so a quota-exhausted
+ *            user never sees a bot promise a document that will not arrive.
+ *            The refusal flow posts nothing to chat; the asking socket gets
+ *            `ai:refused` directly so the room never sees an announcement for
+ *            a generation that never started.
  */
 import { prisma } from "@nimbus/db";
+import type { BotResult } from "@nimbus/types";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
 import { generateCanvasDocument } from "../lib/canvasGeneration";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
+import { resolveAi, type AiResolution } from "../lib/ai/entitlements";
+import {
+  claimFreeDocGeneration,
+  readQuotaState,
+  refundFreeDocGeneration,
+} from "../lib/ai/quota";
 
 /**
  * Registers chat/presence/bot handlers for one socket.
@@ -128,113 +142,14 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
         // ack path never waits on Groq/OpenAI latency. Errors are caught and logged.
         if (data.content.toLowerCase().includes("@nimbusbot")) {
           (async () => {
-            const botResult = await generateBotResponse(data.workspaceId);
-
-            const botMessage = await prisma.message.create({
-              data: {
-                content:
-                  botResult.kind === "reply"
-                    ? botResult.content
-                    : botResult.chatMessage,
-                userId: process.env.BOT_USERID!,
-                workspaceId: data.workspaceId,
-              },
-              include: { user: true },
+            await handleBotMention({
+              io,
+              socket,
+              userId: user.id,
+              workspaceId: data.workspaceId,
+              userName: user.name,
+              userImage: user.image,
             });
-
-            io.to(data.workspaceId).emit("message:new", {
-              ...botMessage,
-              name: botMessage.user.name,
-              image: botMessage.user.image,
-            });
-
-            if (botResult.kind === "create_document") {
-              io.to(data.workspaceId).emit("doc:ai:start", {
-                type: botResult.type,
-                label: botResult.label,
-              });
-
-              try {
-                if (botResult.type === "MARKDOWN") {
-                  const { fullContent } = await generateMarkdownDocument(
-                    botResult.prompt,
-                    botResult.label,
-                    () => {},
-                    (token) => {
-                      io.to(data.workspaceId).emit("doc:ai:thinking", {
-                        token,
-                      });
-                    },
-                  );
-
-                  const doc = await prisma.document.create({
-                    data: {
-                      title: botResult.label,
-                      type: "MARKDOWN",
-                      workspaceId: data.workspaceId,
-                      initialContent: fullContent,
-                    },
-                  });
-
-                  io.to(data.workspaceId).emit("doc:ai:complete", {
-                    documentId: doc.id,
-                    label: doc.title,
-                    type: doc.type,
-                  });
-                } else {
-                  const { canvasData } = await generateCanvasDocument(
-                    botResult.prompt,
-                    botResult.label,
-                    (token) => {
-                      io.to(data.workspaceId).emit("doc:ai:thinking", {
-                        token,
-                      });
-                    },
-                    () => {},
-                  );
-
-                  const doc = await prisma.document.create({
-                    data: {
-                      title: botResult.label,
-                      type: "CANVAS",
-                      workspaceId: data.workspaceId,
-                      canvasData,
-                    },
-                  });
-
-                  io.to(data.workspaceId).emit("doc:ai:complete", {
-                    documentId: doc.id,
-                    label: doc.title,
-                    type: doc.type,
-                    canvasData,
-                  });
-                }
-              } catch (err) {
-                console.error("Doc generation error:", err);
-                io.to(data.workspaceId).emit("doc:ai:error", {
-                  message: "Document generation failed. Please try again.",
-                });
-
-                try {
-                  const errorBotMessage = await prisma.message.create({
-                    data: {
-                      content: `Sorry, I failed to create the document "${botResult.label}". Please try again.`,
-                      userId: process.env.BOT_USERID!,
-                      workspaceId: data.workspaceId,
-                    },
-                    include: { user: true },
-                  });
-
-                  io.to(data.workspaceId).emit("message:new", {
-                    ...errorBotMessage,
-                    name: errorBotMessage.user.name,
-                    image: errorBotMessage.user.image,
-                  });
-                } catch (dbErr) {
-                  console.error("Error creating failure bot message:", dbErr);
-                }
-              }
-            }
           })().catch((err) => console.error("Bot Reply Error:", err));
         }
       } catch (err) {
@@ -278,5 +193,299 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     }
   });
 };
+
+/** Inputs to {@link handleBotMention}. */
+type HandleBotMentionInput = {
+  readonly io: Server;
+  readonly socket: Socket;
+  readonly userId: string;
+  readonly workspaceId: string;
+  readonly userName: string | null | undefined;
+  readonly userImage: string | null | undefined;
+};
+
+/**
+ * Drives the bot's reply to a `@nimbusbot` mention.
+ *
+ * The flow:
+ *   1. Resolve chat (BYOK or free).
+ *   2. Resolve documents separately so quota exhaustion does not disable chat.
+ *   3. Generate — with `allowDocument` set from step 2.
+ *   4. If the bot chose to create a document, atomically claim a free-tier slot
+ *      BEFORE posting the announcement. A failed claim emits `ai:refused` and
+ *      posts nothing.
+ *   5. Generate the document, refund the claim on provider failure.
+ *
+ * @important Never throws. Provider-side failures degrade to a `doc:ai:error`
+ *            room-wide event with the claim refunded; entitlement refusals
+ *            emit `ai:refused` to the asking socket only.
+ */
+async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
+  const { io, socket, userId, workspaceId } = input;
+
+  // 1. Resolve chat. A failure here means the user has no chat path at all
+  //    (no key, no operator key, encryption unconfigured).
+  const chatResolution = await resolveAi(userId, "chat");
+  if (!chatResolution.ok) {
+    return emitRefusal(socket, "chat", chatResolution);
+  }
+
+  // 2. Resolve documents. A failure here means the user has chat but not
+  //    documents — quota exhausted, no capable model, or no encryption key.
+  const documentResolution = await resolveDocumentForUser(userId);
+  const allowDocument = documentResolution.kind === "available";
+
+  // 3. Generate the bot's reply with the chosen chat handle and the
+  //    `allowDocument` flag, so the tool is omitted when no path exists.
+  const botResult = await generateBotResponse({
+    workspaceId,
+    handle: chatResolution.handle,
+    allowDocument,
+  });
+
+  if (botResult.kind === "refused") {
+    return emitRefusalFromBot(socket, botResult);
+  }
+
+  // 4. Claim → announce. For `create_document` results we must claim BEFORE
+  //    posting the "creating the document" message, otherwise the
+  //    announcement is a lie when the quota is gone.
+  let claimed = false;
+  if (botResult.kind === "create_document") {
+    if (documentResolution.kind === "refused") {
+      // Defence in depth — `allowDocument: false` removed the tool, so the
+      // bot should not have called it. If it did, refuse rather than
+      // generate.
+      return emitRefusal(socket, "chat", {
+        ok: false,
+        reason: documentResolution.reason as
+          | "no-key"
+          | "free-tier-exhausted"
+          | "no-operator-key"
+          | "no-capable-model"
+          | "byok-unavailable",
+        message: documentResolution.message,
+        cta: documentResolution.cta,
+      });
+    }
+    const claim = await claimFreeDocGeneration(userId);
+    if (!claim.granted) {
+      return emitRefusal(socket, "chat", {
+        ok: false,
+        reason: "free-tier-exhausted",
+        message:
+          "You've used all your free document generations. Add your API key to keep creating.",
+        cta: "add-key",
+      });
+    }
+    claimed = true;
+  }
+
+  // Post the bot message — for a plain reply or the document announcement.
+  const botMessage = await prisma.message.create({
+    data: {
+      content:
+        botResult.kind === "reply" ? botResult.content : botResult.chatMessage,
+      userId: process.env.BOT_USERID!,
+      workspaceId,
+    },
+    include: { user: true },
+  });
+
+  io.to(workspaceId).emit("message:new", {
+    ...botMessage,
+    name: botMessage.user.name,
+    image: botMessage.user.image,
+  });
+
+  if (botResult.kind === "create_document") {
+    io.to(workspaceId).emit("doc:ai:start", {
+      type: botResult.type,
+      label: botResult.label,
+    });
+
+    try {
+      if (botResult.type === "MARKDOWN") {
+        // Re-resolve markdown specifically — the chat resolution may have
+        // used a different provider/model than the user's saved markdown
+        // preference.
+        const mdResolution = await resolveAi(userId, "markdown");
+        if (!mdResolution.ok) {
+          throw new Error(mdResolution.message);
+        }
+        const { fullContent } = await generateMarkdownDocument({
+          prompt: botResult.prompt,
+          label: botResult.label,
+          onToken: () => {},
+          onThinking: (token) => {
+            io.to(workspaceId).emit("doc:ai:thinking", { token });
+          },
+          handle: mdResolution.handle,
+        });
+
+        const doc = await prisma.document.create({
+          data: {
+            title: botResult.label,
+            type: "MARKDOWN",
+            workspaceId,
+            initialContent: fullContent,
+          },
+        });
+
+        io.to(workspaceId).emit("doc:ai:complete", {
+          documentId: doc.id,
+          label: doc.title,
+          type: doc.type,
+        });
+      } else {
+        const canvasResolution = await resolveAi(userId, "canvas");
+        if (!canvasResolution.ok) {
+          throw new Error(canvasResolution.message);
+        }
+        const { canvasData } = await generateCanvasDocument({
+          prompt: botResult.prompt,
+          label: botResult.label,
+          onReasoning: (token) => {
+            io.to(workspaceId).emit("doc:ai:thinking", { token });
+          },
+          onStatus: () => {},
+          handle: canvasResolution.handle,
+        });
+
+        const doc = await prisma.document.create({
+          data: {
+            title: botResult.label,
+            type: "CANVAS",
+            workspaceId,
+            canvasData,
+          },
+        });
+
+        io.to(workspaceId).emit("doc:ai:complete", {
+          documentId: doc.id,
+          label: doc.title,
+          type: doc.type,
+          canvasData,
+        });
+      }
+
+      // Generation succeeded — the claim is now spent.
+      claimed = false;
+    } catch (err) {
+      // Generation failed AFTER a successful claim. Refund so the user does
+      // not lose a free generation to a provider-side failure. The refund is
+      // bounded — only this call's claim is returned — and the failure path
+      // that triggers it is provider-side, so it cannot be farmed.
+      console.error("Doc generation error:", err);
+      if (claimed) {
+        await refundFreeDocGeneration(userId);
+        claimed = false;
+      }
+      io.to(workspaceId).emit("doc:ai:error", {
+        message: "Document generation failed. Please try again.",
+      });
+
+      try {
+        const errorBotMessage = await prisma.message.create({
+          data: {
+            content: `Sorry, I failed to create the document "${botResult.label}". Please try again.`,
+            userId: process.env.BOT_USERID!,
+            workspaceId,
+          },
+          include: { user: true },
+        });
+
+        io.to(workspaceId).emit("message:new", {
+          ...errorBotMessage,
+          name: errorBotMessage.user.name,
+          image: errorBotMessage.user.image,
+        });
+      } catch (dbErr) {
+        console.error("Error creating failure bot message:", dbErr);
+      }
+    }
+  }
+}
+
+/**
+ * Resolves whether the user can create a document right now.
+ *
+ * Documents require the free-tier quota to be claimable, so this is a
+ * separate call from `chat`: a chat resolution on the operator's key should
+ * not silently grant documents.
+ */
+type DocumentResolution =
+  | { kind: "available" }
+  | {
+      kind: "refused";
+      reason:
+        | "no-key"
+        | "free-tier-exhausted"
+        | "no-operator-key"
+        | "no-capable-model"
+        | "byok-unavailable";
+      message: string;
+      cta: "add-key" | "manage-ai" | null;
+    };
+
+async function resolveDocumentForUser(
+  userId: string,
+): Promise<DocumentResolution> {
+  const resolution = await resolveAi(userId, "markdown");
+  if (!resolution.ok) {
+    return {
+      kind: "refused",
+      reason: resolution.reason,
+      message: resolution.message,
+      cta: resolution.cta,
+    };
+  }
+  // Free-tier documents still need to claim a slot. We do a cheap read here
+  // for UX (so the bot's allowDocument flag is honest about remaining slots)
+  // and rely on the atomic claim at generate-time for correctness.
+  if (resolution.source === "free") {
+    const state = await readQuotaState(userId);
+    if (state.exhausted) {
+      return {
+        kind: "refused",
+        reason: "free-tier-exhausted",
+        message:
+          "You've used all your free document generations. Add your API key to keep creating.",
+        cta: "add-key",
+      };
+    }
+  }
+  return { kind: "available" };
+}
+
+/**
+ * Emits `ai:refused` to the asking socket only. Never broadcast — the reason
+ * is a personal state and a phantom GENERATING tab would be a worse leak.
+ */
+function emitRefusal(
+  socket: Socket,
+  feature: "chat" | "markdown" | "canvas",
+  refusal: Extract<AiResolution, { ok: false }>,
+) {
+  socket.emit("ai:refused", {
+    feature,
+    reason: refusal.reason,
+    message: refusal.message,
+    cta: refusal.cta,
+  });
+}
+
+/** Same shape as `emitRefusal`, sourced from a `BotResult`. */
+function emitRefusalFromBot(
+  socket: Socket,
+  botResult: Extract<BotResult, { kind: "refused" }>,
+) {
+  socket.emit("ai:refused", {
+    feature: botResult.feature,
+    reason: botResult.reason,
+    message: botResult.message,
+    cta: botResult.cta,
+  });
+}
 
 export default registerChatHandlers;

@@ -4,9 +4,10 @@
  * answered in chat, and a `create_document` decision produces a real Document
  * row plus the `doc:ai:*` streaming events the client renders.
  *
- * Both LLM clients are mocked at the module boundary, dispatching on the request
- * shape — the bot decision carries `tools`, the markdown generator asks for a
- * stream.
+ * The SDK client is mocked at the boundary: `lib/ai/clientFactory.createAiClient`
+ * returns a fake handle whose `responses.create` is the mocked `createMock`,
+ * dispatching on the request shape — the bot decision carries `tools`, the
+ * markdown generator asks for a stream.
  *
  * @important The CANVAS generation path over sockets is not covered here: its
  *            stream event shape is exercised at the unit level instead
@@ -25,16 +26,16 @@ import {
   vi,
 } from "vitest";
 
-const { groqCreate, openaiCreate } = vi.hoisted(() => ({
-  groqCreate: vi.fn(),
-  openaiCreate: vi.fn(),
+const { createAiClient, createMock } = vi.hoisted(() => ({
+  createAiClient: vi.fn(),
+  createMock: vi.fn(),
 }));
 
-vi.mock("../../../lib/groqClient", () => ({
-  default: { responses: { create: groqCreate } },
-}));
-vi.mock("../../../lib/openaiClient", () => ({
-  default: { responses: { create: openaiCreate } },
+vi.mock("../../../lib/ai/clientFactory", () => ({
+  createAiClient,
+  reasoningKwargs: (handle: { supportsReasoning: boolean }) =>
+    handle.supportsReasoning ? { reasoning: { effort: "low" } } : {},
+  classifyClientError: () => ({ kind: "provider-error", message: "x" }),
 }));
 
 import { createApp } from "../../../app";
@@ -50,6 +51,12 @@ import {
   type TestServer,
   type TestUser,
 } from "@testhelpers";
+import type { AiClientHandle } from "../../../lib/ai/clientFactory";
+
+/** Stub SDK client type — only `responses.create` is exercised by the bot pipeline. */
+type OpenAIClientStub = {
+  responses: { create: (...args: unknown[]) => unknown };
+};
 
 const app = createApp();
 
@@ -63,7 +70,10 @@ const openSocket = async (server: TestServer, user: TestUser) => {
 };
 
 /** A plain chat reply — no tool call. */
-const botReplies = (text: string) => ({ output: [{ type: "message" }], output_text: text });
+const botReplies = (text: string) => ({
+  output: [{ type: "message" }],
+  output_text: text,
+});
 
 /** A decision to create a document of the given type. */
 const botCreatesDocument = (type: "MARKDOWN" | "CANVAS", label: string) => ({
@@ -103,8 +113,24 @@ describe("socket: nimbusbot", () => {
 
   beforeEach(async () => {
     await resetDatabase();
-    groqCreate.mockReset();
-    openaiCreate.mockReset();
+    createMock.mockReset();
+    createAiClient.mockReset();
+
+    // Every call to `createAiClient` returns a fake handle whose SDK is the
+    // mocked `createMock`. The resolver calls this with provider/model
+    // metadata; the fake just preserves it so test assertions can pin
+    // "who paid" (which provider/model is being used).
+    createAiClient.mockImplementation(
+      (options): AiClientHandle => ({
+        providerId: options.provider.id,
+        modelId: options.model.id,
+        source: options.source,
+        supportsReasoning: options.model.capabilities.includes("reasoning"),
+        client: {
+          responses: { create: createMock },
+        } as unknown as OpenAIClientStub,
+      }),
+    );
 
     alice = await mintUser(app);
     wsId = (await createWorkspace(alice.id)).id;
@@ -124,7 +150,11 @@ describe("socket: nimbusbot", () => {
   };
 
   /** Polls until `done()` holds, or throws after the timeout. */
-  const waitFor = async (done: () => boolean, label: string, timeoutMs = 10_000) => {
+  const waitFor = async (
+    done: () => boolean,
+    label: string,
+    timeoutMs = 10_000,
+  ) => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (done()) return;
@@ -134,19 +164,28 @@ describe("socket: nimbusbot", () => {
   };
 
   it("answers a plain mention in chat and persists the reply", async () => {
-    groqCreate.mockResolvedValue(botReplies("Hello! How can I help?"));
+    createMock.mockResolvedValue(botReplies("Hello! How can I help?"));
 
     const socket = await openSocket(server, alice);
     socket.emit("workspace:join", wsId);
     await waitForEvent(socket, "presence:online_users");
 
     const seen = collectMessages(socket);
-    socket.emit("message:send", { workspaceId: wsId, content: "@nimbusbot hello" });
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot hello",
+    });
 
     // First the user's own echo, then the bot's reply.
-    await waitFor(() => seen.some((m) => m.userId === process.env.BOT_USERID), "bot reply");
+    await waitFor(
+      () => seen.some((m) => m.userId === process.env.BOT_USERID),
+      "bot reply",
+    );
 
-    expect(seen[0]).toMatchObject({ content: "@nimbusbot hello", userId: alice.id });
+    expect(seen[0]).toMatchObject({
+      content: "@nimbusbot hello",
+      userId: alice.id,
+    });
     expect(seen.at(-1)?.content).toBe("Hello! How can I help?");
 
     const stored = await testPrisma.message.findFirst({
@@ -156,30 +195,44 @@ describe("socket: nimbusbot", () => {
   });
 
   it("creates a markdown document and streams the AI lifecycle events", async () => {
-    groqCreate.mockImplementation(async (args: { tools?: unknown; stream?: boolean }) => {
-      if (args.tools) return botCreatesDocument("MARKDOWN", "Design Notes");
-      return markdownStream("# Design Notes\n\nGenerated body.");
-    });
+    createMock.mockImplementation(
+      async (args: { tools?: unknown; stream?: boolean }) => {
+        if (args.tools) return botCreatesDocument("MARKDOWN", "Design Notes");
+        return markdownStream("# Design Notes\n\nGenerated body.");
+      },
+    );
 
     const socket = await openSocket(server, alice);
     socket.emit("workspace:join", wsId);
     await waitForEvent(socket, "presence:online_users");
 
-    const started = waitForEvent<{ type: string; label: string }>(socket, "doc:ai:start", 10_000);
+    const started = waitForEvent<{ type: string; label: string }>(
+      socket,
+      "doc:ai:start",
+      10_000,
+    );
     const completed = waitForEvent<{ documentId: string; type: string }>(
       socket,
       "doc:ai:complete",
       10_000,
     );
 
-    socket.emit("message:send", { workspaceId: wsId, content: "@nimbusbot write design notes" });
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot write design notes",
+    });
 
-    await expect(started).resolves.toMatchObject({ type: "MARKDOWN", label: "Design Notes" });
+    await expect(started).resolves.toMatchObject({
+      type: "MARKDOWN",
+      label: "Design Notes",
+    });
 
     const done = await completed;
     expect(done.type).toBe("MARKDOWN");
 
-    const document = await testPrisma.document.findUnique({ where: { id: done.documentId } });
+    const document = await testPrisma.document.findUnique({
+      where: { id: done.documentId },
+    });
     expect(document).toMatchObject({
       title: "Design Notes",
       type: "MARKDOWN",
@@ -190,7 +243,7 @@ describe("socket: nimbusbot", () => {
   });
 
   it("emits doc:ai:error and tells the user when generation fails", async () => {
-    groqCreate.mockImplementation(async (args: { tools?: unknown }) => {
+    createMock.mockImplementation(async (args: { tools?: unknown }) => {
       if (args.tools) return botCreatesDocument("MARKDOWN", "Doomed Doc");
       throw new Error("generation exploded");
     });
@@ -202,17 +255,28 @@ describe("socket: nimbusbot", () => {
     // Order of chat traffic: the user's echo, the bot's "creating it now…"
     // acknowledgement, then the bot's failure notice.
     const seen: string[] = [];
-    socket.on("message:new", (payload: { content: string }) => seen.push(payload.content));
+    socket.on("message:new", (payload: { content: string }) =>
+      seen.push(payload.content),
+    );
 
-    const failed = waitForEvent<{ message: string }>(socket, "doc:ai:error", 10_000);
-    socket.emit("message:send", { workspaceId: wsId, content: "@nimbusbot make a doc" });
+    const failed = waitForEvent<{ message: string }>(
+      socket,
+      "doc:ai:error",
+      10_000,
+    );
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot make a doc",
+    });
 
     await expect(failed).resolves.toMatchObject({
       message: expect.stringMatching(/generation failed/i),
     });
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(seen.some((content) => /creating the document/i.test(content))).toBe(true);
+    expect(seen.some((content) => /creating the document/i.test(content))).toBe(
+      true,
+    );
     expect(seen.at(-1)).toMatch(/failed to create the document/i);
 
     // Nothing was half-created.
@@ -221,21 +285,150 @@ describe("socket: nimbusbot", () => {
     ).resolves.toBe(0);
   });
 
+  it("refunds the free-tier quota when generation fails after a claim", async () => {
+    // Phase 4 change: a generation failure after a successful quota claim
+    // must refund the slot, otherwise a provider-side failure would burn
+    // one of the user's free document generations. We force the failure on
+    // the second LLM call (the markdown generator).
+    createMock.mockImplementation(
+      async (args: { tools?: unknown; stream?: boolean }) => {
+        if (args.tools) return botCreatesDocument("MARKDOWN", "Refund Me");
+        throw new Error("generation exploded");
+      },
+    );
+
+    const socket = await openSocket(server, alice);
+    socket.emit("workspace:join", wsId);
+    await waitForEvent(socket, "presence:online_users");
+
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot refund me",
+    });
+
+    // Wait for the failure to surface so the refund path has run.
+    await waitForEvent<{ message: string }>(socket, "doc:ai:error", 10_000);
+    // A beat for the refund to commit before the assertion.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const user = await testPrisma.user.findUnique({ where: { id: alice.id } });
+    expect(user?.freeDocGenerationsUsed).toBe(0);
+  });
+
+  it("emits ai:refused targeted to the asking socket when the resolver refuses", async () => {
+    // Force the resolver to refuse: encryption unconfigured means BYOK
+    // routes return 503 and the resolver returns `byok-unavailable` for
+    // any user that lacks a free-tier key. The free tier is set in
+    // .env.test, so the alternative is to clear `AI_API_KEY` here — a
+    // deletion in `beforeEach` lets the resolver return `no-operator-key`.
+    const original = process.env.AI_API_KEY;
+    delete process.env.AI_API_KEY;
+
+    try {
+      const socket = await openSocket(server, alice);
+      socket.emit("workspace:join", wsId);
+      await waitForEvent(socket, "presence:online_users");
+
+      const refused = waitForEvent<{
+        feature: string;
+        reason: string;
+        message: string;
+      }>(socket, "ai:refused", 10_000);
+
+      socket.emit("message:send", {
+        workspaceId: wsId,
+        content: "@nimbusbot hi",
+      });
+
+      await expect(refused).resolves.toMatchObject({
+        feature: "chat",
+        reason: "no-operator-key",
+      });
+    } finally {
+      process.env.AI_API_KEY = original;
+    }
+  });
+
+  it("emits ai:refused only to the asking socket, never broadcasts", async () => {
+    // The hardest refusal invariant: a quota exhaustion (or any refusal)
+    // must not leak to a second tab. We test it with a second client in
+    // the same room. To force the refusal deterministically, we drain
+    // the user's free quota before the mention.
+    for (let i = 0; i < 5; i += 1) {
+      await testPrisma.user.update({
+        where: { id: alice.id },
+        data: { freeDocGenerationsUsed: { increment: 1 } },
+      });
+    }
+
+    const askingSocket = await openSocket(server, alice);
+    askingSocket.emit("workspace:join", wsId);
+    await waitForEvent(askingSocket, "presence:online_users");
+
+    // The second tab is the same user — same cookie — but a separate
+    // socket. A broadcast would land on both.
+    const secondTab = await openSocket(server, alice);
+    secondTab.emit("workspace:join", wsId);
+    await waitForEvent(secondTab, "presence:online_users");
+
+    // Buffer every event on the second tab; a leak shows up here.
+    const leaked: string[] = [];
+    secondTab.onAny((event: string) => leaked.push(event));
+
+    const refused = waitForEvent<{ reason: string }>(
+      askingSocket,
+      "ai:refused",
+      10_000,
+    );
+
+    // The mention must trigger a tool call so the document path runs —
+    // otherwise we would only test the chat refusal, not the quota one.
+    createMock.mockResolvedValueOnce(
+      botCreatesDocument("MARKDOWN", "Quoted Out"),
+    );
+
+    askingSocket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot write something",
+    });
+
+    await expect(refused).resolves.toMatchObject({
+      reason: "free-tier-exhausted",
+    });
+
+    // Give any spurious broadcast a beat to fire.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // The second tab must not have seen `ai:refused`, `message:new`, or
+    // `doc:ai:start`. (The mention itself is broadcast as `message:new`
+    // because human chat is never gated on AI entitlement — that is the
+    // design rule from the plan.)
+    expect(leaked).not.toContain("ai:refused");
+    expect(leaked).not.toContain("doc:ai:start");
+  });
+
   it("still delivers the user's own message when the bot fails", async () => {
-    groqCreate.mockRejectedValue(new Error("groq is down"));
+    createMock.mockRejectedValue(new Error("groq is down"));
 
     const socket = await openSocket(server, alice);
     socket.emit("workspace:join", wsId);
     await waitForEvent(socket, "presence:online_users");
 
     const echoed = waitForEvent<{ content: string }>(socket, "message:new");
-    socket.emit("message:send", { workspaceId: wsId, content: "@nimbusbot are you there" });
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot are you there",
+    });
 
-    await expect(echoed).resolves.toMatchObject({ content: "@nimbusbot are you there" });
+    await expect(echoed).resolves.toMatchObject({
+      content: "@nimbusbot are you there",
+    });
 
     // The user's message is persisted regardless of the bot's fate.
     await expect(
-      testPrisma.message.count({ where: { workspaceId: wsId, userId: alice.id } }),
+      testPrisma.message.count({
+        where: { workspaceId: wsId, userId: alice.id },
+      }),
     ).resolves.toBe(1);
   });
 
@@ -245,14 +438,19 @@ describe("socket: nimbusbot", () => {
     await waitForEvent(socket, "presence:online_users");
 
     const echoed = waitForEvent<{ content: string }>(socket, "message:new");
-    socket.emit("message:send", { workspaceId: wsId, content: "just talking to a human" });
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "just talking to a human",
+    });
     await echoed;
 
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    expect(groqCreate).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
     await expect(
-      testPrisma.message.count({ where: { workspaceId: wsId, userId: process.env.BOT_USERID } }),
+      testPrisma.message.count({
+        where: { workspaceId: wsId, userId: process.env.BOT_USERID },
+      }),
     ).resolves.toBe(0);
   });
 });

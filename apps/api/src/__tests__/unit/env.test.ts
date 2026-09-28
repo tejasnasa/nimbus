@@ -19,10 +19,6 @@ const completeEnv = {
   FRONTEND_URL: "http://localhost:3000",
   BOT_USERID: "bot-user-id",
   TURN_SECRET: "turn-secret",
-  GROQ_API_KEY: "groq-key",
-  GROQ_MODEL: "groq-model",
-  OPENAI_API_KEY: "openai-key",
-  OPENAI_MODEL: "openai-model",
   RESEND_API_KEY: "resend-key",
   GOOGLE_CLIENT_ID: "google-id",
   GOOGLE_CLIENT_SECRET: "google-secret",
@@ -78,9 +74,9 @@ describe("lib/env", () => {
   it("reports a non-object environment without crashing", () => {
     // Nothing sensible can be read from a non-object, so the issue is raised at
     // the root; the label must still be present rather than an empty path.
-    expect(() =>
-      parseEnv("nonsense" as unknown as NodeJS.ProcessEnv),
-    ).toThrow(/\(root\)/);
+    expect(() => parseEnv("nonsense" as unknown as NodeJS.ProcessEnv)).toThrow(
+      /\(root\)/,
+    );
   });
 
   it("treats `AUTH_COOKIE_DOMAIN` as optional and surfaces it when set", () => {
@@ -102,8 +98,66 @@ describe("lib/env", () => {
     // Same rule as the rest of the optional block: an empty string is as
     // broken as an absent one, and accepting it would silently disable
     // `crossSubDomainCookies` downstream.
+    expect(() => parseEnv({ ...completeEnv, AUTH_COOKIE_DOMAIN: "" })).toThrow(
+      /AUTH_COOKIE_DOMAIN/,
+    );
+  });
+
+  it("boots with no AI variables at all", () => {
+    // Phase 4: a BYOK-only deployment has no operator key. The boot must
+    // pass with `AI_API_KEY` and `AI_CREDENTIAL_ENCRYPTION_KEY` unset — the
+    // resolver refuses per-request, the web UI hides the affordances, and
+    // the rest of the API keeps serving.
+    const {
+      AI_API_KEY: _ai,
+      AI_CREDENTIAL_ENCRYPTION_KEY: _enc,
+      ...aiFree
+    } = completeEnv;
+
+    const parsed = parseEnv(aiFree);
+    expect(parsed.AI_API_KEY).toBeUndefined();
+    expect(parsed.AI_CREDENTIAL_ENCRYPTION_KEY).toBeUndefined();
+    // The defaults still apply.
+    expect(parsed.AI_PROVIDER).toBe("deepseek");
+    expect(parsed.AI_MODEL).toBe("deepseek-flash");
+    expect(parsed.AI_FREE_DOC_LIMIT).toBe(5);
+  });
+
+  it("rejects a short `AI_CREDENTIAL_ENCRYPTION_KEY` and names it", () => {
+    // The encryption key requires at least 32 characters. Boot must fail
+    // loudly rather than silently downgrade the BYOK surface, because a
+    // half-configured key would decrypt half-stored credentials.
     expect(() =>
-      parseEnv({ ...completeEnv, AUTH_COOKIE_DOMAIN: "" }),
-    ).toThrow(/AUTH_COOKIE_DOMAIN/);
+      parseEnv({ ...completeEnv, AI_CREDENTIAL_ENCRYPTION_KEY: "short" }),
+    ).toThrow(/AI_CREDENTIAL_ENCRYPTION_KEY/);
+  });
+
+  it("accepts a passphrase-style encryption key of at least 32 chars", () => {
+    const parsed = parseEnv({
+      ...completeEnv,
+      AI_CREDENTIAL_ENCRYPTION_KEY: "long-passphrase-not-a-real-key-32chars",
+    });
+    expect(parsed.AI_CREDENTIAL_ENCRYPTION_KEY).toBe(
+      "long-passphrase-not-a-real-key-32chars",
+    );
+  });
+
+  it("coerces `AI_FREE_DOC_LIMIT` from a string and clamps to 0+", () => {
+    // Operators tune the limit at deploy time; the value comes through as a
+    // string (env vars always are) and zod's `coerce` reads it as a number.
+    expect(
+      parseEnv({ ...completeEnv, AI_FREE_DOC_LIMIT: "20" }).AI_FREE_DOC_LIMIT,
+    ).toBe(20);
+    expect(
+      parseEnv({ ...completeEnv, AI_FREE_DOC_LIMIT: "0" }).AI_FREE_DOC_LIMIT,
+    ).toBe(0);
+  });
+
+  it("rejects a negative `AI_FREE_DOC_LIMIT`", () => {
+    // A negative limit would short-circuit every quota claim to "exhausted"
+    // and disable the free tier entirely — almost certainly an operator typo.
+    expect(() => parseEnv({ ...completeEnv, AI_FREE_DOC_LIMIT: "-1" })).toThrow(
+      /AI_FREE_DOC_LIMIT/,
+    );
   });
 });

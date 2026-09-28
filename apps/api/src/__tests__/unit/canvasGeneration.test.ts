@@ -40,14 +40,28 @@ import {
 
 const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
 
-// `lib/canvasGeneration` imports the client as `./openaiClient`; vitest keys
-// module mocks by resolved id, so this relative path from the test file hits
-// the same module. Without it the import would construct a real OpenAI client.
-vi.mock("../../lib/openaiClient", () => ({
-  default: { responses: { create: createMock } },
-}));
-
+import { AI_PROVIDERS, modelById } from "@nimbus/types";
 import { generateCanvasDocument } from "../../lib/canvasGeneration";
+import type { AiClientHandle } from "../../lib/ai/clientFactory";
+
+/**
+ * A test-only handle whose SDK client is the mocked `createMock`. The
+ * provider/model id on the handle is what the production code reads.
+ */
+const makeTestHandle = (modelId = "deepseek-flash"): AiClientHandle => {
+  const provider = AI_PROVIDERS.deepseek;
+  const model = modelById(provider, modelId);
+  if (!model) throw new Error(`unknown model ${modelId}`);
+  return {
+    providerId: provider.id,
+    modelId: model.id,
+    source: "free",
+    supportsReasoning: model.capabilities.includes("reasoning"),
+    client: {
+      responses: { create: createMock },
+    } as unknown as AiClientHandle["client"],
+  };
+};
 
 /* ── Element access ───────────────────────────────────────────────────────── */
 
@@ -113,7 +127,10 @@ const deltasOf = (text: string, chunk = 9): StreamEvent[] => {
 
 const completedEvent = (
   response: Record<string, unknown> = {},
-): StreamEvent => ({ type: "response.completed", response: { output: [], ...response } });
+): StreamEvent => ({
+  type: "response.completed",
+  response: { output: [], ...response },
+});
 
 /** A completed response whose `output` carries `text` as an `output_text` part. */
 const completedWithText = (text: string): StreamEvent =>
@@ -142,12 +159,13 @@ async function run(
   respondWith(events);
   const reasoning: string[] = [];
   const statuses: string[] = [];
-  const result = await generateCanvasDocument(
+  const result = await generateCanvasDocument({
     prompt,
     label,
-    (token) => reasoning.push(token),
-    (status) => statuses.push(status),
-  );
+    onReasoning: (token) => reasoning.push(token),
+    onStatus: (status) => statuses.push(status),
+    handle: makeTestHandle(),
+  });
   return {
     result,
     reasoning,
@@ -190,10 +208,13 @@ describe("lib/canvasGeneration", () => {
       await runPayload(simpleFlow);
 
       expect(createMock).toHaveBeenCalledTimes(1);
+      // The Phase 4 "who paid" headline: the request carries the handle's
+      // model id, not an env var. The fixture is `deepseek-flash`; DeepSeek
+      // accepts both `effort` and `summary`, so the kwargs carry both.
       expect(requestArgs()).toMatchObject({
-        model: process.env.OPENAI_MODEL,
+        model: "deepseek-flash",
         stream: true,
-        max_output_tokens: 8192,
+        max_output_tokens: 16_384,
         reasoning: { effort: "low", summary: "detailed" },
         text: { format: { type: "json_object" } },
       });
@@ -298,7 +319,9 @@ describe("lib/canvasGeneration", () => {
       // Same 16-char label, so only the shape multiplier differs.
       expect(widths).toEqual({ rectangle: 219, ellipse: 237, diamond: 263 });
       // Height stays at the floor for this label, so the multiplier is invisible there.
-      expect(shapesOf(elements).map((shape) => shape.height)).toEqual([88, 88, 88]);
+      expect(shapesOf(elements).map((shape) => shape.height)).toEqual([
+        88, 88, 88,
+      ]);
       expect(SHARED_LABEL).toHaveLength(16);
     });
 
@@ -352,7 +375,9 @@ describe("lib/canvasGeneration", () => {
       expect(xs).toEqual([80, 480, 880, 1280]);
       // Every column is centred against the tallest one; a 1-node column equals
       // itself, so the chain sits on the start line.
-      expect(shapesOf(elements).map((shape) => shape.y)).toEqual([80, 80, 80, 80]);
+      expect(shapesOf(elements).map((shape) => shape.y)).toEqual([
+        80, 80, 80, 80,
+      ]);
       expect(statuses).toContain("Layout — 4 nodes, 3 edges");
     });
 
@@ -491,7 +516,9 @@ describe("lib/canvasGeneration", () => {
         expect(Number.isFinite(el.x)).toBe(true);
         expect(Number.isFinite(el.y)).toBe(true);
         // Only rectangles are rounded; text and arrows must carry null.
-        expect(el.roundness).toEqual(el.type === "rectangle" ? { type: 3 } : null);
+        expect(el.roundness).toEqual(
+          el.type === "rectangle" ? { type: 3 } : null,
+        );
       }
     });
 
@@ -538,17 +565,30 @@ describe("lib/canvasGeneration", () => {
     it("carries the shape's colours onto its label and arrow defaults", async () => {
       const { elements } = await runPayload({
         nodes: [
-          { id: "a", label: "A", backgroundColor: "#ff0000", strokeColor: "#123456" },
+          {
+            id: "a",
+            label: "A",
+            backgroundColor: "#ff0000",
+            strokeColor: "#123456",
+          },
           { id: "b", label: "B" },
         ],
         edges: [{ from: "a", to: "b" }],
       });
 
       const [first, second] = shapesOf(elements);
-      expect(first).toMatchObject({ backgroundColor: "#ff0000", strokeColor: "#123456" });
-      expect(textByShapeId(elements).get(first!.id)!.strokeColor).toBe("#123456");
+      expect(first).toMatchObject({
+        backgroundColor: "#ff0000",
+        strokeColor: "#123456",
+      });
+      expect(textByShapeId(elements).get(first!.id)!.strokeColor).toBe(
+        "#123456",
+      );
       // Palette rotation is by array index, so the second node gets palette[1].
-      expect(second).toMatchObject({ backgroundColor: "#e8f0fe", strokeColor: "#1e1e1e" });
+      expect(second).toMatchObject({
+        backgroundColor: "#e8f0fe",
+        strokeColor: "#1e1e1e",
+      });
       expect(arrowsOf(elements)[0]!.strokeColor).toBe("#1e1e1e");
     });
 
@@ -567,7 +607,10 @@ describe("lib/canvasGeneration", () => {
         { id: textByShapeId(elements).get(from!.id)!.id, type: "text" },
         { id: arrow!.id, type: "arrow" },
       ]);
-      expect(to!.boundElements).toContainEqual({ id: arrow!.id, type: "arrow" });
+      expect(to!.boundElements).toContainEqual({
+        id: arrow!.id,
+        type: "arrow",
+      });
       expect(arrow).toMatchObject({
         elbowed: true,
         endArrowhead: "arrow",
@@ -729,23 +772,21 @@ describe("lib/canvasGeneration", () => {
       await expect(runText('{"nodes":"four"}')).rejects.toThrow(/invalid JSON/);
     });
 
-    it(
-      "names the validation failure instead of reporting valid JSON as unparseable",
-      async () => {
-        vi.spyOn(console, "error").mockImplementation(() => {});
+    it("names the validation failure instead of reporting valid JSON as unparseable", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
 
-        // `{"nodes":[]}` parses fine; it is rejected by the node validator. The
-        // thrown message carries the validator's reason, because reporting a
-        // valid payload as "invalid JSON" sends debugging in the wrong direction.
-        await expect(runPayload(emptyNodes)).rejects.toThrow(
-          /at least one node/,
-        );
-      },
-    );
+      // `{"nodes":[]}` parses fine; it is rejected by the node validator. The
+      // thrown message carries the validator's reason, because reporting a
+      // valid payload as "invalid JSON" sends debugging in the wrong direction.
+      await expect(runPayload(emptyNodes)).rejects.toThrow(/at least one node/);
+    });
 
     it("recovers a diagram the model left in its reasoning channel", async () => {
       const { result, elements } = await run([
-        { type: "response.reasoning_text.delta", delta: JSON.stringify(simpleFlow) },
+        {
+          type: "response.reasoning_text.delta",
+          delta: JSON.stringify(simpleFlow),
+        },
         { type: "response.output_text.delta", delta: "I cannot produce that." },
         completedEvent(),
       ]);
@@ -810,47 +851,137 @@ describe("lib/canvasGeneration", () => {
       expect(statuses).toHaveLength(5);
     });
 
-    it(
-      "falls back to streamed text when the fast path carries a bad parsed payload",
-      async () => {
-        // `nodes: []` satisfies the fast path's `Array.isArray` guard, then the
-        // validator rejects it. The fast path is an optimisation, so it must not
-        // be the only route to an answer: the good diagram in the streamed text
-        // is used instead of being discarded.
-        const { elements } = await run([
-          ...deltasOf(JSON.stringify(simpleFlow)),
-          completedEvent({ output_parsed: emptyNodes }),
-        ]);
+    it("falls back to streamed text when the fast path carries a bad parsed payload", async () => {
+      // `nodes: []` satisfies the fast path's `Array.isArray` guard, then the
+      // validator rejects it. The fast path is an optimisation, so it must not
+      // be the only route to an answer: the good diagram in the streamed text
+      // is used instead of being discarded.
+      const { elements } = await run([
+        ...deltasOf(JSON.stringify(simpleFlow)),
+        completedEvent({ output_parsed: emptyNodes }),
+      ]);
 
-        expect(shapesOf(elements)).toHaveLength(4);
-      },
-    );
+      expect(shapesOf(elements)).toHaveLength(4);
+    });
   });
 
   /* ── Failure modes ──────────────────────────────────────────────────────── */
 
-  describe("failure modes", () => {
-    it("refuses to call the model without an API key", async () => {
-      vi.stubEnv("OPENAI_API_KEY", "");
+  describe("per-provider reasoning shaping (Phase 0 finding)", () => {
+    /**
+     * Groq accepts `reasoning.effort` and rejects `reasoning.summary` with
+     * `400 Field 'reasoning.summary' is not supported`. The canvas pipeline
+     * sends both unconditionally, so a Groq handle must elide `summary`
+     * rather than crash. The model spec on the handle carries the
+     * `reasoningSummary` capability bit, and the factory omits the field
+     * when the bit is absent.
+     */
+    it("omits `reasoning.summary` when the handle lacks `reasoningSummary`", async () => {
+      // Construct a Groq handle whose gpt-oss model has reasoning but not
+      // reasoningSummary. `requestArgs` reads the request the module sent.
+      const provider = AI_PROVIDERS.groq;
+      const model = modelById(provider, "openai/gpt-oss-120b")!;
+      const groqHandle: AiClientHandle = {
+        providerId: provider.id,
+        modelId: model.id,
+        source: "byok",
+        supportsReasoning: model.capabilities.includes("reasoning"),
+        client: {
+          responses: { create: createMock },
+        } as unknown as AiClientHandle["client"],
+      };
 
-      await expect(generateCanvasDocument("prompt", "label")).rejects.toThrow(
-        "OPENAI_API_KEY is not configured",
+      respondWith([completedEvent()]);
+      await expect(
+        generateCanvasDocument({
+          prompt: "p",
+          label: "L",
+          handle: groqHandle,
+        }),
+      ).rejects.toThrow(); // empty stream → throws, but the request shape is what we pin
+
+      const req = requestArgs() as Record<string, unknown>;
+      expect(req.reasoning).toEqual({ effort: "low" });
+      expect(req.reasoning).not.toHaveProperty("summary");
+    });
+
+    it("includes `reasoning.summary` when the handle has `reasoningSummary`", async () => {
+      // The default DeepSeek handle used in `run` is the positive case
+      // (verified by the request-contract test). This is the explicit
+      // counterpart.
+      respondWith([completedEvent()]);
+      await expect(
+        generateCanvasDocument({
+          prompt: "p",
+          label: "L",
+          handle: makeTestHandle(),
+        }),
+      ).rejects.toThrow();
+
+      const req = requestArgs() as Record<string, unknown>;
+      expect(req.reasoning).toEqual({
+        effort: "low",
+        summary: "detailed",
+      });
+    });
+
+    it("uses the handle's model id, not an env var", async () => {
+      // The "who paid" headline for canvas: a BYOK handle on a non-default
+      // model must drive the request. A regression that re-introduced an
+      // env-var read would silently revert this.
+      const openaiHandle: AiClientHandle = {
+        providerId: AI_PROVIDERS.openai.id,
+        modelId: "gpt-5-nano",
+        source: "byok",
+        supportsReasoning: true,
+        client: {
+          responses: { create: createMock },
+        } as unknown as AiClientHandle["client"],
+      };
+
+      respondWith([completedEvent()]);
+      await expect(
+        generateCanvasDocument({
+          prompt: "p",
+          label: "L",
+          handle: openaiHandle,
+        }),
+      ).rejects.toThrow();
+
+      expect(requestArgs().model).toBe("gpt-5-nano");
+    });
+  });
+
+  describe("failure modes", () => {
+    it("does not require an env var to construct — env-var reads are gone", async () => {
+      // Phase 4 removed the module-level singleton. The function now reads
+      // the API key from the handle, so the API key env var is never
+      // touched. The single source of truth is the caller-built handle;
+      // this test pins that contract by passing an empty stream through it.
+      await expect(run([completedEvent()])).rejects.toThrow(
+        /empty canvas response/i,
       );
-      expect(createMock).not.toHaveBeenCalled();
     });
 
     it("rejects an empty response instead of returning an empty canvas", async () => {
+      // Phase 4 changed the message from "OpenAI returned an empty canvas
+      // response" to the provider-neutral "AI provider returned an empty
+      // canvas response" — the function no longer assumes OpenAI specifically.
       await expect(run([completedEvent()])).rejects.toThrow(
-        "OpenAI returned an empty canvas response",
+        "AI provider returned an empty canvas response",
       );
     });
 
     it("propagates a transport failure from the client", async () => {
       createMock.mockRejectedValueOnce(new Error("socket hang up"));
 
-      await expect(generateCanvasDocument("prompt", "label")).rejects.toThrow(
-        "socket hang up",
-      );
+      await expect(
+        generateCanvasDocument({
+          prompt: "prompt",
+          label: "label",
+          handle: makeTestHandle(),
+        }),
+      ).rejects.toThrow("socket hang up");
     });
   });
 
@@ -863,7 +994,9 @@ describe("lib/canvasGeneration", () => {
       // Behaviour today: rank/layout maps are keyed by id, so the last node with
       // a given id absorbs every layout write and the earlier one keeps the
       // coordinates the model hinted at (80 + 1*280).
-      expect(shapesOf(elements).map((shape) => shape.x)).toEqual([80, 360, 480]);
+      expect(shapesOf(elements).map((shape) => shape.x)).toEqual([
+        80, 360, 480,
+      ]);
       const orphan = shapesOf(elements)[1]!;
       expect(orphan.boundElements!.map((b) => b.type)).toEqual(["text"]);
     });
@@ -878,30 +1011,33 @@ describe("lib/canvasGeneration", () => {
       expect(first!.x).toBe(second!.x);
     });
 
-    it.fails("treats a null coordinate hint as no hint rather than as y = 0", async () => {
-      const { elements } = await runPayload({
-        nodes: [
-          { id: "alpha", label: "Alpha", y: 500 },
-          { id: "beta", label: "Beta", y: null },
-          { id: "sink", label: "Sink" },
-        ],
-        edges: [
-          { from: "alpha", to: "sink" },
-          { from: "beta", to: "sink" },
-        ],
-      });
+    it.fails(
+      "treats a null coordinate hint as no hint rather than as y = 0",
+      async () => {
+        const { elements } = await runPayload({
+          nodes: [
+            { id: "alpha", label: "Alpha", y: 500 },
+            { id: "beta", label: "Beta", y: null },
+            { id: "sink", label: "Sink" },
+          ],
+          edges: [
+            { from: "alpha", to: "sink" },
+            { from: "beta", to: "sink" },
+          ],
+        });
 
-      const texts = textByShapeId(elements);
-      const firstColumn = shapesOf(elements)
-        .filter((shape) => shape.x === 80)
-        .sort((a, b) => a.y - b.y)
-        .map((shape) => texts.get(shape.id)!.text);
+        const texts = textByShapeId(elements);
+        const firstColumn = shapesOf(elements)
+          .filter((shape) => shape.x === 80)
+          .sort((a, b) => a.y - b.y)
+          .map((shape) => texts.get(shape.id)!.text);
 
-      // `Number(null)` is 0 and 0 is finite, so the fallback for bad coordinates
-      // never runs and `beta` jumps the queue. With the fallback, both nodes sit
-      // in the same default row (y = 80) and the array order survives.
-      expect(firstColumn).toEqual(["Alpha", "Beta"]);
-    });
+        // `Number(null)` is 0 and 0 is finite, so the fallback for bad coordinates
+        // never runs and `beta` jumps the queue. With the fallback, both nodes sit
+        // in the same default row (y = 80) and the array order survives.
+        expect(firstColumn).toEqual(["Alpha", "Beta"]);
+      },
+    );
 
     it("starts a cyclic flow at the canvas origin", async () => {
       const { elements } = await runPayload(cyclicFlow);

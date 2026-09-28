@@ -3,27 +3,58 @@
  * @description NimbusBot chat pipeline: loads the last 20 workspace messages
  * as LLM history (bot rows → assistant, others prefixed `Name:`), calls Groq
  * with a strict `create_document` tool (MARKDOWN for text, CANVAS for
- * diagrams), and returns a discriminated `BotResult` (`create_document` |
- * `reply`). Plain-text replies only — no Markdown formatting.
+ * diagrams), and returns a discriminated `BotResult` (`reply` | `create_document`
+ * | `refused`). Plain-text replies only — no Markdown formatting.
  *
- * @important Requires BOT_USERID (identifies prior bot messages) and
- *            GROQ_MODEL. Never throws — LLM/DB failures degrade to a
- *            fallback `reply` so chat handlers stay simple.
+ * @important The bot's HTTP-facing surface is `resolve → generate`, never
+ *            `generate` alone. Callers that have not resolved a client handle
+ *            first will not get a useful answer here — the caller must own the
+ *            entitlement decision so a refusal can be claimed, refunded and
+ *            announced (or refused) before any chat traffic is posted.
+ *
+ * @important Never throws — LLM/DB failures degrade to a fallback `reply` so
+ *            chat handlers stay simple. The deliberate exception is the
+ *            `refused` branch, which is a successful outcome from this module's
+ *            point of view, not a failure.
  */
 import { prisma } from "@nimbus/db";
 import { BotResult } from "@nimbus/types";
-import groqClient from "./groqClient";
+import type { AiClientHandle } from "./ai/clientFactory";
+
+/** Options for {@link generateBotResponse}. */
+export type GenerateBotResponseOptions = {
+  /** Workspace whose recent history seeds the prompt. */
+  workspaceId: string;
+  /** The pre-resolved SDK client handle. The bot never reads env. */
+  handle: AiClientHandle;
+  /**
+   * Whether the user is allowed to ask for a document at all. When false
+   * the `create_document` tool is omitted entirely (so the model has no way
+   * to promise one) and the system instructions gain one line telling the
+   * model to answer in text. Without this, a quota-exhausted user would still
+   * get a bot reply announcing a document that never arrives.
+   */
+  allowDocument: boolean;
+};
 
 /**
  * Generates the bot's next action for a workspace conversation.
  *
- * @param workspaceId - Workspace whose recent history seeds the prompt.
+ * @param options - See {@link GenerateBotResponseOptions}. The caller owns the
+ *                  entitlement decision (the resolver decides which handle and
+ *                  whether document creation is allowed); this function only
+ *                  turns that decision into a `BotResult`.
  * @returns `create_document` (with type/label/prompt + interim chatMessage)
- *          when the tool fires, otherwise a plain-text `reply`.
+ *          when the tool fires, a plain `reply` otherwise, or a `refused`
+ *          when the supplied handle is invalid (the resolver would normally
+ *          refuse earlier — this is a defence-in-depth check that the
+ *          chat handler relied on previously).
  */
 export async function generateBotResponse(
-  workspaceId: string,
+  options: GenerateBotResponseOptions,
 ): Promise<BotResult> {
+  const { workspaceId, handle, allowDocument } = options;
+
   try {
     const messages = await prisma.message.findMany({
       where: { workspaceId },
@@ -47,7 +78,7 @@ export async function generateBotResponse(
           : `${msg.user.name ?? "User"}: ${msg.content ?? ""}`,
     }));
 
-    const instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
+    let instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
 
 You can create documents for users. When they ask you to create, write, draft, make,
 or generate a document, note, diagram, flowchart, wireframe, canvas, or any written
@@ -69,39 +100,60 @@ STRICT RULES:
 - Keep your responses helpful, concise, and professional yet friendly.
 - Line breaks are allowed.`;
 
-    const tools = [
-      {
-        type: "function" as const,
-        name: "create_document",
-        description:
-          "Create a new document in the workspace when the user asks for one.",
-        strict: true,
-        parameters: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              enum: ["MARKDOWN", "CANVAS"],
-              description:
-                "MARKDOWN for text documents, CANVAS for diagrams/flowcharts/wireframes",
-            },
-            label: {
-              type: "string",
-              description: "A concise title for the document",
-            },
-            prompt: {
-              type: "string",
-              description:
-                "Detailed description of what the document should contain",
+    // The tool is offered only when the caller has confirmed a document path
+    // exists for this user. Without this, a quota-exhausted user (or a user
+    // with no key at all on a BYOK-only deployment) would still get a bot
+    // reply that announces a document — and the room would then never see one.
+    const tools = allowDocument
+      ? [
+          {
+            type: "function" as const,
+            name: "create_document",
+            description:
+              "Create a new document in the workspace when the user asks for one.",
+            // `strict: true` requires `additionalProperties: false` on every
+            // object schema — OpenAI rejects the schema without it (Phase 0
+            // finding F4). We inject it here so DeepSeek, Groq and OpenAI all
+            // see the same shape.
+            strict: true,
+            parameters: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["MARKDOWN", "CANVAS"],
+                  description:
+                    "MARKDOWN for text documents, CANVAS for diagrams/flowcharts/wireframes",
+                },
+                label: {
+                  type: "string",
+                  description: "A concise title for the document",
+                },
+                prompt: {
+                  type: "string",
+                  description:
+                    "Detailed description of what the document should contain",
+                },
+              },
+              required: ["type", "label", "prompt"],
+              additionalProperties: false,
             },
           },
-          required: ["type", "label", "prompt"],
-        },
-      },
-    ];
+        ]
+      : [];
 
-    const response = await groqClient.responses.create({
-      model: process.env.GROQ_MODEL!,
+    if (!allowDocument) {
+      // Tell the model up front that no document will be created. Without this
+      // it may still promise one — `create_document` was already removed from
+      // `tools`, so the model *cannot* call it, but it can still say "sure,
+      // I'll create it for you", which would then never arrive.
+      instructions =
+        instructions +
+        "\n\nDocument creation is unavailable in this conversation; answer in text.";
+    }
+
+    const response = await handle.client.responses.create({
+      model: handle.modelId,
       tools,
       input: history,
       instructions: instructions,

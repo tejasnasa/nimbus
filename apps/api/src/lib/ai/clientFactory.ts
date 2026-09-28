@@ -2,11 +2,12 @@
  * @module api/lib/ai/clientFactory
  * @description The single module in the app that constructs SDK clients.
  *
- * `groqClient.ts` and `openaiClient.ts` are module-level `new OpenAI(...)`
- * singletons built at import time, and the SDK throws when the key is
- * absent — so the env vars they read had to be required. This factory is
- * the seam that removes that requirement: callers pass a key in, the client
- * is constructed lazily, and a process without any keys can still boot.
+ * Prior to Phase 4, `groqClient.ts` and `openaiClient.ts` were module-level
+ * `new OpenAI(...)` singletons built at import time, and the SDK throws when
+ * the key is absent — so the env vars they read had to be required. This
+ * factory is the seam that removes that requirement: callers pass a key in,
+ * the client is constructed lazily, and a process without any keys can still
+ * boot.
  *
  * The factory also owns:
  *   - a small bounded cache so per-message key churn does not pay a

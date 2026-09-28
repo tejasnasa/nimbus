@@ -122,6 +122,19 @@ export type ServerToClientEvents = {
     canvasData?: readonly OrderedExcalidrawElement[];
   }) => void;
   "doc:ai:error": (data: { message: string }) => void;
+  /**
+   * The triggering user's AI request was refused (entitlement), not failed.
+   * Sent ONLY to the asking socket; never broadcast, because the reason is
+   * personal — e.g. a quota exhaustion must not leak to a second tab. Drives
+   * the chat-side refusal banner and (for documents) replaces the optimistic
+   * "creating it now…" acknowledgement so no GENERATING tab appears.
+   */
+  "ai:refused": (data: {
+    feature: "chat" | "markdown" | "canvas";
+    reason: string;
+    message: string;
+    cta: "add-key" | "manage-ai" | null;
+  }) => void;
 
   // ── Voice ──
   "voice:user-joined": (data: { userId: string; name: string }) => void;

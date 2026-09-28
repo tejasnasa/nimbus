@@ -2,20 +2,24 @@
  * @module api/lib/canvasGeneration
  * @description LLM→JSON→Excalidraw pipeline for AI diagram generation.
  *
- * Flow: OpenAI (reasoning + `json_object` mode) returns `{ nodes, edges }`
- * logical JSON → tolerant parse (fence strip, brace-match, truncated-JSON
- * salvage) → label-fit sizing → layout (rank-based layered flow when edges
- * exist, grid fallback otherwise) → Excalidraw shapes + bound text + elbowed
- * arrow connectors. Only nodes carry visible text; edges are logical and the
- * app draws the arrows.
+ * Flow: an OpenAI-compatible provider (reasoning + `json_object` mode) returns
+ * `{ nodes, edges }` logical JSON → tolerant parse (fence strip, brace-match,
+ * truncated-JSON salvage) → label-fit sizing → layout (rank-based layered flow
+ * when edges exist, grid fallback otherwise) → Excalidraw shapes + bound text
+ * + elbowed arrow connectors. Only nodes carry visible text; edges are logical
+ * and the app draws the arrows.
  *
- * @important Requires OPENAI_API_KEY / OPENAI_MODEL. Progress and reasoning
- *            stream through `onStatus` / `onReasoning` for socket relay.
+ * @important Takes a pre-resolved {@link AiClientHandle} — no env reads, no
+ *            module-level singleton. A BYOK user pays for their own generation,
+ *            the free tier uses the operator's key on the configured provider.
+ *            Progress and reasoning stream through `onStatus` / `onReasoning`
+ *            for socket relay.
  */
-import openaiClient from "./openaiClient";
+import type { AiClientHandle } from "./ai/clientFactory";
+import { reasoningKwargs } from "./ai/clientFactory";
 
 /** Hard cap for the diagram JSON response. */
-const CANVAS_MAX_OUTPUT_TOKENS = 8_192;
+const CANVAS_MAX_OUTPUT_TOKENS = 16_384;
 
 /* ═══ Label metrics & node sizing ═══
  * LABEL_CHAR_WIDTH is a heuristic (~0.68em) for word-wrap estimation; exact
@@ -900,6 +904,23 @@ function extractResponseText(
   return "";
 }
 
+/** Options for {@link generateCanvasDocument}. */
+export type GenerateCanvasDocumentOptions = {
+  /** User's description of the desired diagram. */
+  prompt: string;
+  /** Diagram title injected into the system prompt. */
+  label: string;
+  /** Called per reasoning delta (socket relay). */
+  onReasoning?: (token: string) => void;
+  /** Called per milestone (planning → parsing → layout → drawing → done). */
+  onStatus?: (status: string) => void;
+  /**
+   * The pre-resolved SDK client handle. The caller owns entitlement — this
+   * module never reads `process.env` for keys, models, or base URLs.
+   */
+  handle: AiClientHandle;
+};
+
 /**
  * Generates Excalidraw elements for a natural-language diagram prompt.
  *
@@ -909,25 +930,24 @@ function extractResponseText(
  * `output_text.done`/completed-output reconciliation, then parses with a
  * thinking-log fallback for truncated JSON.
  *
- * @param prompt - User's description of the desired diagram.
- * @param label - Diagram title injected into the system prompt.
- * @param onReasoning - Called per reasoning delta (socket relay).
- * @param onStatus - Called per milestone (planning → parsing → layout → drawing → done).
+ * @param options - See {@link GenerateCanvasDocumentOptions}.
  * @returns Excalidraw element array plus the accumulated reasoning log.
- * @throws When credentials are missing, the model returns empty text, or no elements are built.
+ * @throws When the model returns empty text or no elements can be built.
  */
 export async function generateCanvasDocument(
-  prompt: string,
-  label: string,
-  onReasoning: (token: string) => void = () => {},
-  onStatus: (status: string) => void = () => {},
+  options: GenerateCanvasDocumentOptions,
 ): Promise<{ canvasData: object[]; thinking: string }> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
-
-  const model = process.env.OPENAI_MODEL!;
-  const reasoningEffort = "low";
+  const {
+    prompt,
+    label,
+    onReasoning = () => {},
+    onStatus = () => {},
+    handle,
+  } = options;
+  // The cheapest effort the canvas path needs. DeepSeek does not accept
+  // `minimal` (Phase 0 finding F3); `low` is the cheapest universally
+  // accepted value across the four verified providers.
+  const reasoningEffort = "low" as const;
   let thinkingLog = "";
 
   const appendReasoning = (token: string) => {
@@ -937,15 +957,20 @@ export async function generateCanvasDocument(
 
   onStatus(`Planning diagram…`);
 
-  const stream = await openaiClient.responses.create({
-    model,
+  // `reasoningKwargs` is capability-aware: a model without `reasoningSummary`
+  // (Groq's gpt-oss) gets `{ reasoning: { effort } }` only, and a model
+  // without `reasoning` at all gets `{}`. This is the seam that keeps the
+  // canvas path from 400ing on providers that reject `summary`.
+  const reasoning = handle.supportsReasoning
+    ? reasoningKwargs(handle, reasoningEffort)
+    : {};
+
+  const stream = await handle.client.responses.create({
+    model: handle.modelId,
     stream: true,
     instructions: buildCanvasSystemPrompt(label),
     input: `Create a professional diagram as a JSON object for:\n${prompt}`,
-    reasoning: {
-      effort: reasoningEffort,
-      summary: "detailed",
-    },
+    ...reasoning,
     text: { format: { type: "json_object" } },
     max_output_tokens: CANVAS_MAX_OUTPUT_TOKENS,
   });
@@ -1035,7 +1060,7 @@ export async function generateCanvasDocument(
 
   if (!content.trim()) {
     throw new Error(
-      withFastPathReason("OpenAI returned an empty canvas response"),
+      withFastPathReason("AI provider returned an empty canvas response"),
     );
   }
 

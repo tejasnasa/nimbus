@@ -51,15 +51,28 @@ const envSchema = z.object({
   TURN_SECRET: required,
 
   // ── Providers ──
-  // The two LLM clients and the mail client are constructed unconditionally at
-  // module load, so these are required even when their features go unused.
-  GROQ_API_KEY: required,
-  GROQ_MODEL: required,
-  OPENAI_API_KEY: required,
-  OPENAI_MODEL: required,
+  // The mail client is constructed unconditionally at module load, so it is
+  // required even when its feature goes unused.
   RESEND_API_KEY: required,
   GOOGLE_CLIENT_ID: required,
   GOOGLE_CLIENT_SECRET: required,
+
+  // ── The free tier. The operator runs AI on the provider/model named here,
+  //    keyed by `AI_API_KEY`. A BYOK-only deployment sets none of these and
+  //    the resolver refuses per-request. Empty `AI_API_KEY` disables the free
+  //    tier rather than crashing. ──
+  AI_API_KEY: z.string().min(1).optional(),
+  AI_PROVIDER: z
+    .enum(["openai", "groq", "deepseek", "openrouter"])
+    .default("deepseek"),
+  AI_MODEL: z.string().min(1).default("deepseek-flash"),
+  AI_FREE_DOC_LIMIT: z.coerce.number().int().min(0).default(5),
+
+  // ── BYOK encryption: optional, so upgrading does not break an existing
+  //    deployment. A missing key means the credential routes return 503 and
+  //    `status.byokAvailable: false`, while the free tier keeps working.
+  AI_CREDENTIAL_ENCRYPTION_KEY: z.string().min(32).optional(),
+  AI_CREDENTIAL_ENCRYPTION_KEY_PREVIOUS: z.string().min(32).optional(),
 
   // ── Avatar storage (Cloudinary) ──
   // Used by the `/api/upload/avatar-signature` endpoint and the
@@ -76,7 +89,6 @@ const envSchema = z.object({
   TURN_SERVER_URL: z.string().min(1).optional(),
   TURNS_SERVER_URL: z.string().min(1).optional(),
   EXTERNAL_IP: z.string().min(1).optional(),
-  GROQ_CANVAS_MODEL: z.string().min(1).optional(),
   BETTER_AUTH_API_KEY: z.string().min(1).optional(),
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
 });
@@ -97,13 +109,15 @@ export function parseEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
   if (!result.success) {
     const details = result.error.issues
-      .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+      .map(
+        (issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`,
+      )
       .join("\n");
 
     throw new Error(
       `Invalid environment configuration:\n${details}\n` +
-      "Set the missing values (see .env.example) and restart. Refusing to " +
-      "start rather than serving with the affected features broken.",
+        "Set the missing values (see .env.example) and restart. Refusing to " +
+        "start rather than serving with the affected features broken.",
     );
   }
 

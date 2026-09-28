@@ -1,19 +1,36 @@
 /**
  * @module api/__tests__/unit/markdownGeneration
- * @description The streaming Groq Markdown generator. The LLM client is mocked
- * with a synthetic event stream, so what's pinned is the stream handling: which
- * delta types accumulate into the document, which go to the "thinking" channel,
- * and what is sent upstream.
+ * @description The streaming Markdown generator. The SDK client is mocked with
+ * a synthetic event stream, so what's pinned is the stream handling: which
+ * delta types accumulate into the document, which go to the "thinking"
+ * channel, and what is sent upstream.
+ *
+ * The client seam is the per-call `AiClientHandle`: production goes through
+ * `createAiClient`, tests inject a fake whose SDK is the mocked `createMock`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
 
-vi.mock("../../lib/groqClient", () => ({
-  default: { responses: { create: createMock } },
-}));
-
+import { AI_PROVIDERS, modelById } from "@nimbus/types";
 import { generateMarkdownDocument } from "../../lib/markdownGeneration";
+import type { AiClientHandle } from "../../lib/ai/clientFactory";
+
+/** A test-only handle whose SDK client is the mocked `createMock`. */
+const makeTestHandle = (modelId = "deepseek-flash"): AiClientHandle => {
+  const provider = AI_PROVIDERS.deepseek;
+  const model = modelById(provider, modelId);
+  if (!model) throw new Error(`unknown model ${modelId}`);
+  return {
+    providerId: provider.id,
+    modelId: model.id,
+    source: "free",
+    supportsReasoning: model.capabilities.includes("reasoning"),
+    client: {
+      responses: { create: createMock },
+    } as unknown as AiClientHandle["client"],
+  };
+};
 
 /** Wraps events in the async iterable the SDK returns for a streamed response. */
 const streamOf = (events: unknown[]) =>
@@ -21,10 +38,17 @@ const streamOf = (events: unknown[]) =>
     for (const event of events) yield event;
   })();
 
-const textDelta = (delta: string) => ({ type: "response.output_text.delta", delta });
-const thinkingDelta = (delta: string) => ({ type: "response.reasoning_text.delta", delta });
+const textDelta = (delta: string) => ({
+  type: "response.output_text.delta",
+  delta,
+});
+const thinkingDelta = (delta: string) => ({
+  type: "response.reasoning_text.delta",
+  delta,
+});
 
-const requestSent = () => createMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+const requestSent = () =>
+  createMock.mock.calls.at(-1)?.[0] as Record<string, unknown>;
 
 describe("lib/markdownGeneration", () => {
   beforeEach(() => {
@@ -33,18 +57,32 @@ describe("lib/markdownGeneration", () => {
 
   describe("stream handling", () => {
     it("concatenates text deltas into the full document, in order", async () => {
-      createMock.mockResolvedValue(streamOf([textDelta("# Title\n"), textDelta("Body")]));
+      createMock.mockResolvedValue(
+        streamOf([textDelta("# Title\n"), textDelta("Body")]),
+      );
 
-      const { fullContent } = await generateMarkdownDocument("a prompt", "Doc", () => {});
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "a prompt",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(fullContent).toBe("# Title\nBody");
     });
 
     it("forwards each text delta to onToken as it arrives", async () => {
-      createMock.mockResolvedValue(streamOf([textDelta("one"), textDelta("two")]));
+      createMock.mockResolvedValue(
+        streamOf([textDelta("one"), textDelta("two")]),
+      );
       const tokens: string[] = [];
 
-      await generateMarkdownDocument("p", "Doc", (token) => tokens.push(token));
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: (token) => tokens.push(token),
+        handle: makeTestHandle(),
+      });
 
       expect(tokens).toEqual(["one", "two"]);
     });
@@ -56,12 +94,13 @@ describe("lib/markdownGeneration", () => {
       const tokens: string[] = [];
       const thoughts: string[] = [];
 
-      const { fullContent } = await generateMarkdownDocument(
-        "p",
-        "Doc",
-        (token) => tokens.push(token),
-        (token) => thoughts.push(token),
-      );
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: (token) => tokens.push(token),
+        onThinking: (token) => thoughts.push(token),
+        handle: makeTestHandle(),
+      });
 
       expect(thoughts).toEqual(["considering"]);
       expect(tokens).toEqual(["answer"]);
@@ -69,9 +108,16 @@ describe("lib/markdownGeneration", () => {
     });
 
     it("skips deltas that are empty", async () => {
-      createMock.mockResolvedValue(streamOf([textDelta(""), textDelta("kept")]));
+      createMock.mockResolvedValue(
+        streamOf([textDelta(""), textDelta("kept")]),
+      );
 
-      const { fullContent } = await generateMarkdownDocument("p", "Doc", () => {});
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(fullContent).toBe("kept");
     });
@@ -85,7 +131,12 @@ describe("lib/markdownGeneration", () => {
         ]),
       );
 
-      const { fullContent } = await generateMarkdownDocument("p", "Doc", () => {});
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(fullContent).toBe("content");
     });
@@ -93,15 +144,27 @@ describe("lib/markdownGeneration", () => {
     it("returns an empty document for an empty stream", async () => {
       createMock.mockResolvedValue(streamOf([]));
 
-      const { fullContent } = await generateMarkdownDocument("p", "Doc", () => {});
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(fullContent).toBe("");
     });
 
     it("defaults onThinking to a no-op when omitted", async () => {
-      createMock.mockResolvedValue(streamOf([thinkingDelta("noisy"), textDelta("ok")]));
+      createMock.mockResolvedValue(
+        streamOf([thinkingDelta("noisy"), textDelta("ok")]),
+      );
 
-      const { fullContent } = await generateMarkdownDocument("p", "Doc", () => {});
+      const { fullContent } = await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(fullContent).toBe("ok");
     });
@@ -112,17 +175,27 @@ describe("lib/markdownGeneration", () => {
       createMock.mockResolvedValue(streamOf([]));
     });
 
-    it("requests a stream, using the configured model", async () => {
-      await generateMarkdownDocument("p", "Doc", () => {});
+    it("requests a stream, using the handle's model id", async () => {
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle("deepseek-flash"),
+      });
 
       expect(requestSent()).toMatchObject({
         stream: true,
-        model: process.env.GROQ_MODEL,
+        model: "deepseek-flash",
       });
     });
 
     it("sends the prompt as input and the label inside the instructions", async () => {
-      await generateMarkdownDocument("write about caching", "Caching Notes", () => {});
+      await generateMarkdownDocument({
+        prompt: "write about caching",
+        label: "Caching Notes",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       const request = requestSent();
       expect(request.input).toBe("write about caching");
@@ -130,9 +203,33 @@ describe("lib/markdownGeneration", () => {
     });
 
     it("instructs the model to produce Markdown structure", async () => {
-      await generateMarkdownDocument("p", "Doc", () => {});
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle(),
+      });
 
       expect(String(requestSent().instructions)).toMatch(/markdown/i);
+    });
+
+    /**
+     * The "who paid" assertion: a BYOK handle must drive the model's
+     * provider/model — the request body uses the handle's model id, not an
+     * env var. A regression that re-introduces a module-level singleton
+     * would silently revert this.
+     */
+    it("uses the BYOK handle's model id, not an env var", async () => {
+      const handle = makeTestHandle("deepseek-flash");
+
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle,
+      });
+
+      expect(requestSent().model).toBe("deepseek-flash");
     });
   });
 });

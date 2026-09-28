@@ -1,8 +1,8 @@
 /**
  * @module api/__tests__/integration/http/upload
  * @description The avatar-signature endpoint. The Cloudinary SDK is mocked
- * at the module boundary (as `lib/canvasGeneration` mocks `openaiClient`)
- * so no real Cloudinary call is ever made and no key is needed.
+ * at the module boundary so no real Cloudinary call is ever made and no key
+ * is needed.
  *
  * What this pins, in order of how easily each one could regress silently:
  *   - the route is mounted behind `authCheck` (anonymous = 401);
@@ -17,7 +17,15 @@
  *     controller that builds its response from a leaking object.
  */
 import { createHmac } from "node:crypto";
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { createApp } from "../../../app";
 import {
   as,
@@ -79,9 +87,9 @@ describe("http: upload/avatar-signature", () => {
   });
 
   it("requires authentication", async () => {
-    const res = await (await import("supertest")).default(app).get(
-      "/api/upload/avatar-signature",
-    );
+    const res = await (await import("supertest"))
+      .default(app)
+      .get("/api/upload/avatar-signature");
 
     expect(res.status).toBe(401);
     expect(res.body).toMatchObject({ success: false, statusCode: 401 });
@@ -129,10 +137,8 @@ describe("http: upload/avatar-signature", () => {
     const [params, secret] = apiSignRequest.mock.calls[0]!;
     expect(secret).toBe(SECRET);
 
-    const { public_id, timestamp, overwrite, invalidate, format } = params as Record<
-      string,
-      unknown
-    >;
+    const { public_id, timestamp, overwrite, invalidate, format } =
+      params as Record<string, unknown>;
     expect(public_id).toBe(`nimbus/avatars/${user.id}`);
     expect(typeof timestamp).toBe("number");
     expect(overwrite).toBe(true);
@@ -179,7 +185,10 @@ describe("http: upload/avatar-signature", () => {
       .update(
         Object.keys(paramsToSign)
           .sort()
-          .map((k) => `${k}=${String((paramsToSign as Record<string, unknown>)[k])}`)
+          .map(
+            (k) =>
+              `${k}=${String((paramsToSign as Record<string, unknown>)[k])}`,
+          )
           .join("&"),
       )
       .digest("hex");

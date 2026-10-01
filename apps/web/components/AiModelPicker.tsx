@@ -106,9 +106,10 @@ export default function AiModelPicker({
     : [];
 
   return (
-    <div className="space-y-3">
+    <div className="flex w-full gap-4">
       <Select
         id={`${feature}-provider-select`}
+        className="w-full"
         label="Provider"
         value={provider?.id ?? ""}
         onChange={(next) => onChangeProviderAction(next as AiProviderId)}
@@ -119,6 +120,7 @@ export default function AiModelPicker({
 
       <Select
         id={`${feature}-model-select`}
+        className="w-full"
         label="Model"
         value={currentModelId ?? provider?.defaultModel ?? ""}
         onChange={(next) => onChangeModelAction(next)}

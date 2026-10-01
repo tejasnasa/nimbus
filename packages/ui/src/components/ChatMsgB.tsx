@@ -6,6 +6,24 @@
  */
 import Avatar from "./Avatar";
 
+const MENTION = /(@nimbusbot)/gi;
+
+function HighlightMentions({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(MENTION).map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="text-(--chart-2) hover:underline">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 /**
  * Outgoing chat message bubble.
  *
@@ -35,12 +53,12 @@ export default function ChatMsgB({
           <span className="text-[10px] text-(--muted-foreground)/60 opacity-0 group-hover:opacity-100 transition-opacity">
             {time}
           </span>
-          <span className="text-xs font-medium truncate text-(--muted-foreground)/80">
+          <span className="text-[10px] font-medium truncate text-(--muted-foreground)/80">
             {name}
           </span>
         </div>
-        <div className="text-sm leading-relaxed px-3 py-1.5 rounded-xl rounded-tr-sm bg-(--primary)/15 w-fit max-w-[85%] whitespace-pre-wrap break-words">
-          {message}
+        <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tr-sm bg-(--primary)/15 w-fit max-w-[85%] whitespace-pre-wrap break-words">
+          <HighlightMentions text={message} />
         </div>
       </div>
       <Avatar

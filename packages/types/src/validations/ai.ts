@@ -26,11 +26,14 @@ export const aiCredentialCreateSchema = z.object({
     .string()
     .min(1, "API key is required")
     .max(512, "API key is too long"),
-  label: z
-    .string()
-    .min(1)
-    .max(64, "Label must be at most 64 characters")
-    .optional(),
+  // `label` is optional. Empty strings — which RHF normalises a missing
+  // optional field into on the wire — are coerced to `undefined` so they
+  // pass through as "no label". A present label is still bounded to 1-64
+  // characters.
+  label: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(1).max(64, "Label must be at most 64 characters").optional(),
+  ),
 });
 
 /** Payload for PUT /api/ai/preferences. */

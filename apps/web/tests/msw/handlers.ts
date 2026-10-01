@@ -208,4 +208,69 @@ export const handlers = [
       signature: "test-signature",
     }),
   ),
+
+  // ── AI / BYOK ──
+  // The status payload drives the disabled composer. Tests can layer a
+  // more specific response on top via `server.use(...)` to exercise the
+  // disabled branch.
+  http.get(url("/api/ai/status"), () =>
+    ok({
+      byokAvailable: true,
+      chat: {
+        enabled: true,
+        providerId: null,
+        modelId: null,
+        substituted: false,
+      },
+      documents: {
+        markdown: {
+          enabled: true,
+          providerId: null,
+          modelId: null,
+          substituted: false,
+        },
+        canvas: {
+          enabled: true,
+          providerId: null,
+          modelId: null,
+          substituted: false,
+        },
+        freeRemaining: 5,
+        freeLimit: 5,
+        freeTierState: "available",
+      },
+      credentials: [],
+      preferences: { chat: null, markdown: null, canvas: null },
+    }),
+  ),
+  http.get(url("/api/ai/credentials"), () => ok([])),
+  http.post(url("/api/ai/credentials"), () =>
+    ok(
+      {
+        providerId: "openai",
+        label: null,
+        maskedPreview: "sk-…4f2a",
+        validatedAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+        createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
+        lastUsedAt: null,
+      },
+      "Credential saved",
+    ),
+  ),
+  http.delete(url("/api/ai/credentials/:providerId"), () =>
+    ok({ clearedPreferences: 0 }, "Credential removed"),
+  ),
+  http.get(url("/api/ai/preferences"), () =>
+    ok({ chat: null, markdown: null, canvas: null }),
+  ),
+  http.put(url("/api/ai/preferences"), () =>
+    ok(
+      {
+        feature: "chat",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+      },
+      "Preference saved",
+    ),
+  ),
 ];

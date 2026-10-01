@@ -9,8 +9,9 @@ import { createRoot, type Root } from "react-dom/client";
  * runtimes are incompatible, so the tests mount through `react-dom/client`
  * (this package's own copy) and query the resulting DOM directly.
  */
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true;
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** Mounted tree plus the handles needed to drive or tear it down. */
 export interface Mounted {
@@ -65,7 +66,10 @@ export function cleanupDom(): void {
 }
 
 /** Finds the first element matching `selector`, failing loudly when absent. */
-export function query<T extends Element>(container: ParentNode, selector: string): T {
+export function query<T extends Element>(
+  container: ParentNode,
+  selector: string,
+): T {
   const el = container.querySelector<T>(selector);
   if (!el) throw new Error(`No element matching ${selector}`);
   return el;
@@ -93,15 +97,31 @@ export function mouseDown(el: Element): void {
   });
 }
 
-/** Dispatches a `keydown` on the document, as a real Escape press would. */
-export function keyDown(key: string): void {
+/**
+ * Dispatches a `keydown` on the document, as a real Escape press would.
+ *
+ * `options.shiftKey` is supported so Tab-trap tests can exercise Shift+Tab.
+ */
+export function keyDown(
+  key: string,
+  options: { shiftKey?: boolean } = {},
+): void {
   act(() => {
-    document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        ...(options.shiftKey ? { shiftKey: true } : {}),
+      }),
+    );
   });
 }
 
 /** Dispatches one of the HTML5 drag events React listens for. */
-export function dragEvent(type: "dragstart" | "dragover" | "drop" | "dragend", el: Element): void {
+export function dragEvent(
+  type: "dragstart" | "dragover" | "drop" | "dragend",
+  el: Element,
+): void {
   act(() => {
     el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
   });

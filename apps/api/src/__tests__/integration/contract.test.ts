@@ -146,3 +146,80 @@ describe("contract: socket events", () => {
     }
   });
 });
+
+describe("contract: server→client socket events", () => {
+  /**
+   * Golden list of server→client event names. Read from the shared type
+   * module by the test below — a rename here is precisely the silent breaking
+   * change a runtime assertion cannot see.
+   *
+   * @important The list is the snapshot. Update it when the contract changes
+   *            on purpose — that edit is the review checkpoint.
+   */
+  const EXPECTED_SERVER_EVENTS = [
+    // ── Chat & presence ──
+    "message:new",
+    "presence:joined",
+    "presence:left",
+    "presence:online_users",
+    "typing:start",
+    "typing:stop",
+    "workspace:error",
+    // ── Canvas ──
+    "canvas:state",
+    "canvas:update",
+    "canvas:error",
+    // ── Markdown docs ──
+    "doc:state",
+    "doc:update",
+    "doc:error",
+    // ── AI generation (NimbusBot) ──
+    "doc:ai:start",
+    "doc:ai:thinking",
+    "doc:ai:complete",
+    "doc:ai:error",
+    "ai:refused",
+    // ── Voice ──
+    "voice:user-joined",
+    "voice:user-left",
+    "voice:current-users",
+    "voice:offer",
+    "voice:answer",
+    "voice:ice-candidate",
+    "voice:mute-state",
+  ];
+
+  it("declares exactly the documented server→client events", () => {
+    const source = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../../../packages/types/src/socket/socketEvents.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf8",
+    );
+    // The server block is everything from the `ServerToClientEvents` marker to
+    // end of file — the type is the last declaration in the module, and the
+    // slice is bounded by the file's trailing `};` and EOF. Underscores appear
+    // here (`presence:online_users`, `voice:current-users`) but not on the
+    // client side, and a few events use two colons (`doc:ai:start`), so the
+    // regex has to accept both.
+    const serverSection = source.split("ServerToClientEvents")[1] ?? "";
+    const declared = [
+      ...serverSection.matchAll(/^\s*"([a-zA-Z_-]+(?::[a-zA-Z_-]+)+)":/gm),
+    ].map((match) => match[1]!);
+
+    expect([...new Set(declared)].sort()).toEqual(
+      [...EXPECTED_SERVER_EVENTS].sort(),
+    );
+  });
+
+  it("keeps the namespace:verb convention for every server event", () => {
+    for (const event of EXPECTED_SERVER_EVENTS) {
+      // Server events may carry a second namespace (`doc:ai:*`), so allow an
+      // optional `:verb` segment after the first verb.
+      expect(event).toMatch(/^[a-z-]+:[a-zA-Z_-]+(?::[a-zA-Z_-]+)?$/);
+    }
+  });
+});

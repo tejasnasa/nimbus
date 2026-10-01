@@ -174,13 +174,64 @@ describe("ApiKeyDialog", () => {
     expect(input.autocomplete).toBe("off");
   });
 
+  it("applies `initialProvider` to the trigger on open and re-applies on change", () => {
+    /**
+     * Harness that lets the test swap `initialProvider` while the dialog is
+     * open. Mirrors the AI settings panel's "Replace" affordance, which
+     * changes the value between rows.
+     */
+    function Harness({
+      onSave,
+      initialProvider,
+    }: {
+      onSave: DialogSave;
+      initialProvider?: React.ComponentProps<
+        typeof ApiKeyDialog
+      >["initialProvider"];
+    }) {
+      const [open, setOpen] = useState(true);
+      return (
+        <ApiKeyDialog
+          open={open}
+          onOpenChange={setOpen}
+          onSave={onSave}
+          initialProvider={initialProvider}
+        />
+      );
+    }
+
+    const { rerender } = render(
+      <Harness
+        onSave={vi.fn().mockResolvedValue({ ok: true })}
+        initialProvider="groq"
+      />,
+    );
+
+    // The trigger renders the matching provider's label, not the hook's
+    // "openai" default.
+    const trigger = screen.getByTestId("api-key-provider");
+    expect(trigger.textContent).toContain("Groq");
+
+    // Re-rendering with a different `initialProvider` swaps the value.
+    rerender(
+      <Harness
+        onSave={vi.fn().mockResolvedValue({ ok: true })}
+        initialProvider="deepseek"
+      />,
+    );
+    expect(screen.getByTestId("api-key-provider").textContent).toContain(
+      "DeepSeek",
+    );
+  });
+
   it("focuses the first focusable element when the dialog opens", async () => {
     render(
       <ControlledHarness onSave={vi.fn().mockResolvedValue({ ok: true })} />,
     );
 
-    // The dialog opens on mount. The provider select is the first focusable.
-    // The focus effect runs after commit, so we wait for it to land.
+    // The dialog opens on mount. The combobox trigger is the first
+    // focusable. The focus effect runs after commit, so we wait for it to
+    // land.
     await waitFor(() =>
       expect(document.activeElement).toBe(
         screen.getByTestId("api-key-provider"),

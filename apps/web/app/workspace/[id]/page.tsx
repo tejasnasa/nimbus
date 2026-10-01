@@ -1,6 +1,7 @@
 import Cloud from "@nimbus/ui/icons/Cloud";
 import { headers } from "next/headers";
 import Link from "next/link";
+import { getAiStatus } from "../../../api/ai";
 import { getDocuments } from "../../../api/document";
 import { getMessages } from "../../../api/message";
 import { getWorkspace } from "../../../api/workspace";
@@ -15,7 +16,9 @@ import { authClient } from "../../../lib/auth-client";
  * and documents in parallel-by-await, then composes the two-pane layout —
  * Chat sidebar (voice header + messages) beside `DocEditor` — inside
  * `VoiceProvider` (WebRTC identity) + `DocEditorRefProvider` (add-tab
- * bridge) with a global `VoiceOverlay`. Guarded by `proxy.ts`.
+ * bridge) with a global `VoiceOverlay`. AI status is fetched alongside so the
+ * chat composer renders in the right enabled/disabled state on first paint.
+ * Guarded by `proxy.ts`.
  */
 import { VoiceProvider } from "../../../providers/VoiceProvider";
 
@@ -31,6 +34,7 @@ export default async function Workspace({
   const workspaceData = await getWorkspace(id);
   const messages = await getMessages(workspaceData.id);
   const documents = await getDocuments(workspaceData.id);
+  const initialAiStatus = await getAiStatus();
   const { data: session } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
@@ -73,6 +77,7 @@ export default async function Workspace({
                 wsid={workspaceData.id}
                 documents={documents}
                 workspaceData={workspaceData}
+                initialChatStatus={initialAiStatus.chat}
               />
             </div>
           </section>

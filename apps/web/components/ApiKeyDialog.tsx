@@ -18,11 +18,9 @@
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
-import {
-  AI_PROVIDERS,
-  type AiProviderId,
-} from "@nimbus/types";
-import { useCallback } from "react";
+import Select, { type SelectOption } from "@nimbus/ui/Select";
+import { AI_PROVIDERS, type AiProviderId } from "@nimbus/types";
+import { useCallback, useEffect } from "react";
 import { useAddApiKeyForm } from "../hooks/useAddApiKeyForm";
 
 type Props = {
@@ -35,9 +33,11 @@ type Props = {
    * (typically the AI settings panel) wires `useAiCredentials.save` here so
    * tests can swap a stub.
    */
-  onSave: (
-    values: { providerId: AiProviderId; apiKey: string; label?: string },
-  ) => Promise<{ ok: true } | { ok: false; message: string }>;
+  onSave: (values: {
+    providerId: AiProviderId;
+    apiKey: string;
+    label?: string;
+  }) => Promise<{ ok: true } | { ok: false; message: string }>;
   /**
    * Optional hint to pre-select a provider. Useful when the dialog was
    * opened from a credentialed provider's row in the panel — but the user
@@ -62,14 +62,38 @@ export default function ApiKeyDialog({
   onSave,
   initialProvider,
 }: Props) {
-  const { register, firstError, isSubmitting, onSubmit, reset } =
-    useAddApiKeyForm();
+  const {
+    register,
+    watch,
+    setValue,
+    firstError,
+    isSubmitting,
+    onSubmit,
+    reset,
+  } = useAddApiKeyForm();
 
   /** Closes the dialog and clears the key from state. */
   const handleClose = useCallback(() => {
     reset();
     onOpenChange(false);
   }, [reset, onOpenChange]);
+
+  /**
+   * Apply the parent's `initialProvider` hint the first time the dialog
+   * mounts in the open state, and on every subsequent change (the panel's
+   * "Replace" affordance switches the value between rows). The hook seeds
+   * `providerId` from its own defaults, so this only matters when the parent
+   * asked for a specific provider.
+   */
+  useEffect(() => {
+    if (!initialProvider) return;
+    setValue("providerId", initialProvider, {
+      shouldDirty: false,
+      shouldValidate: false,
+    });
+    // `setValue` is stable across renders so it does not need to be a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProvider]);
 
   return (
     <AlertDialog open={open} onOpenChange={handleClose}>
@@ -93,19 +117,25 @@ export default function ApiKeyDialog({
           </div>
         </div>
 
-        <label className="block text-xs font-medium mb-1">Provider</label>
-        <select
-          {...register("providerId")}
-          defaultValue={initialProvider ?? "openai"}
-          data-testid="api-key-provider"
-          className="w-full h-11 rounded-xl px-3 text-sm border border-(--border) bg-(--muted)/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) mb-4"
-        >
-          {Object.values(AI_PROVIDERS).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+        <Select
+          id="api-key-provider"
+          name="providerId"
+          label="Provider"
+          value={watch("providerId") ?? "openai"}
+          onChange={(next) =>
+            setValue("providerId", next as AiProviderId, {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+          }
+          options={Object.values(AI_PROVIDERS).map<SelectOption>((p) => ({
+            value: p.id,
+            label: p.label,
+          }))}
+          placeholder="Choose a provider"
+          className="mb-4"
+          triggerClassName="mb-0"
+        />
 
         <label
           className="block text-xs font-medium mb-1"
@@ -119,6 +149,7 @@ export default function ApiKeyDialog({
           autoComplete="off"
           data-testid="api-key-input"
           placeholder="sk-…"
+          className="w-full"
           {...register("apiKey")}
         />
 
@@ -132,6 +163,7 @@ export default function ApiKeyDialog({
           id="api-key-label"
           data-testid="api-key-label"
           placeholder="My key"
+          className="w-full"
           {...register("label")}
         />
 

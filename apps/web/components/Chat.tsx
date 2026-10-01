@@ -1,6 +1,6 @@
 "use client";
 
-import { Message, Workspace } from "@nimbus/types";
+import { AiFeatureStatus, Message, Workspace } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
@@ -8,7 +8,7 @@ import Textarea from "@nimbus/ui/Textarea";
 import ChatIcon from "@nimbus/ui/icons/Chat";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { timeAgo } from "@nimbus/utils";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ClientDocument } from "../api/document";
 /**
  * @module web/components/Chat
@@ -20,9 +20,23 @@ import { ClientDocument } from "../api/document";
  * wired through `useTypingIndicator` so the composer emits throttled
  * `typing:start`/`typing:stop` events and renders peers' status as a
  * reserved-height line below the message list.
+ *
+ * The composer **disables** when `chat.enabled === false` and renders an
+ * {@link AiRefusalBanner} + an Add API key CTA. The disabled composer is a
+ * UX gate, not an authorization rule — `message:send` still accepts a human
+ * message from this user, because disabling it would lock a user without an
+ * AI entitlement out of a collaborative room where everyone else can talk.
+ * The AI refusal is enforced where it belongs: at the AI call.
+ *
+ * @important Do not "fix" the disabled-but-still-sends design. The plan
+ *            (§10) is explicit that human chat remains open, and the comment
+ *            lives here so a future reader does not mistake it for a bug.
  */
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
+import { useAiStatus } from "../hooks/useAiStatus";
 import { socket } from "../lib/socket";
+import AiRefusalBanner from "./AiRefusalBanner";
+import ApiKeyDialog from "./ApiKeyDialog";
 import TypingIndicator from "./TypingIndicator";
 import VoiceControls from "./VoiceControls";
 
@@ -30,8 +44,11 @@ import VoiceControls from "./VoiceControls";
  * @param props.userId - Current user (determines bubble side).
  * @param props.messages - Server-rendered history; live messages append.
  * @param props.wsid - Workspace cuid (socket room).
- * @param props.documents - Passed to VoiceControls for context.
+ * @param props.documents - Passed to to VoiceControls for context.
  * @param props.workspaceData - Membership/voice context for VoiceControls.
+ * @param props.initialChatStatus - Server-fetched chat feature status so the
+ *                                  composer renders in the right state before
+ *                                  `useAiStatus` lands.
  */
 export default function Chat({
   userId,
@@ -39,18 +56,28 @@ export default function Chat({
   wsid,
   documents,
   workspaceData,
+  initialChatStatus,
 }: {
   userId: string;
   messages: Message[];
   wsid: string;
   documents: ClientDocument[];
   workspaceData: Workspace;
+  initialChatStatus: AiFeatureStatus;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { state: aiState, refresh: refreshAiStatus } = useAiStatus();
+  // Seed with the server-rendered status; switch to the live payload once the
+  // hook's fetch lands.
+  const chatStatus: AiFeatureStatus =
+    aiState.kind === "ready" ? aiState.status.chat : initialChatStatus;
+  const chatEnabled = chatStatus.enabled;
 
   // Throttled outbound + debounced inbound typing. The hook owns every timer
   // and clears them on unmount, so the composer never has to.
@@ -93,7 +120,44 @@ export default function Chat({
     };
   }, []);
 
+  // Targeted AI refusals (e.g. quota exhausted) come over `ai:refused` and
+  // are emitted only to the asking socket — the plan is explicit that they
+  // must not broadcast.
+  useEffect(() => {
+    function onAiRefused(data: {
+      feature: string;
+      reason: string;
+      message: string;
+      cta: "add-key" | "manage-ai" | null;
+    }) {
+      // The chat composer only cares about chat refusals. Document refusals
+      // are surfaced by the doc editor's own overlay.
+      if (data.feature !== "chat") return;
+      setWorkspaceError(data.message);
+    }
+    socket.on("ai:refused", onAiRefused);
+    return () => {
+      socket.off("ai:refused", onAiRefused);
+    };
+  }, []);
+
+  // Refetch the AI status whenever the socket reconnects, so a user who
+  // added a key in a second tab sees the composer re-enable without a hard
+  // reload.
+  useEffect(() => {
+    function onConnect() {
+      void refreshAiStatus();
+    }
+    socket.on("connect", onConnect);
+    return () => {
+      socket.off("connect", onConnect);
+    };
+  }, [refreshAiStatus]);
+
   function handleSend() {
+    // Disabled composer guard — defends against a programmatic submit, a stale
+    // closure, or an Enter keydown slipping past the textarea's `disabled`.
+    if (!chatEnabled) return;
     if (!content.trim()) return;
     socket.emit("message:send", {
       workspaceId: wsid,
@@ -112,17 +176,23 @@ export default function Chat({
     }
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setContent(e.target.value);
-    // An empty composer is not typing. The hook's idle timer would catch this
-    // anyway, but checking here means the network event fires immediately
-    // rather than after a 3s wait.
-    if (e.target.value === "") {
-      stopTyping();
-    } else {
-      handleTypingInput();
-    }
-  }
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      // Same guard as handleSend: a keystroke must not move the composer into
+      // a typing state for a user who cannot chat.
+      if (!chatEnabled) return;
+      setContent(e.target.value);
+      // An empty composer is not typing. The hook's idle timer would catch this
+      // anyway, but checking here means the network event fires immediately
+      // rather than after a 3s wait.
+      if (e.target.value === "") {
+        stopTyping();
+      } else {
+        handleTypingInput();
+      }
+    },
+    [chatEnabled, handleTypingInput, stopTyping],
+  );
 
   useEffect(() => {
     function onOnlineUsers(userIds: string[]) {
@@ -149,6 +219,51 @@ export default function Chat({
       socket.off("presence:left", onPresenceLeft);
     };
   }, []);
+
+  // The save handler for the Add API key dialog. Saving succeeds → refresh
+  // AI status so the composer re-enables without a hard reload. Failures
+  // surface inline in the dialog itself.
+  const handleSaveApiKey = async (input: {
+    providerId: string;
+    apiKey: string;
+    label?: string;
+  }) => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/credentials`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(input),
+        },
+      );
+      const body = (await res.json()) as {
+        success: boolean;
+        message?: string;
+      };
+      if (!res.ok || !body.success) {
+        return {
+          ok: false as const,
+          message:
+            body.message ?? "Could not save the credential. Please try again.",
+        };
+      }
+      await refreshAiStatus();
+      return { ok: true as const };
+    } catch (err) {
+      return {
+        ok: false as const,
+        message:
+          (err as { message?: string }).message ??
+          "Could not save the credential. Please try again.",
+      };
+    }
+  };
+
+  const placeholder = chatEnabled
+    ? "Type a message..."
+    : "Add an API key to chat with @NimbusBot";
 
   return (
     <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
@@ -208,28 +323,49 @@ export default function Chat({
       </div>
 
       <div className="p-2 pt-0">
+        {!chatEnabled && (
+          <AiRefusalBanner
+            message="Add your API key to chat with @NimbusBot."
+            cta="add-key"
+            onCtaClickAction={() => setAiDialogOpen(true)}
+            ctaDisabled={aiDialogOpen}
+          />
+        )}
         <TypingIndicator names={typingNames} />
         <form className="relative" onSubmit={(e) => e.preventDefault()}>
           <Textarea
             className="text-xs w-full rounded-xl bg-(--muted)/50"
-            placeholder="Type a message..."
+            placeholder={placeholder}
             value={content}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onBlur={stopTyping}
+            disabled={!chatEnabled}
+            aria-disabled={!chatEnabled}
+            data-testid="chat-composer"
           />
           <Button
             size="xs"
             onClick={handleSend}
+            disabled={!chatEnabled || !content.trim()}
+            data-testid="chat-send"
             className="absolute bottom-3 right-2 hover:cursor-pointer rounded-lg"
           >
             Send
           </Button>
         </form>
         <p className="text-[10px] text-(--muted-foreground)/60 mt-1 text-right px-1">
-          Ask anything from @NimbusBot
+          {chatEnabled
+            ? "Ask anything from @NimbusBot"
+            : "Add an API key to enable AI replies"}
         </p>
       </div>
+
+      <ApiKeyDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        onSave={handleSaveApiKey}
+      />
     </div>
   );
 }

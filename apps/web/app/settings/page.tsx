@@ -3,13 +3,16 @@
  * @description Account-level settings (server component): resolves the
  * session, `redirect("/login")` defensively (the proxy is the UX guard,
  * the API is the real one), then renders `UserNavbar` and the client
- * `<AccountSettings />`. Guarded by `proxy.ts`.
+ * `<AccountSettings />`. The AI status is fetched on the server and passed
+ * down so the AI tab is answerable before its own `useAiStatus` lands.
+ * Guarded by `proxy.ts`.
  */
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import AccountSettings from "../../components/AccountSettings";
 import UserNavbar from "../../components/UserNavbar";
 import { authClient } from "../../lib/auth-client";
+import { getAiStatus } from "../../api/ai";
 
 export default async function SettingsPage() {
   const { data: session } = await authClient.getSession({
@@ -21,6 +24,11 @@ export default async function SettingsPage() {
   if (!session) {
     redirect("/login");
   }
+
+  // Fetched alongside session so the AI tab has a payload to render before
+  // its own hook fires. Failure falls back to a "BYOK unavailable" shape
+  // inside `getAiStatus`; the page itself never sees an error.
+  const initialAiStatus = await getAiStatus();
 
   return (
     <main className="min-h-dvh bg-(--background) text-(--foreground) relative">
@@ -35,7 +43,7 @@ export default async function SettingsPage() {
           name={session.user.name}
         />
 
-        <div className="max-w-350 mx-auto px-8 pt-12 pb-20">
+        <div className="max-w-350 mx-auto px-8 pt-12 mb-20">
           <div className="mb-12 animate-slide-up">
             <h1 className="text-6xl font-bold tracking-tight mb-3">
               Account Settings
@@ -53,6 +61,7 @@ export default async function SettingsPage() {
                 email: session.user.email,
                 image: session.user.image,
               }}
+              initialAiStatus={initialAiStatus}
             />
           </div>
         </div>

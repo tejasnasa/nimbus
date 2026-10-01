@@ -1,7 +1,7 @@
 /**
  * @module web/tests/components/AccountSettings
- * @description Tab-shell behaviour for the `/settings` page: the four tabs
- * (Profile, Password, Sessions, Danger Zone) render in that order, the
+ * @description Tab-shell behaviour for the `/settings` page: the five tabs
+ * (Profile, Password, Sessions, AI, Danger Zone) render in that order, the
  * Profile panel is visible by default, and clicking another label swaps to
  * its panel. Inactive panels are unmounted by `SettingTabs` (a documented
  * design property, not a bug), so their content does not appear in the DOM.
@@ -14,6 +14,7 @@
  * list so the "Send me a set-password link" affordance appears instead.
  */
 import "./testUtils";
+import type { AiStatusDTO } from "@nimbus/types";
 import { http, HttpResponse } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -35,6 +36,31 @@ const USER = {
   name: "Ada Lovelace",
   email: "ada@example.test",
   image: "https://cdn.example.com/ada.png",
+};
+
+/** A standalone AI status payload — the settings page always passes one. */
+const INITIAL_AI_STATUS: AiStatusDTO = {
+  byokAvailable: true,
+  chat: { enabled: true, providerId: null, modelId: null, substituted: false },
+  documents: {
+    markdown: {
+      enabled: true,
+      providerId: null,
+      modelId: null,
+      substituted: false,
+    },
+    canvas: {
+      enabled: true,
+      providerId: null,
+      modelId: null,
+      substituted: false,
+    },
+    freeRemaining: 5,
+    freeLimit: 5,
+    freeTierState: "available",
+  },
+  credentials: [],
+  preferences: { chat: null, markdown: null, canvas: null },
 };
 
 /**
@@ -60,22 +86,34 @@ beforeEach(() => {
 });
 
 describe("AccountSettings", () => {
-  it("renders the four account tabs in order", () => {
-    render(<AccountSettings user={USER} />);
+  it("renders the five account tabs in order", () => {
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     const tabs = screen.getAllByRole("button", {
-      name: /Profile|Password|Sessions|Danger Zone/,
+      name: /Profile|Password|Sessions|AI|Danger Zone/,
     });
     expect(tabs.map((b) => b.textContent)).toEqual([
       "Profile",
       "Password",
       "Sessions",
+      "AI",
       "Danger Zone",
     ]);
   });
 
+  it("swaps to the AI panel when its tab is clicked", async () => {
+    const user = userEvent.setup();
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
+
+    await user.click(screen.getByRole("button", { name: "AI" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("ai-settings-panel")).toBeInTheDocument(),
+    );
+  });
+
   it("shows the Profile panel by default", () => {
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     expect(screen.getByLabelText("profile-settings-form")).toBeInTheDocument();
     expect(
@@ -85,7 +123,7 @@ describe("AccountSettings", () => {
 
   it("swaps to the Password panel when its tab is clicked", async () => {
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     await user.click(screen.getByRole("button", { name: "Password" }));
 
@@ -97,7 +135,7 @@ describe("AccountSettings", () => {
 
   it("swaps to the Sessions panel when its tab is clicked", async () => {
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
@@ -109,21 +147,21 @@ describe("AccountSettings", () => {
 
 describe("AccountSettings Profile tab", () => {
   it("seeds the name field with the current display name", () => {
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     const nameInput = screen.getByLabelText(/Display name/i);
     expect(nameInput).toHaveValue(USER.name);
   });
 
   it("disables Save until the form is dirty", () => {
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     expect(screen.getByRole("button", { name: /Save/i })).toBeDisabled();
   });
 
   it("enables Save after the name is edited and shows a preview of the current avatar", async () => {
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     const nameInput = screen.getByLabelText(/Display name/i);
     await user.clear(nameInput);
@@ -134,7 +172,12 @@ describe("AccountSettings Profile tab", () => {
   });
 
   it("falls back to a bundled avatar when the user has no image", () => {
-    render(<AccountSettings user={{ ...USER, image: null }} />);
+    render(
+      <AccountSettings
+        user={{ ...USER, image: null }}
+        initialAiStatus={INITIAL_AI_STATUS}
+      />,
+    );
 
     // Without a custom image, the preview uses the deterministic fallback.
     expect(screen.getByAltText(USER.name)).toBeInTheDocument();
@@ -144,7 +187,7 @@ describe("AccountSettings Profile tab", () => {
 describe("AccountSettings Password tab", () => {
   it("renders the change-password form for a credential user", async () => {
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     await user.click(screen.getByRole("button", { name: "Password" }));
 
@@ -162,7 +205,7 @@ describe("AccountSettings Password tab", () => {
     server.use(listAccountsHandler([{ providerId: "google", id: "g-1" }]));
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     await user.click(screen.getByRole("button", { name: "Password" }));
 
@@ -189,7 +232,7 @@ describe("AccountSettings Password tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
 
     await user.click(screen.getByRole("button", { name: "Password" }));
 
@@ -248,7 +291,7 @@ describe("AccountSettings Sessions tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     await waitFor(() =>
@@ -266,7 +309,7 @@ describe("AccountSettings Sessions tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     await waitFor(() =>
@@ -298,7 +341,7 @@ describe("AccountSettings Sessions tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     await waitFor(() =>
@@ -317,7 +360,7 @@ describe("AccountSettings Sessions tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     await waitFor(() =>
@@ -334,7 +377,7 @@ describe("AccountSettings Sessions tab", () => {
     server.use(listSessionsHandler([row]), getSessionHandler("current-token"));
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     await waitFor(() =>
@@ -352,7 +395,7 @@ describe("AccountSettings Sessions tab", () => {
     );
 
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Sessions" }));
 
     expect(
@@ -370,7 +413,7 @@ describe("AccountSettings Sessions tab", () => {
 describe("AccountSettings Danger Zone tab", () => {
   const goToDangerZone = async () => {
     const user = userEvent.setup();
-    render(<AccountSettings user={USER} />);
+    render(<AccountSettings user={USER} initialAiStatus={INITIAL_AI_STATUS} />);
     await user.click(screen.getByRole("button", { name: "Danger Zone" }));
     return user;
   };

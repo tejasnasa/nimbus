@@ -3,9 +3,13 @@
  * @description React Hook Form + Zod wrapper for the API-key dialog.
  *
  * Wraps the existing `aiCredentialCreateSchema` so the same validation runs
- * client-side as on the server. The hook's API has three primitives:
+ * client-side as on the server. The hook's API has five primitives:
  *
  *   - `register(...)` for the form fields
+ *   - `watch(name)` to read a single field reactively (used by the custom
+ *     combobox trigger)
+ *   - `setValue(name, value)` to update a single field (the combobox's
+ *     `onChange` path)
  *   - `onSubmit()` for the submit handler
  *   - `reset()` to clear the key from local state (called on success and on
  *     dialog close)
@@ -22,7 +26,11 @@
  */
 import { aiCredentialCreateSchema } from "@nimbus/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type UseFormRegister } from "react-hook-form";
+import {
+  useForm,
+  type UseFormRegister,
+  type UseFormSetValue,
+} from "react-hook-form";
 import type { z } from "zod";
 
 export type AddApiKeyValues = z.infer<typeof aiCredentialCreateSchema>;
@@ -32,6 +40,18 @@ export type SubmitResult = { ok: true } | { ok: false; message: string };
 
 export type UseAddApiKeyForm = {
   register: UseFormRegister<AddApiKeyValues>;
+  /**
+   * Reads a single field reactively. Used by the custom combobox to render
+   * the trigger label without forcing the whole form to re-render.
+   */
+  watch: <K extends keyof AddApiKeyValues>(name: K) => AddApiKeyValues[K];
+  /**
+   * Sets a single field. The custom combobox uses this in place of
+   * `register("providerId").onChange` so the dialog can swap the native
+   * `<select>` for the in-app combobox without changing RHF validation
+   * wiring.
+   */
+  setValue: UseFormSetValue<AddApiKeyValues>;
   /** RHF-form-level error string, or `undefined` when nothing to show. */
   firstError: string | undefined;
   /** `true` while the submit is in flight. The Save button shows its spinner. */
@@ -106,5 +126,15 @@ export function useAddApiKeyForm(): UseAddApiKeyForm {
     form.reset({ providerId: "openai", apiKey: "", label: undefined });
   };
 
-  return { register: form.register, firstError, isSubmitting, onSubmit, reset };
+  return {
+    register: form.register,
+    watch: form.watch as <K extends keyof AddApiKeyValues>(
+      name: K,
+    ) => AddApiKeyValues[K],
+    setValue: form.setValue,
+    firstError,
+    isSubmitting,
+    onSubmit,
+    reset,
+  };
 }

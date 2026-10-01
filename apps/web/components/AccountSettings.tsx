@@ -1,11 +1,12 @@
 /**
  * @module web/components/AccountSettings
- * @description Account-level settings page shell: vertical `SettingTabs`.
- * Profile and Password tabs are wired up; the remaining two tabs
- * render placeholders until later work lands them.
+ * @description Account-level settings page shell: vertical `SettingTabs`. Five
+ * tabs — Profile, Password, Sessions, AI, Danger Zone — render in that order.
  *
  * Each tab is its own panel; switching tabs unmounts inactive panels (see
- * `SettingTabs.tsx:33`), so per-tab form state resets on visit.
+ * `SettingTabs.tsx:33`), so per-tab form state resets on visit. The AI tab
+ * relies on this: its `useAiStatus`/`useAiCredentials`/`useAiPreferences`
+ * hooks refetch on mount, so navigating away and back shows a fresh snapshot.
  */
 "use client";
 
@@ -19,8 +20,10 @@ import Error from "@nimbus/ui/icons/Error";
 import Input from "@nimbus/ui/Input";
 import SettingTabs from "@nimbus/ui/SettingTabs";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import type { AiStatusDTO } from "@nimbus/types";
 import { useRef } from "react";
 import { describeUserAgent } from "../lib/parseUserAgent";
+import AiSettingsPanel from "./AiSettingsPanel";
 import { useActiveSessions } from "../hooks/useActiveSessions";
 import { useAvatarUpload } from "../hooks/useAvatarUpload";
 import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
@@ -35,14 +38,25 @@ type SessionUser = {
   image?: string | null;
 };
 
+/** Initial AI status payload seeded from the server to avoid a layout flash. */
+type InitialAiStatus = AiStatusDTO;
+
 /**
- * Account settings shell: renders the four-tab layout.
+ * Account settings shell: renders the five-tab layout.
  *
  * @param props.user - The current session user. The Profile tab seeds
  *                     name + image from it; the Password tab uses `email`
  *                     for the Google-only reset branch.
+ * @param props.initialAiStatus - Server-fetched AI status, so the AI tab is
+ *                                answerable before its own fetch lands.
  */
-export default function AccountSettings({ user }: { user: SessionUser }) {
+export default function AccountSettings({
+  user,
+  initialAiStatus,
+}: {
+  user: SessionUser;
+  initialAiStatus: InitialAiStatus;
+}) {
   return (
     <div className="rounded-2xl p-2 shadow-2xl shadow-(--primary)/10 min-h-100">
       <SettingTabs
@@ -58,6 +72,10 @@ export default function AccountSettings({ user }: { user: SessionUser }) {
           {
             label: "Sessions",
             content: <ActiveSessionsPanel />,
+          },
+          {
+            label: "AI",
+            content: <AiSettingsPanel initialStatus={initialAiStatus} />,
           },
           {
             label: "Danger Zone",

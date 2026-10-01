@@ -21,7 +21,6 @@ import {
   decryptSecret,
   encryptSecret,
   fingerprintSecret,
-  isEncryptionConfigured,
   maskSecret,
 } from "../../lib/ai/credentialCrypto";
 
@@ -95,12 +94,6 @@ describe("encryptSecret + decryptSecret — round-trip", () => {
     const envelope = encryptSecret("sk-x", aad);
 
     expect(envelope.startsWith("nimbus1.")).toBe(true);
-  });
-
-  it("isEncryptionConfigured reflects the env var", () => {
-    expect(isEncryptionConfigured()).toBe(true);
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
-    expect(isEncryptionConfigured()).toBe(false);
   });
 });
 

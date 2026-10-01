@@ -77,10 +77,10 @@ export type SelectedModel = {
 };
 
 /**
- * A refusal from the selection step alone. The full `AiResolution` union in
- * Phase 3 adds reasons produced later (`byok-unavailable`, `invalid-key`,
- * `provider-error`, …); Phase 1 only needs the two reasons that can be
- * decided without a DB read or a network call.
+ * A refusal from the selection step alone. The full `AiResolution` union adds
+ * reasons produced later (`no-operator-key`, `invalid-key`,
+ * `provider-error`, …); this module only needs the two reasons that can be
+ * decided without an env read or a network call.
  */
 export type SelectionRefusal = {
   readonly ok: false;

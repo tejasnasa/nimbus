@@ -40,11 +40,7 @@ import {
   selectModelForFeature,
 } from "@nimbus/utils";
 import { prisma } from "@nimbus/db";
-import {
-  buildAad,
-  decryptSecret,
-  isEncryptionConfigured,
-} from "./credentialCrypto";
+import { buildAad, decryptSecret } from "./credentialCrypto";
 import { createAiClient, type AiClientHandle } from "./clientFactory";
 import { freeTier as readFreeTierEnv, getProvider } from "./providers";
 
@@ -60,8 +56,7 @@ export type AiRefusalReason =
   | "no-key"
   | "free-tier-exhausted"
   | "no-operator-key"
-  | "no-capable-model"
-  | "byok-unavailable";
+  | "no-capable-model";
 
 /** A curated, non-secret-bearing refusal safe to send to the client. */
 export type AiRefusal = {
@@ -95,8 +90,6 @@ export type AiResolution = AiSuccess | AiRefusal;
 export type ResolveDeps = {
   /** Prisma-shaped DB handle. Defaults to the singleton. */
   readonly prisma?: typeof prisma;
-  /** Override for `isEncryptionConfigured`. Test-only. */
-  readonly encryptionConfigured?: boolean;
   /** Override for the operator's free-tier view. Test-only. */
   readonly freeTier?: FreeTierView;
 };
@@ -122,8 +115,6 @@ export async function resolveAi(
   deps: ResolveDeps = {},
 ): Promise<AiResolution> {
   const db = deps.prisma ?? prisma;
-  const encryptionConfigured =
-    deps.encryptionConfigured ?? isEncryptionConfigured();
   const freeTier = deps.freeTier ?? readFreeTierEnv();
 
   // Fetch the user's credentials and preferences in parallel — both are
@@ -164,61 +155,26 @@ export async function resolveAi(
   );
 
   if (!("source" in selection)) {
-    return refusalFor(
-      selection.reason,
-      encryptionConfigured,
-      freeTier !== null,
-    );
+    return refusalFor(selection.reason, freeTier !== null);
   }
 
-  return buildResolution({
-    feature,
-    selection,
-    userId,
-    encryptionConfigured,
-    db,
-  });
+  return buildResolution({ feature, selection, userId, db });
 }
 
 /**
  * Maps a `SelectionRefusal` reason to the user-visible {@link AiRefusal}.
  *
- * This is where "no BYOK surface" (`byok-unavailable`) and "no operator key"
- * (`no-operator-key`) are distinguished — the pure selector only knows
- * "no-key" and "no-capable-model", and we layer the higher-level operator
- * state on top here.
+ * This is where "no operator key" (`no-operator-key`) is distinguished from a
+ * plain missing credential — the pure selector only knows "no-key" and
+ * "no-capable-model", and the higher-level operator state is layered on here.
  */
 function refusalFor(
   reason: "no-key" | "no-capable-model",
-  encryptionConfigured: boolean,
   freeTierConfigured: boolean,
 ): AiRefusal {
   // The "no-key" branch covers both "no credential, no free tier" and "no
-  // credential, free tier not configured (no operator key)". A user who
-  // could store their own key but the server is not configured for
-  // encryption is a third case — surfaced as `byok-unavailable`.
+  // credential, free tier not configured (no operator key)".
   if (reason === "no-key") {
-    if (!encryptionConfigured && !freeTierConfigured) {
-      return {
-        ok: false,
-        reason: "byok-unavailable",
-        message:
-          "AI features are temporarily unavailable. Please contact support.",
-        cta: null,
-      };
-    }
-    if (!encryptionConfigured) {
-      // Encryption is unset but the free tier IS configured. The user can
-      // still chat on the free tier; document generation only fails when
-      // they have no key of their own. The CTA points at the add-key path
-      // so a returning user with no key is told what is missing.
-      return {
-        ok: false,
-        reason: "no-key",
-        message: "Add your provider credentials to use this feature.",
-        cta: "add-key",
-      };
-    }
     if (!freeTierConfigured) {
       return {
         ok: false,
@@ -255,7 +211,6 @@ type BuildResolutionDeps = {
   readonly feature: AiFeature;
   readonly selection: SelectedModel;
   readonly userId: string;
-  readonly encryptionConfigured: boolean;
   readonly db: ResolveDeps["prisma"];
 };
 
@@ -270,24 +225,9 @@ type BuildResolutionDeps = {
 async function buildResolution(
   input: BuildResolutionDeps,
 ): Promise<AiResolution> {
-  const { feature, selection, userId, encryptionConfigured, db } = input;
+  const { feature, selection, userId, db } = input;
 
   if (selection.source === "byok") {
-    if (!encryptionConfigured) {
-      // Defence in depth: a BYOK selection reached this branch without an
-      // encryption key, which means the operator has removed the key since
-      // the credential was saved. Surface as `byok-unavailable` rather than
-      // crashing — the call site will refuse rather than serve an
-      // unauthorised generation.
-      return {
-        ok: false,
-        reason: "byok-unavailable",
-        message:
-          "AI features are temporarily unavailable. Please contact support.",
-        cta: null,
-      };
-    }
-
     const credential = await db!.aiCredential.findUnique({
       where: { id: selection.credentialId! },
       select: { keyEnvelope: true, keyFingerprint: true, providerId: true },
@@ -340,16 +280,16 @@ async function buildResolution(
     } catch {
       // The envelope is unreadable — wrong key (rotation?), tampered row, or
       // AAD mismatch. Surfacing as `invalid-key` would be a lie (the key
-      // itself is fine), so use `byok-unavailable` and log operator-side.
+      // itself is fine), so ask the user to re-add it and log operator-side.
       console.error(
         `[ai] Failed to decrypt credential ${credential.keyFingerprint} for user ${userId}. ` +
           "Likely cause: rotation or tampering.",
       );
       return {
         ok: false,
-        reason: "byok-unavailable",
+        reason: "no-key",
         message:
-          "Your stored credential could not be decrypted. Please re-add it.",
+          "Your stored credential could not be read. Please add it again.",
         cta: "add-key",
       };
     }

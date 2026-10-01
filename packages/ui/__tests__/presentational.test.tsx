@@ -113,13 +113,17 @@ describe("ChatMsgA", () => {
   });
 
   it("highlights bot names", () => {
+    // Selector is the name element itself, not a styling class: this assertion
+    // is about the highlight contract, and a font-size utility is free to
+    // change without the bot name losing its highlight.
     const bot = render(<ChatMsgA {...base} isBot />);
-    expect(query(bot.container, "span.text-xs").className).toContain("text-blue-500");
+    expect(query(bot.container, '[data-testid="chat-msg-name"]').className)
+      .toContain("text-blue-500");
 
     const human = render(<ChatMsgA {...base} />);
-    expect(query(human.container, "span.text-xs").className).not.toContain(
-      "text-blue-500",
-    );
+    expect(
+      query(human.container, '[data-testid="chat-msg-name"]').className,
+    ).not.toContain("text-blue-500");
   });
 
   it("passes the online flag through to the avatar", () => {

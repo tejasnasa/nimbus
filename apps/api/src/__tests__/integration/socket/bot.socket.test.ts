@@ -52,6 +52,7 @@ import {
   type TestUser,
 } from "@testhelpers";
 import type { AiClientHandle } from "../../../lib/ai/clientFactory";
+import { buildAad, encryptSecret } from "../../../lib/ai/credentialCrypto";
 
 /** Stub SDK client type — only `responses.create` is exercised by the bot pipeline. */
 type OpenAIClientStub = {
@@ -315,12 +316,69 @@ describe("socket: nimbusbot", () => {
     expect(user?.freeDocGenerationsUsed).toBe(0);
   });
 
+  it("generates on a BYOK key without spending the free quota, even when it is exhausted", async () => {
+    // Regression: the claim used to run unconditionally, so a user with their
+    // own credential was charged the operator's free allowance — and, once
+    // that allowance was spent, was refused a document they had already paid
+    // for, surfacing as "add your own API key" to a user who had one.
+    //
+    // The counter is deliberately parked at the limit first: if the claim
+    // still runs, this test fails at the refusal rather than at the counter.
+    await testPrisma.aiCredential.create({
+      data: {
+        userId: alice.id,
+        providerId: "deepseek",
+        keyEnvelope: encryptSecret(
+          "sk-byok-user-key",
+          buildAad(alice.id, "deepseek"),
+        ),
+        keyId: "testkeyid",
+        keyFingerprint: "fp0123456789abcd",
+        maskedPreview: "sk-…key",
+      },
+    });
+    await testPrisma.user.update({
+      where: { id: alice.id },
+      data: { freeDocGenerationsUsed: 5 },
+    });
+
+    createMock.mockImplementation(
+      async (args: { tools?: unknown; stream?: boolean }) => {
+        if (args.tools) return botCreatesDocument("MARKDOWN", "BYOK Doc");
+        return markdownStream("# BYOK Doc\n\nPaid for by the user.");
+      },
+    );
+
+    const socket = await openSocket(server, alice);
+    socket.emit("workspace:join", wsId);
+    await waitForEvent(socket, "presence:online_users");
+
+    const completed = waitForEvent<{ documentId: string; type: string }>(
+      socket,
+      "doc:ai:complete",
+      10_000,
+    );
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusbot write me a doc",
+    });
+
+    await expect(completed).resolves.toMatchObject({ type: "MARKDOWN" });
+
+    // The BYOK user paid: the operator's allowance is untouched.
+    const user = await testPrisma.user.findUnique({ where: { id: alice.id } });
+    expect(user?.freeDocGenerationsUsed).toBe(5);
+    // And the document really was created.
+    await expect(
+      testPrisma.document.count({ where: { workspaceId: wsId } }),
+    ).resolves.toBe(1);
+  });
+
   it("emits ai:refused targeted to the asking socket when the resolver refuses", async () => {
-    // Force the resolver to refuse: encryption unconfigured means BYOK
-    // routes return 503 and the resolver returns `byok-unavailable` for
-    // any user that lacks a free-tier key. The free tier is set in
-    // .env.test, so the alternative is to clear `AI_API_KEY` here — a
-    // deletion in `beforeEach` lets the resolver return `no-operator-key`.
+    // Force the resolver to refuse: clearing `AI_API_KEY` leaves a user with
+    // no credential and no operator key, which the resolver returns as
+    // `no-operator-key`. `.env.test` sets it, so the deletion is local to
+    // this test and restored below.
     const original = process.env.AI_API_KEY;
     delete process.env.AI_API_KEY;
 

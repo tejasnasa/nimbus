@@ -10,7 +10,7 @@
  * per-deployment (free tier) keys actually reach the call site without env
  * reads at import time.
  */
-import type { AiClientHandle } from "./ai/clientFactory";
+import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 
 /** Options for {@link generateMarkdownDocument}. */
 export type GenerateMarkdownDocumentOptions = {
@@ -47,11 +47,18 @@ Ensure the content is comprehensive, well-structured, and ready to read.
 
 Document Title: ${label}`;
 
+  // Effort is requested explicitly rather than left to the provider's default,
+  // which is unstated and differs per provider — a document generator wants
+  // predictability, not whatever the model picked. `reasoningKwargs` is
+  // capability-aware: it returns `{}` for a model with no `reasoning`, and
+  // omits `summary` where the model rejects it. `low` is the cheapest level
+  // every verified provider accepts.
   const stream = await handle.client.responses.create({
     model: handle.modelId,
     stream: true,
     instructions: systemPrompt,
     input: prompt,
+    ...reasoningKwargs(handle, "low"),
   });
 
   let fullContent = "";

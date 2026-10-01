@@ -127,7 +127,6 @@ beforeEach(() => {
  */
 function statusFor(chat: AiFeatureStatus) {
   return {
-    byokAvailable: true,
     chat,
     documents: {
       markdown: {

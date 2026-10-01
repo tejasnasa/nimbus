@@ -17,8 +17,10 @@ import { generateMarkdownDocument } from "../../lib/markdownGeneration";
 import type { AiClientHandle } from "../../lib/ai/clientFactory";
 
 /** A test-only handle whose SDK client is the mocked `createMock`. */
-const makeTestHandle = (modelId = "deepseek-flash"): AiClientHandle => {
-  const provider = AI_PROVIDERS.deepseek;
+const makeTestHandle = (
+  modelId = "deepseek-flash",
+  provider = AI_PROVIDERS.deepseek,
+): AiClientHandle => {
   const model = modelById(provider, modelId);
   if (!model) throw new Error(`unknown model ${modelId}`);
   return {
@@ -211,6 +213,36 @@ describe("lib/markdownGeneration", () => {
       });
 
       expect(String(requestSent().instructions)).toMatch(/markdown/i);
+    });
+
+    it("requests a low reasoning effort rather than the provider's default", async () => {
+      // The effort is explicit because the provider default is unstated and
+      // differs per provider. DeepSeek declares both `reasoning` and
+      // `reasoningSummary`, so both fields are sent.
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle("deepseek-flash"),
+      });
+
+      expect(requestSent().reasoning).toEqual({
+        effort: "low",
+        summary: "detailed",
+      });
+    });
+
+    it("omits `reasoning` entirely for a model that has no such capability", async () => {
+      // qwen3.8-27b declares no `reasoning`. Sending the parameter anyway is
+      // a 400 on a stricter provider, so the absence is the contract.
+      await generateMarkdownDocument({
+        prompt: "p",
+        label: "Doc",
+        onToken: () => {},
+        handle: makeTestHandle("qwen/qwen3.8-27b", AI_PROVIDERS.groq),
+      });
+
+      expect(requestSent()).not.toHaveProperty("reasoning");
     });
 
     /**

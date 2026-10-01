@@ -110,11 +110,10 @@ describe("http: ai — status", () => {
     user = await mintUser(app);
   });
 
-  it("reports byokAvailable=true and a free-tier-quota payload", async () => {
+  it("reports a free-tier-quota payload with chat and documents enabled", async () => {
     const res = await as(app, user).get("/api/ai/status");
 
     expect(res.status).toBe(200);
-    expect(res.body.responseObject.byokAvailable).toBe(true);
     expect(res.body.responseObject.chat.enabled).toBe(true);
     expect(res.body.responseObject.documents.markdown.enabled).toBe(true);
     expect(res.body.responseObject.documents.canvas.enabled).toBe(true);
@@ -127,14 +126,12 @@ describe("http: ai — status", () => {
     expect(res.body.responseObject.preferences.canvas).toBeNull();
   });
 
-  it("reports byokAvailable=false and free-tier-unconfigured when encryption is unset", async () => {
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
+  it("reports everything disabled when neither a credential nor the free tier exists", async () => {
     delete process.env.AI_API_KEY;
 
     const res = await as(app, user).get("/api/ai/status");
 
     expect(res.status).toBe(200);
-    expect(res.body.responseObject.byokAvailable).toBe(false);
     expect(res.body.responseObject.chat.enabled).toBe(false);
     expect(res.body.responseObject.documents.markdown.enabled).toBe(false);
     expect(res.body.responseObject.documents.canvas.enabled).toBe(false);
@@ -159,14 +156,13 @@ describe("http: ai — status", () => {
     expect(res.body.responseObject.documents.canvas.enabled).toBe(false);
   });
 
-  it("reports byokAvailable=true and free-tier-unconfigured when only the encryption key is set", async () => {
-    // No AI_API_KEY but encryption is configured — the user is BYOK-only.
+  it("reports free-tier-unconfigured when no operator key is set", async () => {
+    // No AI_API_KEY and no credential — there is no path for this user.
     delete process.env.AI_API_KEY;
 
     const res = await as(app, user).get("/api/ai/status");
 
     expect(res.status).toBe(200);
-    expect(res.body.responseObject.byokAvailable).toBe(true);
     expect(res.body.responseObject.chat.enabled).toBe(false);
     expect(res.body.responseObject.documents.markdown.enabled).toBe(false);
     expect(res.body.responseObject.documents.canvas.enabled).toBe(false);
@@ -332,25 +328,6 @@ describe("http: ai — credentials", () => {
       .send({ providerId: "openai", apiKey: "" });
 
     expect(res.status).toBe(400);
-  });
-
-  it("returns 503 when the encryption key is unset", async () => {
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
-
-    const res = await as(app, user)
-      .post("/api/ai/credentials")
-      .send({ providerId: "openai", apiKey: FAKE_KEY });
-
-    expect(res.status).toBe(503);
-  });
-
-  it("lists an empty array (not a 503) when encryption is unset", async () => {
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
-
-    const res = await as(app, user).get("/api/ai/credentials");
-
-    expect(res.status).toBe(200);
-    expect(res.body.responseObject).toEqual([]);
   });
 
   describe("DELETE /api/ai/credentials/:providerId", () => {

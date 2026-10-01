@@ -25,6 +25,8 @@ const completeEnv = {
   CLOUDINARY_CLOUD_NAME: "cloudinary-cloud",
   CLOUDINARY_API_KEY: "cloudinary-key",
   CLOUDINARY_API_SECRET: "cloudinary-secret",
+  AI_CREDENTIAL_ENCRYPTION_KEY:
+    "test-only-encryption-key-placeholder-not-a-real-credential",
 } satisfies NodeJS.ProcessEnv;
 
 describe("lib/env", () => {
@@ -103,30 +105,33 @@ describe("lib/env", () => {
     );
   });
 
-  it("boots with no AI variables at all", () => {
-    // Phase 4: a BYOK-only deployment has no operator key. The boot must
-    // pass with `AI_API_KEY` and `AI_CREDENTIAL_ENCRYPTION_KEY` unset — the
-    // resolver refuses per-request, the web UI hides the affordances, and
-    // the rest of the API keeps serving.
-    const {
-      AI_API_KEY: _ai,
-      AI_CREDENTIAL_ENCRYPTION_KEY: _enc,
-      ...aiFree
-    } = completeEnv;
+  it("boots with no operator AI key", () => {
+    // A BYOK-only deployment has no operator key. The boot must pass with
+    // `AI_API_KEY` unset — the resolver refuses per-request for a user with
+    // no credential of their own, and the rest of the API keeps serving.
+    const { AI_API_KEY: _ai, ...aiFree } = completeEnv;
 
     const parsed = parseEnv(aiFree);
     expect(parsed.AI_API_KEY).toBeUndefined();
-    expect(parsed.AI_CREDENTIAL_ENCRYPTION_KEY).toBeUndefined();
     // The defaults still apply.
     expect(parsed.AI_PROVIDER).toBe("deepseek");
     expect(parsed.AI_MODEL).toBe("deepseek-flash");
     expect(parsed.AI_FREE_DOC_LIMIT).toBe(5);
   });
 
+  it("refuses to boot without `AI_CREDENTIAL_ENCRYPTION_KEY`", () => {
+    // Required: stored provider keys are encrypted with it, so a process
+    // without one cannot serve BYOK at all. Failing at boot names the
+    // variable instead of surfacing as a per-request error later.
+    const { AI_CREDENTIAL_ENCRYPTION_KEY: _enc, ...withoutKey } = completeEnv;
+
+    expect(() => parseEnv(withoutKey)).toThrow(/AI_CREDENTIAL_ENCRYPTION_KEY/);
+  });
+
   it("rejects a short `AI_CREDENTIAL_ENCRYPTION_KEY` and names it", () => {
-    // The encryption key requires at least 32 characters. Boot must fail
-    // loudly rather than silently downgrade the BYOK surface, because a
-    // half-configured key would decrypt half-stored credentials.
+    // At least 32 characters. The value is HKDF-derived to a 32-byte AES key,
+    // so a short value is not a smaller key — it is a weak passphrase, and
+    // boot must fail loudly rather than accept one.
     expect(() =>
       parseEnv({ ...completeEnv, AI_CREDENTIAL_ENCRYPTION_KEY: "short" }),
     ).toThrow(/AI_CREDENTIAL_ENCRYPTION_KEY/);

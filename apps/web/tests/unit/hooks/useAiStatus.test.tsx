@@ -17,7 +17,6 @@ import { useAiStatus } from "../../../hooks/useAiStatus";
 process.env.NEXT_PUBLIC_BACKEND_URL = BACKEND_URL;
 
 const STATUS = {
-  byokAvailable: true,
   chat: { enabled: true, providerId: null, modelId: null, substituted: false },
   documents: {
     markdown: {

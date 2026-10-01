@@ -215,7 +215,6 @@ export const handlers = [
   // disabled branch.
   http.get(url("/api/ai/status"), () =>
     ok({
-      byokAvailable: true,
       chat: {
         enabled: true,
         providerId: null,

@@ -68,10 +68,16 @@ const envSchema = z.object({
   AI_MODEL: z.string().min(1).default("deepseek-flash"),
   AI_FREE_DOC_LIMIT: z.coerce.number().int().min(0).default(5),
 
-  // ── BYOK encryption: optional, so upgrading does not break an existing
-  //    deployment. A missing key means the credential routes return 503 and
-  //    `status.byokAvailable: false`, while the free tier keeps working.
-  AI_CREDENTIAL_ENCRYPTION_KEY: z.string().min(32).optional(),
+  // ── BYOK encryption ──
+  // Required. Stored provider keys are encrypted with this at rest, so a
+  // deployment without it cannot serve BYOK at all — the credential routes
+  // would have nowhere to write and the resolver nothing to decrypt with.
+  // Failing at boot names the variable instead of surfacing as a per-request
+  // 503 that looks like a provider outage. Minimum 32 chars: the value is
+  // HKDF-derived to a 32-byte AES key, so a short value is not a smaller key,
+  // it is a weak passphrase.
+  AI_CREDENTIAL_ENCRYPTION_KEY: z.string().min(32),
+  // Decrypt-only, for rotation. Optional and unset outside a rotation window.
   AI_CREDENTIAL_ENCRYPTION_KEY_PREVIOUS: z.string().min(32).optional(),
 
   // ── Avatar storage (Cloudinary) ──

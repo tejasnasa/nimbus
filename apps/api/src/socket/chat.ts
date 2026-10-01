@@ -258,27 +258,28 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
       // generate.
       return emitRefusal(socket, "chat", {
         ok: false,
-        reason: documentResolution.reason as
-          | "no-key"
-          | "free-tier-exhausted"
-          | "no-operator-key"
-          | "no-capable-model"
-          | "byok-unavailable",
+        reason: documentResolution.reason,
         message: documentResolution.message,
         cta: documentResolution.cta,
       });
     }
-    const claim = await claimFreeDocGeneration(userId);
-    if (!claim.granted) {
-      return emitRefusal(socket, "chat", {
-        ok: false,
-        reason: "free-tier-exhausted",
-        message:
-          "You've used all your free document generations. Add your API key to keep creating.",
-        cta: "add-key",
-      });
+    // Claim ONLY when the operator's free tier is paying. A user generating
+    // on their own key has already paid for it; charging them the operator's
+    // allowance both misreports their entitlement and, once the allowance is
+    // spent, refuses a document they are entitled to — surfacing as "add an
+    // API key" to a user who has one.
+    if (documentResolution.source === "free") {
+      const claim = await claimFreeDocGeneration(userId);
+      if (!claim.granted) {
+        return emitRefusal(socket, "chat", {
+          ok: false,
+          reason: "free-tier-exhausted",
+          message: FREE_TIER_EXHAUSTED_MESSAGE,
+          cta: "add-key",
+        });
+      }
+      claimed = true;
     }
-    claimed = true;
   }
 
   // Post the bot message — for a plain reply or the document announcement.
@@ -407,23 +408,36 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
   }
 }
 
+/** The one place the exhausted-quota refusal copy is written. */
+const FREE_TIER_EXHAUSTED_MESSAGE =
+  "You've used all your free document generations. Add your own API key to keep creating.";
+
 /**
- * Resolves whether the user can create a document right now.
+ * Resolves whether the user can create a document right now, and on whose
+ * key it will run.
  *
- * Documents require the free-tier quota to be claimable, so this is a
- * separate call from `chat`: a chat resolution on the operator's key should
- * not silently grant documents.
+ * Documents are a separate resolution from `chat` because they have a
+ * different entitlement: a chat resolution on the operator's free tier must
+ * not silently grant document generation.
+ *
+ * @important `source` is load-bearing and must be carried to the caller. The
+ *            quota is a *free-tier* allowance — a user generating on their own
+ *            key neither spends it nor can be blocked by it. The caller claims
+ *            a slot only when `source === "free"`; dropping this field (or
+ *            defaulting it) silently charges BYOK users for the operator's
+ *            allowance and refuses them the moment that allowance runs out,
+ *            which reads to the user as "add an API key" while they already
+ *            have one.
  */
 type DocumentResolution =
-  | { kind: "available" }
+  | { kind: "available"; source: "byok" | "free" }
   | {
       kind: "refused";
       reason:
         | "no-key"
         | "free-tier-exhausted"
         | "no-operator-key"
-        | "no-capable-model"
-        | "byok-unavailable";
+        | "no-capable-model";
       message: string;
       cta: "add-key" | "manage-ai" | null;
     };
@@ -440,22 +454,21 @@ async function resolveDocumentForUser(
       cta: resolution.cta,
     };
   }
-  // Free-tier documents still need to claim a slot. We do a cheap read here
-  // for UX (so the bot's allowDocument flag is honest about remaining slots)
-  // and rely on the atomic claim at generate-time for correctness.
+  // Only the free tier is metered. We do a cheap read here for UX (so the
+  // bot's allowDocument flag is honest about remaining slots) and rely on the
+  // atomic claim at generate-time for correctness.
   if (resolution.source === "free") {
     const state = await readQuotaState(userId);
     if (state.exhausted) {
       return {
         kind: "refused",
         reason: "free-tier-exhausted",
-        message:
-          "You've used all your free document generations. Add your API key to keep creating.",
+        message: FREE_TIER_EXHAUSTED_MESSAGE,
         cta: "add-key",
       };
     }
   }
-  return { kind: "available" };
+  return { kind: "available", source: resolution.source };
 }
 
 /**

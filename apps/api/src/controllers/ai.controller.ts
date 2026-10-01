@@ -40,7 +40,6 @@ import {
   buildAad,
   encryptSecret,
   fingerprintSecret,
-  isEncryptionConfigured,
   maskSecret,
 } from "../lib/ai/credentialCrypto";
 import { probeApiKey } from "../lib/ai/probe";
@@ -59,25 +58,16 @@ export class AiProbeFailedError extends Error {
 /**
  * Builds the status payload for the calling user.
  *
- * Always answerable — when encryption is unconfigured, `credentials` is
- * empty and `byokAvailable` is false, but the chat and document fields are
- * populated from the free tier and preferences regardless. The composer
- * needs the full picture to render the right disabled state.
- *
  * @param userId - Authenticated user.
  * @returns The status envelope for the chat composer and the AI settings panel.
  */
 export const getAiStatus = async (userId: string) => {
   try {
-    const byokAvailable = isEncryptionConfigured();
-
     const [credentials, preferences, quota] = await Promise.all([
-      byokAvailable
-        ? prisma.aiCredential.findMany({
-            where: { userId },
-            orderBy: { createdAt: "asc" },
-          })
-        : Promise.resolve([]),
+      prisma.aiCredential.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" },
+      }),
       prisma.aiFeaturePreference.findMany({ where: { userId } }),
       readQuotaState(userId),
     ]);
@@ -113,15 +103,17 @@ export const getAiStatus = async (userId: string) => {
           ? "exhausted"
           : "available";
 
-    const chatEnabled = byokAvailable
-      ? credentialDTOs.length > 0 || freeTierConfigured
-      : freeTierConfigured;
+    // A user with any credential has a chat path; without one, the free tier
+    // is the path. Both dead means the composer is disabled with a CTA.
+    const chatEnabled = credentialDTOs.length > 0 || freeTierConfigured;
 
+    // Documents additionally need the free allowance to be unspent — but only
+    // for the user who has no key of their own. A BYOK user is never gated by
+    // the free-tier quota, so their documents are enabled regardless.
     const documentsEnabled =
       credentialDTOs.length > 0 || (freeTierConfigured && !quota.exhausted);
 
     return ServerResponse.ok({
-      byokAvailable,
       chat: {
         enabled: chatEnabled,
         providerId: prefDTOs.chat?.providerId ?? null,
@@ -161,15 +153,10 @@ export const getAiStatus = async (userId: string) => {
  * `AiCredentialDTO`.
  *
  * @param userId - Authenticated user.
- * @returns `[]` when encryption is unconfigured (the picker UI hides the
- *          affordance, so an empty list is the right answer rather than a 503).
+ * @returns The caller's credentials, oldest first.
  */
 export const listAiCredentials = async (userId: string) => {
   try {
-    if (!isEncryptionConfigured()) {
-      return ServerResponse.ok([], "BYOK is unavailable on this deployment");
-    }
-
     const rows = await prisma.aiCredential.findMany({
       where: { userId },
       orderBy: { createdAt: "asc" },
@@ -204,7 +191,7 @@ export const listAiCredentials = async (userId: string) => {
  * @param apiKey - Plaintext API key from the request body.
  * @param label - Optional user-supplied label.
  * @returns `created` for a new row, `ok` for a replacement, 400 on a failed
- *          probe, 503 when encryption is unconfigured.
+ *          probe.
  */
 export const upsertAiCredential = async (
   userId: string,
@@ -213,12 +200,6 @@ export const upsertAiCredential = async (
   label?: string,
 ) => {
   try {
-    if (!isEncryptionConfigured()) {
-      return ServerResponse.serviceUnavailable(
-        "BYOK is unavailable on this deployment",
-      );
-    }
-
     // The provider is one of AI_PROVIDER_IDS by the Zod schema, but we look
     // it up to drive the probe — the registry is the source of truth for
     // base URLs and models.
@@ -397,8 +378,7 @@ export const listAiPreferences = async (userId: string) => {
  * @param feature - Which call site the preference applies to.
  * @param providerId - Provider the user wants to use.
  * @param modelId - Model id within that provider.
- * @returns 200 with the saved DTO, 422 on the three failure cases above,
- *          503 when encryption is unconfigured.
+ * @returns 200 with the saved DTO, 422 on the three failure cases above.
  */
 export const upsertAiPreference = async (
   userId: string,
@@ -407,12 +387,6 @@ export const upsertAiPreference = async (
   modelId: string,
 ) => {
   try {
-    if (!isEncryptionConfigured()) {
-      return ServerResponse.serviceUnavailable(
-        "BYOK is unavailable on this deployment",
-      );
-    }
-
     // Cast to the resolver-side feature type — the controller accepts the
     // lowercase form from the client and stores it in the upper-case enum.
     const featureEnum = feature.toUpperCase() as "CHAT" | "MARKDOWN" | "CANVAS";

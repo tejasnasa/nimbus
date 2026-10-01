@@ -8,8 +8,7 @@
  * `useAiPreferences`) into a single panel. The tests pin the contract:
  *
  * - **Free-tier copy**: shows the right line for each `freeTierState`.
- * - **Credential list**: renders `maskedPreview`, hides the key, hides the
- *   add-key affordance when `byokAvailable === false`.
+ * - **Credential list**: renders `maskedPreview` and never the key.
  * - **Pickers**: the per-feature `<select>`s are wired to the hook's save.
  * - **Add flow**: opening the dialog, the save lands, the credentials list
  *   refreshes, and the panel re-renders with the new row.
@@ -30,7 +29,6 @@ import AiSettingsPanel from "../../components/AiSettingsPanel";
 
 /** The initial seed matches the default MSW handler for `/api/ai/status`. */
 const BASE_STATUS: AiStatusDTO = {
-  byokAvailable: true,
   chat: { enabled: true, providerId: null, modelId: null, substituted: false },
   documents: {
     markdown: {
@@ -133,22 +131,6 @@ describe("AiSettingsPanel — credential list", () => {
     expect(screen.getByText("sk-…4f2a")).toBeInTheDocument();
     // The DOM never contains a plaintext key shape like `sk-…secret`.
     expect(screen.queryByText(/sk-[A-Za-z0-9]{8,}/)).not.toBeInTheDocument();
-  });
-
-  it("hides the add-key affordance when byokAvailable is false", () => {
-    render(
-      <AiSettingsPanel
-        initialStatus={{
-          ...BASE_STATUS,
-          byokAvailable: false,
-          credentials: [CRED_OPENAI],
-        }}
-      />,
-    );
-
-    expect(screen.queryByTestId("ai-add-key")).not.toBeInTheDocument();
-    // The banner is shown so the user knows why.
-    expect(screen.getByTestId("ai-refusal-banner")).toBeInTheDocument();
   });
 
   it("shows the empty-credentials hint when no keys are saved", () => {
@@ -346,6 +328,57 @@ describe("AiSettingsPanel — add key flow", () => {
         screen.getByTestId("ai-credential-row-openai"),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("surfaces a failed save inline without refreshing the status", async () => {
+    // The panel's own save wrapper has two arms — a success that refetches the
+    // status payload (the credential changed, so the capability picture did
+    // too) and a failure that must not, because nothing changed server-side.
+    let statusCalls = 0;
+    server.use(
+      http.get(`${BACKEND_URL}/api/ai/status`, () => {
+        statusCalls += 1;
+        return ok(BASE_STATUS);
+      }),
+      http.post(`${BACKEND_URL}/api/ai/credentials`, () =>
+        HttpResponse.json(
+          {
+            success: false,
+            message: "That key was rejected by the provider.",
+            responseObject: null,
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<AiSettingsPanel initialStatus={BASE_STATUS} />);
+
+    await user.click(screen.getByTestId("ai-add-key"));
+    await user.type(
+      screen.getByTestId("api-key-input"),
+      "sk-rejected-key-1234567890",
+    );
+
+    // Snapshot after the mount fetch has settled, so the assertion below is
+    // about the save and not about the hook's initial load.
+    await waitFor(() => expect(statusCalls).toBe(1));
+    const callsBeforeSave = statusCalls;
+
+    await user.click(screen.getByTestId("api-key-save"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("That key was rejected by the provider."),
+      ).toBeInTheDocument(),
+    );
+
+    // The dialog stays open on failure — the user's input is not thrown away.
+    expect(screen.getByLabelText("add-api-key-form")).toBeInTheDocument();
+    // A failed save must not refetch the status payload: nothing changed
+    // server-side, and the success arm's refetch is the one under test here.
+    expect(statusCalls).toBe(callsBeforeSave);
   });
 
   it("removes a credential and refreshes the list", async () => {

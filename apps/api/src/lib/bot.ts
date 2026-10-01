@@ -19,7 +19,7 @@
  */
 import { prisma } from "@nimbus/db";
 import { BotResult } from "@nimbus/types";
-import type { AiClientHandle } from "./ai/clientFactory";
+import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 
 /** Options for {@link generateBotResponse}. */
 export type GenerateBotResponseOptions = {
@@ -152,12 +152,18 @@ STRICT RULES:
         "\n\nDocument creation is unavailable in this conversation; answer in text.";
     }
 
+    // Effort is requested explicitly rather than left to the provider's default,
+    // which is unstated and differs per provider. `low` matters here for a
+    // second reason: reasoning tokens count against `max_output_tokens`, so a
+    // higher level can spend most of this reply's budget before the answer
+    // starts. `reasoningKwargs` returns `{}` for a model without `reasoning`.
     const response = await handle.client.responses.create({
       model: handle.modelId,
       tools,
       input: history,
       instructions: instructions,
       max_output_tokens: 1000,
+      ...reasoningKwargs(handle, "low"),
     });
 
     const toolCall = response.output?.find(

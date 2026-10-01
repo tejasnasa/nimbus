@@ -14,7 +14,6 @@ import {
   freeTier,
   getModel,
   getProvider,
-  isEncryptionConfigured,
   modelMeetsRequirements,
 } from "../../lib/ai/providers";
 
@@ -138,15 +137,3 @@ describe("getProvider / getModel / modelMeetsRequirements — thin wrappers", ()
   });
 });
 
-describe("isEncryptionConfigured — re-export", () => {
-  it("returns true when AI_CREDENTIAL_ENCRYPTION_KEY is set", () => {
-    process.env.AI_CREDENTIAL_ENCRYPTION_KEY =
-      "test-only-encryption-key-placeholder-not-a-real-credential";
-    expect(isEncryptionConfigured()).toBe(true);
-  });
-
-  it("returns false when AI_CREDENTIAL_ENCRYPTION_KEY is unset", () => {
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
-    expect(isEncryptionConfigured()).toBe(false);
-  });
-});

@@ -40,7 +40,6 @@ const USER = {
 
 /** A standalone AI status payload — the settings page always passes one. */
 const INITIAL_AI_STATUS: AiStatusDTO = {
-  byokAvailable: true,
   chat: { enabled: true, providerId: null, modelId: null, substituted: false },
   documents: {
     markdown: {

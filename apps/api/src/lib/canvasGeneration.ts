@@ -944,9 +944,8 @@ export async function generateCanvasDocument(
     onStatus = () => {},
     handle,
   } = options;
-  // The cheapest effort the canvas path needs. DeepSeek does not accept
-  // `minimal` (Phase 0 finding F3); `low` is the cheapest universally
-  // accepted value across the four verified providers.
+  // The cheapest effort the canvas path needs. `low` is the cheapest level
+  // every verified provider accepts — `minimal` is not one of them.
   const reasoningEffort = "low" as const;
   let thinkingLog = "";
 
@@ -961,16 +960,12 @@ export async function generateCanvasDocument(
   // (Groq's gpt-oss) gets `{ reasoning: { effort } }` only, and a model
   // without `reasoning` at all gets `{}`. This is the seam that keeps the
   // canvas path from 400ing on providers that reject `summary`.
-  const reasoning = handle.supportsReasoning
-    ? reasoningKwargs(handle, reasoningEffort)
-    : {};
-
   const stream = await handle.client.responses.create({
     model: handle.modelId,
     stream: true,
     instructions: buildCanvasSystemPrompt(label),
     input: `Create a professional diagram as a JSON object for:\n${prompt}`,
-    ...reasoning,
+    ...reasoningKwargs(handle, reasoningEffort),
     text: { format: { type: "json_object" } },
     max_output_tokens: CANVAS_MAX_OUTPUT_TOKENS,
   });

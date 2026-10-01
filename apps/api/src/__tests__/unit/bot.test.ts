@@ -209,6 +209,32 @@ describe("lib/bot", () => {
 
       expect(createMock.mock.calls.at(-1)?.[0]?.model).toBe("deepseek-flash");
     });
+
+    it("requests a low reasoning effort rather than the provider's default", async () => {
+      // Chat is the latency- and budget-sensitive path: reasoning tokens count
+      // against `max_output_tokens`, so an unstated provider default can spend
+      // most of the reply's budget before the answer starts.
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(AI_PROVIDERS.deepseek, "deepseek-flash"),
+        allowDocument: true,
+      });
+
+      expect(createMock.mock.calls.at(-1)?.[0]?.reasoning).toEqual({
+        effort: "low",
+        summary: "detailed",
+      });
+    });
+
+    it("omits `reasoning` entirely for a model that has no such capability", async () => {
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(AI_PROVIDERS.groq, "qwen/qwen3.8-27b"),
+        allowDocument: true,
+      });
+
+      expect(createMock.mock.calls.at(-1)?.[0]).not.toHaveProperty("reasoning");
+    });
   });
 
   describe("decisions", () => {

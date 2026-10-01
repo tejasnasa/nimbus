@@ -254,20 +254,6 @@ describe("resolveAi — refusals carry curated reasons and CTAs", () => {
     }
   });
 
-  it("no credential + no operator key + encryption unset → `byok-unavailable`", async () => {
-    process.env.AI_API_KEY = "";
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
-    const user = await createUser();
-
-    const res = await resolveAi(user.id, "chat");
-
-    expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.reason).toBe("byok-unavailable");
-      expect(res.cta).toBeNull();
-    }
-  });
-
   it("no credential + operator key configured → free tier (not a refusal)", async () => {
     // The "no-key" refusal is reserved for the case where neither path
     // exists. With the operator key set, the free tier serves.
@@ -363,18 +349,18 @@ describe("resolveAi — no message ever leaks the API key", () => {
     await sweep(user.id);
   });
 
-  it("no refusal message echoes the stored key — encryption unset + no operator key", async () => {
-    // The credential row is inserted while the encryption key IS set, then
-    // the test removes the key. The row itself is still in the DB; the
-    // resolver sees a BYOK selection and decrypt-fails because the master
-    // key is gone, surfacing `byok-unavailable`. The whole point is that
-    // the curated message names the user-facing action (re-add), not the
+  it("no refusal message echoes the stored key — master key rotated away", async () => {
+    // The credential row is inserted under one master key, then the process
+    // is handed a different one. The row is still in the DB; the resolver
+    // sees a BYOK selection and decrypt-fails. The whole point is that the
+    // curated message names the user-facing action (re-add), not the
     // decryption-failed cause.
     const user = await createUser();
     await insertCredential(user.id, "openai", `sk-${DISTINCTIVE}`);
 
     process.env.AI_API_KEY = "";
-    delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
+    process.env.AI_CREDENTIAL_ENCRYPTION_KEY =
+      "a-completely-different-encryption-key-value-for-rotation";
 
     await sweep(user.id);
   });
@@ -487,10 +473,10 @@ describe("resolveAi — DB-shape edge cases", () => {
     }
   });
 
-  it("treats a credential row whose envelope fails to decrypt as `byok-unavailable`", async () => {
+  it("treats a credential row whose envelope fails to decrypt as a re-addable `no-key`", async () => {
     // The DB has a stale envelope (rotation, tampering). The resolver
-    // surfaces as `byok-unavailable` rather than crashing or leaking a
-    // decryption error message.
+    // surfaces a re-add CTA rather than crashing or leaking a decryption
+    // error message.
     const user = await createUser();
     await testPrisma.aiCredential.create({
       data: {
@@ -508,11 +494,12 @@ describe("resolveAi — DB-shape edge cases", () => {
 
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.reason).toBe("byok-unavailable");
+      expect(res.reason).toBe("no-key");
+      expect(res.cta).toBe("add-key");
       // The message names the action (re-add) rather than the cause
       // (decryption failed), which would echo the master-key bytes via a
       // logger.
-      expect(res.message).toMatch(/re-add|please contact/i);
+      expect(res.message).toMatch(/add it again|re-add|please contact/i);
     }
   });
 });
@@ -528,7 +515,6 @@ describe("AiRefusalReason — the union matches the resolver's contract", () => 
     "free-tier-exhausted",
     "no-operator-key",
     "no-capable-model",
-    "byok-unavailable",
   ];
 
   it.each(expectedReasons)("declares `%s`", (reason) => {

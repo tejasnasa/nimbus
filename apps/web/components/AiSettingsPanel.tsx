@@ -26,7 +26,6 @@ import {
   type AiProviderId,
   type AiStatusDTO,
 } from "@nimbus/types";
-import AiRefusalBanner from "./AiRefusalBanner";
 import AiModelPicker from "./AiModelPicker";
 import ApiKeyDialog from "./ApiKeyDialog";
 import { useAiCredentials } from "../hooks/useAiCredentials";
@@ -52,11 +51,12 @@ const FEATURE_LABELS: Record<AiFeature, string> = {
  */
 export default function AiSettingsPanel({ initialStatus }: Props) {
   const { state: statusState, refresh: refreshStatus } = useAiStatus();
+  // `save` and `remove` refetch the list themselves, so the panel never needs
+  // to call `refresh` here.
   const {
     state: credentialsState,
     save: saveCredential,
     remove: removeCredential,
-    refresh: refreshCredentials,
   } = useAiCredentials();
   const {
     state: preferencesState,
@@ -146,10 +146,6 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
     });
   };
 
-  // BYOK is unavailable when the API does not have an encryption key. The
-  // entire add/replace surface is hidden, but the free-tier line stays visible
-  // so the user can still see what they're entitled to.
-  const byokAvailable = status.byokAvailable;
   const credentials: readonly AiCredentialDTO[] =
     credentialsState.kind === "ready"
       ? credentialsState.credentials
@@ -158,14 +154,6 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
     preferencesState.kind === "ready"
       ? preferencesState.preferences
       : status.preferences;
-
-  const refreshAll = async () => {
-    await Promise.all([
-      refreshStatus(),
-      refreshCredentials(),
-      refreshPreferences(),
-    ]);
-  };
 
   return (
     <div
@@ -185,28 +173,18 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
         freeTierState={status.documents.freeTierState}
       />
 
-      {!byokAvailable && (
-        <AiRefusalBanner
-          message="Adding your own API key is not enabled on this deployment. The free tier is still available."
-          cta="manage-ai"
-          onCtaClickAction={refreshAll}
-        />
-      )}
-
       <section className="space-y-3">
         <header className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">API keys</h2>
-          {byokAvailable && (
-            <Button
-              size="xs"
-              data-testid="ai-add-key"
-              onClick={handleAddKey}
-              className="rounded-lg hover:cursor-pointer"
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              Add key
-            </Button>
-          )}
+          <Button
+            size="xs"
+            data-testid="ai-add-key"
+            onClick={handleAddKey}
+            className="rounded-lg hover:cursor-pointer"
+          >
+            <Plus className="w-3 h-3 mr-1" />
+            Add key
+          </Button>
         </header>
 
         {credentials.length === 0 ? (
@@ -219,7 +197,7 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
               <CredentialRow
                 key={c.providerId}
                 credential={c}
-                disabled={!byokAvailable || removingProviderId === c.providerId}
+                disabled={removingProviderId === c.providerId}
                 onReplace={() => handleReplaceKey(c.providerId as AiProviderId)}
                 onRemove={() =>
                   void handleRemoveKey(c.providerId as AiProviderId)

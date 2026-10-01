@@ -86,15 +86,6 @@ function parseProviderId(raw: string | undefined): AiProviderId | undefined {
     : undefined;
 }
 
-/**
- * Whether the encryption key is configured.
- *
- * Re-exported so the resolver has one place to look for both "can we store
- * credentials" and "can we decrypt them on read". The credential routes also
- * call this directly.
- */
-export { isEncryptionConfigured } from "./credentialCrypto";
-
 /** A typed lookup of a provider by id. Returns `undefined` for unknown ids. */
 export function getProvider(id: AiProviderId): AiProviderSpec | undefined {
   return AI_PROVIDERS[id];

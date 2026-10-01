@@ -4,16 +4,15 @@
  * cookies to the API (session auth) with `cache: "no-store"` so the settings
  * page can render the AI tab without waiting on a `useAiStatus` fetch.
  *
- * `@important` Failures resolve to a graceful "BYOK unavailable, free tier
- * unconfigured" shape rather than throwing — the AI panel renders its own
- * error UI, and the page itself must not 500 because the AI endpoint did.
+ * `@important` Failures resolve to a disabled-everything shape rather than
+ * throwing — the AI panel renders its own error UI, and the page itself must
+ * not 500 because the AI endpoint did.
  */
 import { headers } from "next/headers";
 import type { AiStatusDTO } from "@nimbus/types";
 
 /** Empty shape used when the API is unreachable or returns a non-OK status. */
 const FALLBACK: AiStatusDTO = {
-  byokAvailable: false,
   chat: {
     enabled: false,
     providerId: null,

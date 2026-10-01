@@ -12,8 +12,9 @@
  *   - put plaintext or key bytes in an error message — including inside
  *     `new Error(msg, { cause })`, because some loggers stringify the cause;
  *   - accept an envelope without the `nimbus1.` prefix;
- *   - fall back to a default or "no encryption" key when the env var is
- *     missing — the API throws; the caller turns that into a 503;
+ *   - invent a default or "no encryption" key when the env var is missing.
+ *     The variable is required at boot (`lib/env.ts`), so there is no
+ *     unconfigured runtime state to degrade into;
  *   - export anything that returns a plaintext key to an HTTP layer. The
  *     DTO type has no field for it, so a leak would be a type error;
  *   - use a non-AEAD mode or a static IV.
@@ -106,24 +107,18 @@ export function buildAad(userId: string, providerId: string): Buffer {
 }
 
 /**
- * Whether the process has an encryption key configured.
+ * Reads the master key.
  *
- * `false` means the credential routes will refuse (HTTP 503) and the web UI
- * will hide every add-key affordance while still offering the free tier.
- * Returning `false` is not the same as `crypto not loaded`: the API still
- * boots, just without the BYOK surface.
+ * `lib/env.ts` declares `AI_CREDENTIAL_ENCRYPTION_KEY` as required, so a
+ * process that booted always has one. The guard here is a programmer-error
+ * net for code that reads `process.env` directly (tests, scripts) rather than
+ * a supported runtime state — there is no degraded "BYOK off" mode.
  */
-export function isEncryptionConfigured(): boolean {
-  return Boolean(process.env[MASTER_KEY_ENV]);
-}
-
-/** Throws when the master key is missing or invalid. Used at the entry points
- *  that must refuse to run without encryption rather than silently degrade. */
 function requireMasterKey(): Buffer {
   const raw = process.env[MASTER_KEY_ENV];
   if (!raw || raw.length < 32) {
     throw new Error(
-      `${MASTER_KEY_ENV} is unset or shorter than 32 chars; BYOK is unavailable until it is set.`,
+      `${MASTER_KEY_ENV} is unset or shorter than 32 chars. It is required (see lib/env.ts).`,
     );
   }
   return deriveKey(raw);

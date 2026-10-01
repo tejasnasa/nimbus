@@ -11,12 +11,10 @@
  *      key-adjacent field allowed, because it is designed to be visible to the
  *      user. A leak here would be a type error, not a runtime bug.
  *
- *   2. `AiStatusDTO` is the web's source of truth for the disabled composer
- *      (§7 of the plan). The shape must be answerable even when the encryption
- *      key is missing — `byokAvailable: false` rather than a 503 — because the
- *      chat composer is client-side, and the client needs to know whether to
- *      render the "add a key" affordance without that affordance 503ing on
- *      every render.
+ *   2. `AiStatusDTO` is the web's source of truth for the disabled composer.
+ *      It is always answerable: every field is derived from the caller's own
+ *      credentials, preferences and quota, so a request never fails because
+ *      the deployment is misconfigured.
  */
 import type { AiFeature } from "../ai/providers";
 
@@ -62,8 +60,6 @@ export type AiFeatureStatus = {
 
 /** The shape of `GET /api/ai/status`. */
 export type AiStatusDTO = {
-  /** False when `AI_CREDENTIAL_ENCRYPTION_KEY` is unset — no BYOK surface. */
-  byokAvailable: boolean;
   chat: AiFeatureStatus;
   documents: {
     markdown: AiFeatureStatus;

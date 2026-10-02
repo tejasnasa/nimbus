@@ -6,10 +6,10 @@
  * port instead of inheriting a listener started as an import side effect.
  *
  * Express stack order matters: CORS (credentialed, FRONTEND_URL origin) → JSON
- * body parser → request logging → better-auth handler → REST routers → the
- * `/api` 404 → the health string → the terminal error handler. The two
- * handlers at the end are what keep every response, failures included, in the
- * `ServerResponse` envelope.
+ * body parser → request logging → better-auth handler → the public contact
+ * route → REST routers → the `/api` 404 → the health string → the terminal
+ * error handler. The two handlers at the end are what keep every response,
+ * failures included, in the `ServerResponse` envelope.
  */
 import { createAdapter } from "@socket.io/redis-adapter";
 import { toNodeHandler } from "better-auth/node";
@@ -25,6 +25,7 @@ import {
   errorHandler,
 } from "./middleware/error.middleware";
 import applySocketAuth from "./middleware/socket.middleware";
+import contactRouter from "./routers/contact.router";
 import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
 import registerChatHandlers from "./socket/chat";
@@ -35,9 +36,10 @@ import { registerVoiceHandlers } from "./socket/voice";
  * Builds the Express app.
  *
  * @returns The app with CORS, `express.json()`, request logging, better-auth
- *          mounted at `/api/auth/{*any}`, the authenticated `/api` routers, the
- *          `/` health string, and the two terminal handlers that make the
- *          envelope universal. Not listening — the caller starts the server.
+ *          mounted at `/api/auth/{*any}`, the public `/api/contact` route, the
+ *          authenticated `/api` routers, the `/` health string, and the two
+ *          terminal handlers that make the envelope universal. Not listening —
+ *          the caller starts the server.
  */
 export const createApp = (): Express => {
   const app = express();
@@ -56,6 +58,7 @@ export const createApp = (): Express => {
   // better-auth exposes its own routes (sign-in, session, etc.) — mounted before
   // the app routers so `/api/auth/*` never hits authCheck or validation.
   app.all("/api/auth/{*any}", toNodeHandler(auth));
+  app.use("/api/contact", contactRouter); // public endpoint
   app.use("/api", masterRouter);
 
   // Unknown /api/* paths answer in the same envelope as every real endpoint, so a

@@ -22,20 +22,22 @@ afterEach(cleanupDom);
 
 const setup = (
   avatar?: string | null,
-  options: { onSettings?: () => void } = {},
+  options: { onSettings?: () => void; onContact?: () => void } = {},
 ) => {
   const logout = vi.fn();
   const onSettings = options.onSettings ?? vi.fn();
+  const onContact = options.onContact ?? vi.fn();
   const mounted = render(
     <Navbar
       logout={logout}
       onSettings={onSettings}
+      onContact={onContact}
       avatar={avatar}
       id="user-1"
       name="Ada Lovelace"
     />,
   );
-  return { ...mounted, logout, onSettings };
+  return { ...mounted, logout, onSettings, onContact };
 };
 
 /** The avatar itself is the menu trigger — there is no button element. */
@@ -68,11 +70,12 @@ describe("Navbar", () => {
     expect(src).not.toBe("null");
   });
 
-  it("lists the name, Settings and Sign Out in the menu", () => {
+  it("lists the name, Settings, Contact and Sign Out in the menu", () => {
     const { container } = setup();
     expect(openMenu(container).map((b) => b.textContent)).toEqual([
       "Ada Lovelace",
       "Settings",
+      "Contact",
       "Sign Out",
     ]);
   });
@@ -84,7 +87,7 @@ describe("Navbar", () => {
 
   it("signs out from the menu", () => {
     const { container, logout } = setup();
-    const signOut = openMenu(container)[2]!;
+    const signOut = openMenu(container)[3]!;
     click(signOut);
     expect(logout).toHaveBeenCalledTimes(1);
   });
@@ -96,11 +99,19 @@ describe("Navbar", () => {
     expect(onSettings).toHaveBeenCalledTimes(1);
   });
 
-  it("still renders with the onSettings prop omitted", () => {
-    // `onSettings` is optional — without it, the Settings menu item is still
-    // listed (visual parity with all other consumers) but does nothing on click.
-    // `OptionMenu` invokes `item.onClick?.()` and closes the menu either way,
-    // so the contract here is "does not throw and the menu still closes".
+  it("calls onContact when the Contact menu item is clicked", () => {
+    const { container, onContact } = setup(null, { onContact: vi.fn() });
+    const contact = openMenu(container)[2]!;
+    click(contact);
+    expect(onContact).toHaveBeenCalledTimes(1);
+  });
+
+  it("still renders with the optional handlers omitted", () => {
+    // `onSettings` and `onContact` are optional — without them their menu items
+    // are still listed (visual parity with all other consumers) but do nothing
+    // on click. `OptionMenu` invokes `item.onClick?.()` and closes the menu
+    // either way, so the contract here is "does not throw and the menu still
+    // closes".
     const { container } = render(
       <Navbar logout={vi.fn()} avatar={null} id="user-1" name="Ada Lovelace" />,
     );
@@ -108,9 +119,11 @@ describe("Navbar", () => {
     expect(items.map((b) => b.textContent)).toEqual([
       "Ada Lovelace",
       "Settings",
+      "Contact",
       "Sign Out",
     ]);
     expect(() => click(items[1]!)).not.toThrow();
+    expect(() => click(items[2]!)).not.toThrow();
     // The menu still closes — `OptionMenu` calls `setOpen(false)` whether or
     // not a handler was supplied. We check by querying directly rather than
     // via `openMenu`, which would re-open the menu.

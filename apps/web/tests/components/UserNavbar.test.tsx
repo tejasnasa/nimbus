@@ -88,6 +88,15 @@ describe("UserNavbar", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/settings"));
   });
 
+  it("routes the Contact menu item to the public contact page", async () => {
+    const user = userEvent.setup();
+    render(<UserNavbar id="user-1" name="Ada Lovelace" avatar={null} />);
+
+    await openMenuAndClick(user, "Contact");
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/contact"));
+  });
+
   it("signs out and returns the user to the login page", async () => {
     const user = userEvent.setup();
     const requests: string[] = [];

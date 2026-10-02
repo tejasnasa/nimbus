@@ -29,6 +29,26 @@ test.describe("smoke", () => {
     await context.close();
   });
 
+  test("an anonymous visitor can reach the contact form", async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    await page.goto("/contact");
+
+    // Public, and not bounced to /login: this is the page someone reaches for
+    // when something is broken, so it has to be reachable without an account.
+    await expect(
+      page.getByRole("heading", { name: "Get in touch" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Message")).toBeVisible();
+
+    // The submission itself is deliberately not exercised. The API under E2E
+    // runs with the placeholder `RESEND_API_KEY` from `.env.test`, so a real
+    // submit would be a live outbound call to the mail provider and would tie
+    // the nightly run to a third party's availability.
+    await context.close();
+  });
+
   test("the seeded owner sees their workspace on the dashboard", async ({
     page,
   }) => {

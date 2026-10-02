@@ -1,18 +1,19 @@
 /**
  * @module ui/components/Navbar
  * @description Sticky top navigation: Nimbus brand link on the left and an
- * avatar-triggered `OptionMenu` (Settings / Sign Out) on the right. Falls
- * back to `getAvatarForUser(id)` when no custom avatar URL is provided.
+ * avatar-triggered `OptionMenu` (Settings / Contact / Sign Out) on the right.
+ * Falls back to `getAvatarForUser(id)` when no custom avatar URL is provided.
  *
- * The Settings menu item is only wired when `onSettings` is provided; when
- * omitted, it remains in the menu for visual parity but does nothing on
- * click. `OptionMenu` exposes only `onClick`, so navigation lives in the
- * caller — see `apps/web/components/UserNavbar.tsx`.
+ * The Settings and Contact items are only wired when their handler is
+ * provided; when omitted, they remain in the menu for visual parity but do
+ * nothing on click. `OptionMenu` exposes only `onClick`, so navigation lives in
+ * the caller — see `apps/web/components/UserNavbar.tsx`.
  */
 import Link from "next/link";
 import Cloud from "./icons/Cloud";
 import Avatar from "./Avatar";
 import OptionMenu from "./OptionsMenu";
+import Chat from "./icons/Chat";
 import Settings from "./icons/Settings";
 import Logout from "./icons/Logout";
 import { getAvatarForUser } from "../utils/getAvatarForUser";
@@ -22,6 +23,7 @@ import { getAvatarForUser } from "../utils/getAvatarForUser";
  *
  * @param props.logout - Sign-out handler wired to the "Sign Out" menu item.
  * @param props.onSettings - Optional handler for the "Settings" menu item.
+ * @param props.onContact - Optional handler for the "Contact" menu item.
  * @param props.avatar - Custom avatar URL; deterministic fallback when nullish.
  * @param props.id - User ID used for the fallback avatar hash.
  * @param props.name - Display name shown as the disabled menu header.
@@ -29,12 +31,14 @@ import { getAvatarForUser } from "../utils/getAvatarForUser";
 export default function Navbar({
   logout,
   onSettings,
+  onContact,
   avatar,
   id,
   name,
 }: {
   logout: () => void;
   onSettings?: () => void;
+  onContact?: () => void;
   avatar?: string | null;
   id: string;
   name: string;
@@ -69,6 +73,11 @@ export default function Navbar({
               label: "Settings",
               icon: <Settings />,
               onClick: onSettings,
+            },
+            {
+              label: "Contact",
+              icon: <Chat />,
+              onClick: onContact,
             },
             {
               label: "Sign Out",

@@ -117,6 +117,11 @@ export const handlers = [
     }),
   ),
 
+  // ── Contact ──
+  // The only public API route: it answers an anonymous caller too. The success
+  // envelope carries a null payload, matching the controller.
+  http.post(url("/api/contact"), () => ok(null, "Message sent")),
+
   // ── better-auth ──
   http.post(url("/api/auth/sign-in/email"), () =>
     HttpResponse.json({ token: "session-token", user: { id: "user-1" } }),

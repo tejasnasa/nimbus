@@ -54,6 +54,7 @@ const envSchema = z.object({
   // The mail client is constructed unconditionally at module load, so it is
   // required even when its feature goes unused.
   RESEND_API_KEY: required,
+  CONTACT_TO_EMAIL: z.email().or(z.literal("")),
   GOOGLE_CLIENT_ID: required,
   GOOGLE_CLIENT_SECRET: required,
 
@@ -91,7 +92,6 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: required,
   CLOUDINARY_API_SECRET: required,
 
-  // ── Optional ──
   TURN_SERVER_URL: z.string().min(1).optional(),
   TURNS_SERVER_URL: z.string().min(1).optional(),
   EXTERNAL_IP: z.string().min(1).optional(),

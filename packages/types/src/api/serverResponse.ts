@@ -88,8 +88,18 @@ export class ServerResponse<T = null> {
     return new ServerResponse(false, message, null, 501);
   }
 
+  /** 502 Bad Gateway — an upstream dependency rejected the request. */
+  static badGateway(message = "Bad Gateway") {
+    return new ServerResponse(false, message, null, 502);
+  }
+
   /** 503 Service Unavailable — dependency down or maintenance mode. */
   static serviceUnavailable(message = "Service Unavailable") {
     return new ServerResponse(false, message, null, 503);
+  }
+
+  /** 504 Gateway Timeout — an upstream dependency did not answer in time. */
+  static gatewayTimeout(message = "Gateway Timeout") {
+    return new ServerResponse(false, message, null, 504);
   }
 }

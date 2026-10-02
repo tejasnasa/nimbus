@@ -84,6 +84,16 @@ describe("contract: REST routes", () => {
     expect(res.status).toBe(404);
   });
 
+  it("mounts the contact route outside authCheck, as the one public route", async () => {
+    const res = await request(app).post("/api/contact").send({});
+
+    // 400 from body validation, not 401 from authCheck. A guarded route would
+    // have answered 401 before parsing the body, which is what
+    // `smoke/boot.test.ts` pins for every other router. The contact route is
+    // therefore deliberately absent from ROUTE_CONTRACT above.
+    expect(res.status).toBe(400);
+  });
+
   it("keeps better-auth mounted ahead of the API routers", async () => {
     const res = await request(app).get("/api/auth/get-session");
 

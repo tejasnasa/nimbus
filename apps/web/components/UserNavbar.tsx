@@ -2,7 +2,8 @@
  * @module web/components/UserNavbar
  * @description Authenticated navbar wiring: adapts `authClient.signOut` to
  * the UI `Navbar`'s `logout` prop and routes to `/login` (even on failure).
- * The Settings menu item navigates to `/settings`.
+ * The Settings menu item navigates to `/settings` and Contact to `/contact`,
+ * which is how a signed-in user reaches the public form.
  */
 "use client";
 
@@ -45,10 +46,15 @@ export default function UserNavbar({
     router.push("/settings");
   };
 
+  const handleContact = () => {
+    router.push("/contact");
+  };
+
   return (
     <Navbar
       logout={handleLogout}
       onSettings={handleSettings}
+      onContact={handleContact}
       id={id}
       avatar={avatar}
       name={name}

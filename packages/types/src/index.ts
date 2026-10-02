@@ -17,6 +17,12 @@ export {
   aiPreferenceSchema,
   aiProviderIdSchema,
 } from "./validations/ai";
+export {
+  CONTACT_CATEGORIES,
+  CONTACT_CATEGORY_LABELS,
+  contactSchema,
+  type ContactCategory,
+} from "./validations/contact";
 export { documentSchema } from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";

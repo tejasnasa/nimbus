@@ -52,7 +52,9 @@ describe("ServerResponse", () => {
       ["unprocessableEntity", () => ServerResponse.unprocessableEntity(), 422],
       ["tooManyRequests", () => ServerResponse.tooManyRequests(), 429],
       ["notImplemented", () => ServerResponse.notImplemented(), 501],
+      ["badGateway", () => ServerResponse.badGateway(), 502],
       ["serviceUnavailable", () => ServerResponse.serviceUnavailable(), 503],
+      ["gatewayTimeout", () => ServerResponse.gatewayTimeout(), 504],
     ])("%s sets failure and the matching status", (_name, build, status) => {
       const response = build();
 

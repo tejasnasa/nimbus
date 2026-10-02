@@ -66,6 +66,12 @@ export default function LandingPage() {
             >
               Testimonials
             </a>
+            <Link
+              href="/contact"
+              className="hover:text-(--foreground) transition-colors duration-200"
+            >
+              Contact
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -111,7 +117,7 @@ export default function LandingPage() {
               href="/login"
               className="px-8 py-3.5 text-base font-medium rounded-xl bg-(--primary) text-(--primary-foreground) hover:opacity-90 active:translate-y-0.5 transition-all duration-200 shadow-lg shadow-(--primary)/25"
             >
-              Start Collaborating — Free
+              Start Collaborating Now
             </Link>
             <a
               href="#preview"
@@ -767,6 +773,12 @@ export default function LandingPage() {
           <div className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-(--muted-foreground)">
             <p>Made by Tejas Nasa.</p>
             <div className="flex items-center gap-6">
+              <Link
+                href="/contact"
+                className="hover:text-(--foreground) transition-colors"
+              >
+                Contact
+              </Link>
               <a
                 href="https://github.com/tejasnasa/nimbus"
                 className="hover:text-(--foreground) transition-colors"

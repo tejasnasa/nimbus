@@ -197,6 +197,20 @@ describe("Textarea", () => {
     expect(textarea.className).toContain("resize-none");
   });
 
+  it("sizes the writing surface from the size prop", () => {
+    const small = render(<Textarea />);
+    const large = render(<Textarea size="lg" />);
+
+    // The two heights are the same utility, so a caller appending `h-56` would
+    // be relying on stylesheet order rather than on anything it controls.
+    expect(query<HTMLTextAreaElement>(small.container, "textarea").className).toContain(
+      "h-32",
+    );
+    expect(query<HTMLTextAreaElement>(large.container, "textarea").className).toContain(
+      "h-56",
+    );
+  });
+
   it.fails("does not emit a literal 'undefined' class when className is omitted", () => {
     const { container } = render(<Textarea />);
     expect(query(container, "textarea").className).not.toContain("undefined");

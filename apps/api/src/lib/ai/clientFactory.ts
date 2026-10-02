@@ -31,6 +31,8 @@
  */
 import OpenAI from "openai";
 import {
+  AI_PROVIDERS,
+  modelById,
   type AiEffort,
   type AiModelSpec,
   type AiProviderSpec,
@@ -240,12 +242,13 @@ function lookupModelSpec(
   providerId: string,
   modelId: string,
 ): AiModelSpec | undefined {
-  // Imported inside the function so a future "swap the registry source"
-  // change has one place to touch. The cost is one import per reasoning
-  // call, which is small relative to a model call.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { AI_PROVIDERS, modelById } =
-    require("@nimbus/types") as typeof import("@nimbus/types");
+  // @important Static import, never an inline `require`. `@nimbus/types`
+  //            resolves `require` to `./dist/index.js`, which exists only after
+  //            a build — and the API test job does not build it. A require here
+  //            therefore throws MODULE_NOT_FOUND in CI while passing locally
+  //            against a stale `dist`, and the throw is swallowed by the caller
+  //            as a transport failure ("unreachable"), which is a genuinely
+  //            confusing way to learn about a module resolution problem.
   const provider = AI_PROVIDERS[providerId as keyof typeof AI_PROVIDERS];
   if (!provider) return undefined;
   return modelById(provider, modelId);

@@ -16,6 +16,7 @@ to follow when adding tests.
 - [Web suite](#web-suite)
 - [Package suites](#package-suites)
 - [End-to-end suite](#end-to-end-suite)
+- [Production smoke suite](#production-smoke-suite)
 - [Coverage](#coverage)
 - [Continuous integration](#continuous-integration)
 - [Known unfixed defects](#known-unfixed-defects)
@@ -85,16 +86,16 @@ command to start it rather than a connection traceback.
 
 | Suite | Location | Runner | Docker | Tests | Duration |
 |---|---|---|---|---|---|
-| API | `apps/api/src/__tests__/` | Vitest | Yes | 348 passing, 2 expected failures | ~3.5 min |
-| Web | `apps/web/tests/` | Vitest + MSW | No | 235 passing, 7 expected failures | ~1 min |
-| `@nimbus/ui` | `packages/ui/__tests__/` | Vitest | No | 106 passing, 4 expected failures | ~2 s |
-| `@nimbus/db` | `packages/database/__tests__/` | Vitest | Yes | 101 passing | ~9 s |
-| `@nimbus/utils` | `packages/utils/__tests__/` | Vitest | No | 37 passing, 2 expected failures | ~1 s |
-| End-to-end | `apps/web/e2e/` | Playwright | Yes | 22 passing (20 specs + 2 setup steps) | ~3 min |
+| API | `apps/api/src/__tests__/` | Vitest | Yes | 675 passing | ~5 min |
+| Web | `apps/web/tests/` | Vitest + MSW | No | 442 passing | ~1 min |
+| `@nimbus/ui` | `packages/ui/__tests__/` | Vitest | No | 159 passing | ~15 s |
+| `@nimbus/db` | `packages/database/__tests__/` | Vitest | Yes | 122 passing | ~10 s |
+| `@nimbus/utils` | `packages/utils/__tests__/` | Vitest | No | 73 passing | ~3 s |
+| End-to-end | `apps/web/e2e/` | Playwright | Yes | 26 passing (24 specs + 2 setup steps) | ~3 min |
 
 Timings are from a serial local run and vary with machine load. The API suite is by far the largest
 because it drives a real HTTP server and real Socket.IO clients against a real database; `vitest`
-reports it as 72% test time.
+reports it as roughly 83% test time.
 
 A rough guide to which suite a change belongs in:
 
@@ -527,14 +528,98 @@ artifact kinds record only on failure or retry. The report is opened with
 `npx playwright show-report apps/web/playwright-report` from the repo root, or `npm run test:e2e:ui`
 for the interactive runner. Both directories are covered by the root `.gitignore`.
 
+## Production smoke suite
+
+Everything above runs against a local stack on a throwaway database, so none of it can see a
+deployment problem: a droplet missing an env var, a session cookie that does not cover the web host,
+or a workspace-creation transaction that rolls back. `apps/web/e2e-prod` is a second Playwright
+suite that drives the **deployed** application — `https://nimbus.tejasnasa.me` and
+`https://nimbus-api.tejasnasa.me` — as a seeded user, and deletes whatever it creates.
+
+```bash
+npm run test:e2e:prod -w apps/web          # nightly, and on demand
+```
+
+It runs from `.github/workflows/prod-smoke.yml` on a nightly cron and on `workflow_dispatch`. It has
+**no `pull_request` trigger and never should** — it writes to production.
+
+### Safety
+
+`apps/web/e2e-prod/env.ts` refuses to start unless:
+
+- `SMOKE_BASE_URL` is set, is `https:`, and its parsed **hostname exactly equals** an allowlisted
+  host (`SMOKE_ALLOWED_HOSTS`, default `nimbus.tejasnasa.me`). Exact match, not substring — a
+  substring check accepts `nimbus.tejasnasa.me.attacker.tld`. `SMOKE_API_URL` is checked the same
+  way against its own list (`SMOKE_ALLOWED_API_HOSTS`), because the two hosts differ.
+- All four credentials are present, and the error names every missing one.
+
+The config has **no `webServer` and no `globalSetup`**. The local suite's config boots two processes
+and runs `seed_e2e.ts`, which TRUNCATEs every table it can reach; neither is reachable from here.
+
+### Credentials
+
+The nightly run gets them from **repository secrets** — the GitHub runner checks the repo out without
+your local `.env`, so a local file cannot supply them. For a local run, put the same values in an
+untracked **`.env.smoke`** at the repo root. Both paths are plain `process.env`; a variable already
+set in the environment is never overwritten, so CI always wins.
+
+> `.gitignore` lists env files by exact name with no `.env*` glob, so `.env.smoke` needed its own
+> entry. It has one — do not remove it, or a `git add .` will commit production passwords.
+
+The suite needs two accounts, created by hand through the real signup form and email-verified (with
+`requireEmailVerification: true` there is no admin reset, so recreate rather than recover). No BYOK
+key is needed: the `@nimbusbot` check only ever asks for a plain chat reply, and only document
+generation is metered.
+
+### Cleanup
+
+Three mechanisms, because a suite that writes to production has to be able to unwind:
+
+1. A **worker-scoped fixture** creates the shared workspace over the API and deletes it in teardown,
+   which runs on failure as well as success.
+2. The UI spec creates a workspace through the dashboard and deletes it through the settings danger
+   zone — which is also the only end-to-end coverage of the OWNER-only delete path.
+3. A **janitor** in `auth.setup.ts` reaps any workspace named `[smoke]…` older than six hours. It
+   only ever matches that prefix, so it cannot reach a workspace a real person made.
+
+Deletion cascades to members, messages and documents, so one delete per workspace is complete.
+
+Two details are easy to get wrong: the janitor must call the **API host**, since the web host has no
+`/api` rewrite; and `DELETE /api/workspace/delete/:wsid` takes the cuid **`id`**, not the numeric
+`slugId` the URL carries. Passing the slug returns a 404 that reads exactly like "already gone" and
+leaks orphans silently.
+
+### Artifacts
+
+`trace: "off"` and `video: "off"`, unlike the local suite. Playwright traces record action
+parameters, and for a sign-in `fill` that means the production password; the workflow uploads the
+report where anyone with repository read can download it. The HTML report is the only artifact, and
+the workflow deliberately does not upload `test-results/`.
+
+### What it covers, and what it does not
+
+Sign-in through the real form (the cross-subdomain cookie, CORS and `trustedOrigins` all ride on it),
+workspace creation and its `BOT_USERID` foreign key, document rendering and edit persistence, live
+chat delivery and persistence, a `@nimbusbot` chat reply, invite/join and the OWNER-is-immutable
+invariants, and the `/api/health` probe.
+
+Three things are checked for **env wiring only**, and the test names say so: the TURN credentials and
+the Cloudinary signature are both computed locally from a secret, so a wrong secret still produces a
+well-formed answer. They prove the variable is present, not that Coturn or Cloudinary accepts it.
+
+**Not covered at all:** Resend. A real send needs a mailbox readable from CI, and `deliver()` in
+`lib/email.ts` swallows failures, so a 200 proves nothing. Voice media is also unreachable — it needs
+a microphone and real ICE negotiation — so only credential minting is asserted. Cross-replica
+fan-out is untestable against a single droplet.
+
 ## Coverage
 
 Every package measures coverage and enforces a committed floor.
 
 | Package | Floor file | statements | branches | functions | lines |
 |---|---|---|---|---|---|
-| `apps/api` | `apps/api/.coverage-floor` | 91 | 85 | 93 | 92 |
-| `apps/web` | `apps/web/.coverage-floor` | 77 | 66 | 70 | 79 |
+| `apps/api` | `apps/api/.coverage-floor` | 92 | 87 | 94 | 93 |
+| `apps/web` | `apps/web/.coverage-floor` | 80 | 70 | 73 | 83 |
 | `packages/ui` | `packages/ui/.coverage-floor` | 96 | 94 | 97 | 98 |
 | `packages/utils` | `packages/utils/.coverage-floor` | 94 | 98 | 98 | 94 |
 | `packages/database` | `packages/database/.coverage-floor` | 90 | 76 | 98 | 92 |
@@ -615,13 +700,15 @@ error message of its own.
 Adding a new variable that a task reads means adding it to that task's `passThroughEnv`, or the task
 silently sees nothing.
 
-## Known unfixed defects
+## Fixed defects
 
-Fifteen defects are recorded as **expected failures** — `it.fails(...)` instead of `it(...)`. Each
-one asserts the behaviour that *should* exist, so the suite reads as a written record of the bug
-rather than as a comment that can rot.
+Fifteen defects were recorded as **expected failures** — `it.fails(...)` instead of `it(...)` — each
+one asserting the behaviour that *should* exist, so the suite read as a written record of the bug
+rather than as a comment that could rot. All fifteen are now fixed and every marker has been
+converted to an ordinary `it(...)`; the suite carries none.
 
-`it.fails` has two properties that make it the right instrument here:
+The technique is worth keeping in mind for the next one. `it.fails` has two properties that make it
+the right instrument:
 
 1. It passes while the defect exists and **fails** when the defect is fixed (`Vitest: "expected to
    fail, but passed"`). Fixing a defect therefore cannot be done quietly — the marker has to be
@@ -629,25 +716,32 @@ rather than as a comment that can rot.
 2. The test carries the assertion, so when the fix lands the desired behaviour is already covered.
    Nothing needs writing afterwards.
 
-Current markers, by where they will be fixed:
+What the fifteen were, by where they were fixed:
 
 | Location | Defect |
 |---|---|
-| `apps/api/src/lib/canvasGeneration.ts` | Two nodes sharing an id: one escapes the layout pass entirely instead of both being laid out. |
-| `apps/api/src/lib/canvasGeneration.ts` | A `null` coordinate hint is treated as `y = 0` rather than as no hint. |
-| `apps/web/components/FormSwitch.tsx` | The inactive auth cards stay in the accessibility tree, so a screen reader can reach fields the user cannot see. |
-| `apps/web/components/FormSwitch.tsx` | Each card's Email label does not point at its own field, so clicking it focuses the wrong input. |
-| `apps/web/components/UserNavbar.tsx` | A failed sign-out request leaves the user signed in rather than returning them to `/login`. |
-| `apps/web/hooks/useResetPasswordForm.ts` | Navigates to `/login` after the form has unmounted. |
-| `apps/web/hooks/useWorkspaceMembers.ts` | A member's own in-flight request is not kept marked as loading, so the row shows a stale state. |
-| `apps/web/hooks/useWorkspacePermissions.ts` | The route is not refreshed after rotating the invite code, so the UI keeps showing the stale code. |
-| `apps/web/hooks/useVoiceChat.ts` | The current user's updated display name is not reflected in the roster. |
-| `packages/ui/src/utils/getAvatarForUser.ts` | Returns an unusable image URL for a named user. |
-| `packages/ui/src/utils/getAvatarForUser.ts` | Returns an unusable image URL when no user id is supplied. |
-| `packages/ui/src/components/Textarea.tsx` | Emits a literal `undefined` class when `className` is omitted. |
-| `packages/ui/src/components/ToggleGroup.tsx` | The selection can point at an option that no longer exists after `options` changes. |
-| `packages/utils/src/slugGenerator.ts` | Truncation that lands on a separator leaves a trailing hyphen. |
-| `packages/utils/src/slugGenerator.ts` | `generateSlug` does not produce the output its own JSDoc example promises. |
+| `apps/api/src/lib/canvasGeneration.ts` | Two nodes sharing an id: one escaped the layout pass entirely instead of both being laid out. |
+| `apps/api/src/lib/canvasGeneration.ts` | A `null` coordinate hint was read as `y = 0` rather than as no hint. |
+| `apps/web/components/FormSwitch.tsx` | The inactive auth cards stayed in the accessibility tree, so a screen reader could reach fields the user could not see. |
+| `apps/web/components/FormSwitch.tsx` | Each card's Email label did not point at its own field, so clicking it focused the wrong input. |
+| `apps/web/components/UserNavbar.tsx` | A failed sign-out request left the user signed in rather than returning them to `/login`. |
+| `apps/web/hooks/useResetPasswordForm.ts` | Navigated to `/login` after the form had unmounted. |
+| `apps/web/hooks/useWorkspaceMembers.ts` | A member's own in-flight request was not kept marked as loading, so the row showed a stale state. |
+| `apps/web/hooks/useWorkspacePermissions.ts` | The route was not refreshed after rotating the invite code, so the UI kept showing the stale code. |
+| `apps/web/hooks/useVoiceChat.ts` | The current user's updated display name was not reflected in the roster. |
+| `packages/ui/src/utils/getAvatarForUser.ts` | Returned an unusable image URL for a named user. |
+| `packages/ui/src/utils/getAvatarForUser.ts` | Returned an unusable image URL when no user id was supplied. |
+| `packages/ui/src/components/Textarea.tsx` | Emitted a literal `undefined` class when `className` was omitted. |
+| `packages/ui/src/components/ToggleGroup.tsx` | The selection could point at an option that no longer existed after `options` changed. |
+| `packages/utils/src/slugGenerator.ts` | Truncation that landed on a separator left a trailing hyphen. |
+| `packages/utils/src/slugGenerator.ts` | `generateSlug` did not produce the output its own JSDoc example promised. |
+
+Two of the fifteen were wrong expectations rather than live bugs, and both are worth knowing about
+because the *assertion* was corrected rather than the behaviour. The `null` coordinate hint already
+fell back correctly; the test compared against a node whose explicit `y: 500` dominated the sort
+under either reading, so no fix could have made it pass. And `generateSlug` strips apostrophes by
+design — two other passing tests pin that, including the collision between `Ada's Dev` and
+`Adas Dev` — so the JSDoc example, not the function, was the thing that was wrong.
 
 Five more are **worked around rather than pinned** — either they cannot be expressed as an assertion
 inside the suite, or they are configuration debt rather than behaviour:

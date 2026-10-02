@@ -1,0 +1,76 @@
+name: Prod smoke
+
+# Drives the deployed application — https://nimbus.tejasnasa.me and
+# https://nimbus-api.tejasnasa.me — as a seeded user, walking the critical path
+# and then deleting what it created. It exists because every other suite in the
+# repo runs against a local stack on a throwaway database, and so structurally
+# cannot see the failures that only appear in production: a droplet missing an
+# env var, a session cookie that does not cover the web host, or a workspace
+# creation transaction that rolls back.
+#
+# @important Deliberately has no `pull_request` trigger and never should: this
+#            suite writes to production. It runs nightly and on demand only.
+on:
+  schedule:
+    # 04:41 UTC — off the hour, and clear of the local E2E run at 03:23.
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_ai:
+        description: Skip the NimbusBot check (real model call)
+        type: boolean
+        default: false
+
+# @important Not `cancel-in-progress`: cancelling this suite mid-run abandons
+#            whatever it had already created. A stuck run is bounded by
+#            `timeout-minutes` instead.
+concurrency:
+  group: prod-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Playwright (chromium, deployed)
+    runs-on: ubuntu-latest
+    # Without this a hung run holds a non-cancelling concurrency group for the
+    # six-hour default.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # The two targets are not secrets; the four credentials are. Until they are
+      # added, the suite refuses to start and names every missing variable.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the suite
+        run: npm run test:e2e:prod -w apps/web
+        env:
+          CI: "true"
+          SMOKE_BASE_URL: "https://nimbus.tejasnasa.me"
+          SMOKE_API_URL: "https://nimbus-api.tejasnasa.me"
+          SMOKE_USER_EMAIL: ${{ secrets.SMOKE_USER_EMAIL }}
+          SMOKE_USER_PASSWORD: ${{ secrets.SMOKE_USER_PASSWORD }}
+          SMOKE_MEMBER_EMAIL: ${{ secrets.SMOKE_MEMBER_EMAIL }}
+          SMOKE_MEMBER_PASSWORD: ${{ secrets.SMOKE_MEMBER_PASSWORD }}
+          # Workflow inputs do not arrive as environment variables.
+          SMOKE_SKIP_AI: ${{ inputs.skip_ai && '1' || '0' }}
+
+      # The report only. `test-results/` would carry traces, and traces record
+      # action parameters — including the password typed into the sign-in form.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-smoke-report
+          path: apps/web/e2e-prod/playwright-report/
+          retention-days: 14

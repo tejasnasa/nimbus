@@ -31,7 +31,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary"],
-      exclude: ["e2e/**"],
+      exclude: ["e2e/**", "e2e-prod/**"],
     },
     // Vitest does not read `.env` files. Without this, every module that reads a
     // public URL at import time sees `undefined` — `lib/auth-client.ts` throws

@@ -6,10 +6,10 @@
  * port instead of inheriting a listener started as an import side effect.
  *
  * Express stack order matters: CORS (credentialed, FRONTEND_URL origin) → JSON
- * body parser → request logging → better-auth handler → the public contact
- * route → REST routers → the `/api` 404 → the health string → the terminal
- * error handler. The two handlers at the end are what keep every response,
- * failures included, in the `ServerResponse` envelope.
+ * body parser → request logging → better-auth handler → the public contact and
+ * health routes → REST routers → the `/api` 404 → the root greeting string →
+ * the terminal error handler. The two handlers at the end are what keep every
+ * response, failures included, in the `ServerResponse` envelope.
  */
 import { createAdapter } from "@socket.io/redis-adapter";
 import { toNodeHandler } from "better-auth/node";
@@ -26,6 +26,7 @@ import {
 } from "./middleware/error.middleware";
 import applySocketAuth from "./middleware/socket.middleware";
 import contactRouter from "./routers/contact.router";
+import healthRouter from "./routers/health.router";
 import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
 import registerChatHandlers from "./socket/chat";
@@ -59,6 +60,9 @@ export const createApp = (): Express => {
   // the app routers so `/api/auth/*` never hits authCheck or validation.
   app.all("/api/auth/{*any}", toNodeHandler(auth));
   app.use("/api/contact", contactRouter); // public endpoint
+  // Also public, and for the same reason: a monitor has no session. Must stay
+  // above the `/api` mount below, which is where `authCheck` lives.
+  app.use("/api/health", healthRouter);
   app.use("/api", masterRouter);
 
   // Unknown /api/* paths answer in the same envelope as every real endpoint, so a

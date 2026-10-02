@@ -106,7 +106,10 @@ export default function VoiceControls({
 
           <AlertDialog
             trigger={
-              <button className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0">
+              <button
+                title="Workspace settings"
+                className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0"
+              >
                 <Settings />
               </button>
             }

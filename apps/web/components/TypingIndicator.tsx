@@ -7,7 +7,9 @@
  *
  * @important The line is always rendered — when nobody is typing it renders
  *            an empty placeholder the same height, which is what keeps the
- *            composer from shifting.
+ *            composer from shifting. The dots are part of the *message*, not
+ *            the placeholder: rendering them unconditionally leaves a
+ *            permanent "someone is typing" animation on screen.
  */
 "use client";
 
@@ -32,20 +34,22 @@ export default function TypingIndicator({ names }: { names: string[] }) {
       aria-atomic="true"
       className="h-5 px-2 flex items-center gap-2 text-[11px] text-(--muted-foreground)/70"
     >
-      <div className="flex items-end gap-0.5" aria-hidden="true">
-        <span
-          className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-          style={{ animationDelay: "0ms" }}
-        />
-        <span
-          className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-          style={{ animationDelay: "150ms" }}
-        />
-        <span
-          className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-          style={{ animationDelay: "300ms" }}
-        />
-      </div>
+      {count > 0 && (
+        <div className="flex items-end gap-0.5" aria-hidden="true">
+          <span
+            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
+            style={{ animationDelay: "0ms" }}
+          />
+          <span
+            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
+            style={{ animationDelay: "150ms" }}
+          />
+          <span
+            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
+            style={{ animationDelay: "300ms" }}
+          />
+        </div>
+      )}
       <span>{label}</span>
     </div>
   );

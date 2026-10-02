@@ -47,4 +47,28 @@ describe("TypingIndicator", () => {
     const dots = container.querySelectorAll("[aria-hidden='true'] > span");
     expect(dots.length).toBe(3);
   });
+
+  /**
+   * The reserved-height placeholder is the *line*, not the animation. Dots
+   * rendered unconditionally leave a permanent "someone is typing" pulse on
+   * screen even when the label is empty — the text assertion above cannot see
+   * it, because dots carry no text.
+   */
+  it("renders no animated dots when nobody is typing", () => {
+    const { container } = render(<TypingIndicator names={[]} />);
+
+    expect(
+      container.querySelectorAll("[aria-hidden='true'] > span"),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the reserved height when nobody is typing", () => {
+    const { container } = render(<TypingIndicator names={[]} />);
+
+    // The line must still occupy its height, or the composer jumps as the
+    // indicator appears and disappears.
+    expect(container.querySelector("[aria-live='polite']")?.className).toContain(
+      "h-5",
+    );
+  });
 });

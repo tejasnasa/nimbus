@@ -6,18 +6,27 @@
  * persistence (3s), and eviction when the last socket leaves.
  *
  * @important The `canvases` Map is process-local (same scaling caveat as the
- *            Yjs docs). Empty updates never clobber non-empty state — see the
- *            `canvas:update` guard.
+ *            Yjs docs). An empty array from a client that has not yet applied
+ *            the authoritative state must never clobber the room — see the
+ *            `canvas:update` guard, which keys off the sender's `initialized`
+ *            flag rather than the length of the array it sent.
+ *
+ * @important Eviction re-checks room membership after any awaited snapshot, for
+ *            the same reason as `socket/document.ts` — see `isRoomEmpty`.
  */
 import { Server, Socket } from "socket.io";
 import { prisma } from "@nimbus/db";
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { isRoomEmpty } from "./roomState";
 
 /** Full element array for one canvas (replaced, never merged). */
 type CanvasState = readonly OrderedExcalidrawElement[];
 
 /** In-memory canvas states keyed by document id. */
 export const canvases = new Map<string, CanvasState>();
+
+/** Pending debounced persist timers, keyed by document id. */
+const saveTimers = new Map<string, NodeJS.Timeout>();
 
 const CANVAS_ROOM = (canvasId: string) => `canvas:${canvasId}`;
 
@@ -45,17 +54,38 @@ const saveSnapshot = async (canvasId: string) => {
   const elements = canvases.get(canvasId);
   if (!elements) return;
 
-  await prisma.document.update({
-    where: { id: canvasId },
-    data: {
-      canvasData: elements,
-    },
-  });
+  try {
+    await prisma.document.update({
+      where: { id: canvasId },
+      data: {
+        canvasData: elements,
+      },
+    });
 
-  console.log("canvas snapshot saved:", canvasId);
+    console.log("canvas snapshot saved:", canvasId);
+  } catch (error) {
+    // A canvas deleted mid-session has no row to update; the debounce timer
+    // would otherwise surface this as an unhandled rejection.
+    console.error("Error saving canvas snapshot:", error);
+  }
 };
 
-const saveTimers = new Map<string, NodeJS.Timeout>();
+/**
+ * Drops every trace of a canvas from process memory.
+ *
+ * Exported so document deletion can evict without leaving a pending debounce
+ * that would re-persist a deleted row.
+ *
+ * @param canvasId - Canvas document to evict.
+ */
+export const evictCanvas = (canvasId: string) => {
+  const timer = saveTimers.get(canvasId);
+  if (timer) {
+    clearTimeout(timer);
+    saveTimers.delete(canvasId);
+  }
+  canvases.delete(canvasId);
+};
 
 /** Resets the 3s persist timer — drag bursts collapse into one DB write. */
 const debouncedSave = (canvasId: string) => {
@@ -115,9 +145,11 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
     ({
       documentId,
       elements,
+      initialized,
     }: {
       documentId: string;
       elements: CanvasState;
+      initialized?: boolean;
     }) => {
       try {
         // Guard: only room members may write — prevents stray updates from
@@ -126,12 +158,12 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
           return socket.emit("canvas:error", "Not joined to canvas");
         }
 
-        // WARNING: an empty array usually means "not yet loaded" on the sender,
-        // not "cleared canvas" — dropping it avoids wiping peers' work.
-        const hasIncomingElements = elements.length > 0;
-        const existingInMemory = canvases.get(documentId);
-
-        if (!hasIncomingElements && (existingInMemory?.length ?? 0) > 0) {
+        // An empty array from a sender that has not applied the authoritative
+        // state means "I have not loaded yet", not "I cleared the canvas" —
+        // dropping it avoids wiping peers' work. The flag, rather than the
+        // array's length, is what makes an intentional clear expressible: a
+        // loaded client sending `[]` really did delete everything.
+        if (elements.length === 0 && initialized !== true) {
           return;
         }
 
@@ -153,12 +185,15 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
   socket.on("canvas:leave", async (canvasId: string) => {
     try {
       socket.leave(CANVAS_ROOM(canvasId));
+      const room = CANVAS_ROOM(canvasId);
 
-      const room = io.sockets.adapter.rooms.get(CANVAS_ROOM(canvasId));
-      if (!room || room.size === 0) {
+      if (isRoomEmpty(io, room, socket)) {
         await saveSnapshot(canvasId);
-        canvases.delete(canvasId);
-        console.log("canvas removed from memory:", canvasId);
+
+        if (isRoomEmpty(io, room, socket)) {
+          evictCanvas(canvasId);
+          console.log("canvas removed from memory:", canvasId);
+        }
       }
     } catch (error) {
       console.error("Error leaving canvas:", error);
@@ -172,11 +207,13 @@ export const registerCanvasHandlers = (io: Server, socket: Socket) => {
         if (!room.startsWith("canvas:")) continue;
 
         const canvasId = room.replace("canvas:", "");
-        const roomSockets = io.sockets.adapter.rooms.get(room);
 
-        if (roomSockets && roomSockets.size === 1) {
-          await saveSnapshot(canvasId);
-          canvases.delete(canvasId);
+        if (!isRoomEmpty(io, room, socket)) continue;
+
+        await saveSnapshot(canvasId);
+
+        if (isRoomEmpty(io, room, socket)) {
+          evictCanvas(canvasId);
           console.log("canvas saved & cleaned:", canvasId);
         }
       }

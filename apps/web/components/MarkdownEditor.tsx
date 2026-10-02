@@ -16,9 +16,14 @@ import "@milkdown/theme-nord/style.css";
  * Lifecycle: `doc:join` → apply server binary state with origin `"socket"`
  * → bind the collab plugin (seeding AI `initialContent` as a template when
  * present) → local edits emit `doc:update`, remote updates apply silently.
- * A 300ms fallback connects empty docs whose state arrives without content.
+ *
+ * @important The session effect must never depend on `useEditor().get` — that
+ *            package returns a fresh closure on every render, so using it as a
+ *            dependency destroys and recreates the Yjs doc, the awareness
+ *            instance and the socket room on every render of the editor
+ *            subtree. The accessor is held in a ref instead.
  */
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Awareness } from "y-protocols/awareness";
 import * as Y from "yjs";
 import { socket } from "../lib/socket";
@@ -34,7 +39,17 @@ interface MilkdownEditorProps extends MarkdownEditorProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
-const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
+/**
+ * How long to wait for the first `doc:state` before retrying the join. Only
+ * reached when the join genuinely failed — a normal round-trip is far faster.
+ */
+const STATE_RETRY_MS = 2_000;
+
+
+const MilkdownEditor = memo(function MilkdownEditor({
+  documentId,
+  containerRef,
+}: MilkdownEditorProps) {
   const { get, loading } = useEditor((root) =>
     Editor.make()
       .config(nord)
@@ -74,6 +89,14 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
       .use(collab),
   );
 
+  // See the module note: `get` is a new closure on every render, so it is
+  // mirrored into a ref and deliberately kept out of the session effect's
+  // dependency list.
+  const getEditorRef = useRef(get);
+  useEffect(() => {
+    getEditorRef.current = get;
+  }, [get]);
+
   const collabConnectedRef = useRef(false);
   const stateAppliedRef = useRef(false);
 
@@ -103,19 +126,27 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
   useEffect(() => {
     if (loading) return;
 
-    const editor = get();
+    const editor = getEditorRef.current();
     if (!editor) return;
 
     const doc = new Y.Doc();
     const awareness = new Awareness(doc);
 
+    // Seeds AI content into an already-bound session. Skipped when the document
+    // already has content: a rejoin can deliver the template after a peer (or
+    // the user) has started typing, and `applyTemplate` appends rather than
+    // replaces, which would duplicate the body.
+    const applySeed = (markdown: string) => {
+      if (doc.getXmlFragment("prosemirror").length > 0) return;
+
+      editor.action((ctx) => {
+        ctx.get(collabServiceCtx).applyTemplate(markdown);
+      });
+    };
+
     const connectCollab = (initialMarkdown?: string) => {
       if (collabConnectedRef.current) {
-        if (initialMarkdown) {
-          editor.action((ctx) => {
-            ctx.get(collabServiceCtx).applyTemplate(initialMarkdown);
-          });
-        }
+        if (initialMarkdown) applySeed(initialMarkdown);
         return;
       }
 
@@ -132,6 +163,11 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
       });
     };
 
+    // Once a full server state has been applied, the metadata map it carried is
+    // authoritative: if there is no `initialContent` in it, no template is
+    // coming, so waiting longer would only leave the editor inert. Connecting
+    // unconditionally here is what stops a slow `doc:state` from producing a
+    // dead editor.
     const tryConnectCollab = () => {
       if (collabConnectedRef.current || !stateAppliedRef.current) return;
 
@@ -140,18 +176,9 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
         | string
         | undefined;
 
-      if (initialMarkdown) {
-        metadata.delete("initialContent");
-        connectCollab(initialMarkdown);
-        return;
-      }
+      if (initialMarkdown) metadata.delete("initialContent");
 
-      const yFragment = doc.getXmlFragment("prosemirror");
-      const hasYjsContent = yFragment.length > 0;
-
-      if (hasYjsContent) {
-        connectCollab();
-      }
+      connectCollab(initialMarkdown);
     };
 
     const handleState = (state: number[]) => {
@@ -164,8 +191,22 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
       Y.applyUpdate(doc, Uint8Array.from(update), "socket");
     };
 
+    // A reconnect hands the server a brand-new socket with no rooms, so the
+    // doc room must be re-entered or every later update is rejected and peers'
+    // edits are never received. `doc:state` is a full Yjs update, so applying
+    // it again after a rejoin merges idempotently.
+    const handleConnect = () => {
+      socket.emit("doc:join", documentId);
+    };
+
+    const handleError = (message: string) => {
+      console.error("Document sync error:", message);
+    };
+
     socket.on("doc:state", handleState);
     socket.on("doc:update", handleUpdate);
+    socket.on("connect", handleConnect);
+    socket.on("doc:error", handleError);
 
     // Guard: suppress echo — only emit local mutations (origin !== "socket").
     const onDocUpdate = (update: Uint8Array, origin: unknown) => {
@@ -177,25 +218,21 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
 
     socket.emit("doc:join", documentId);
 
-    // Fallback: empty docs never satisfy the content-gated connect above, so
-    // force-bind after 300ms once state has arrived (avoids a dead editor).
-    const emptyDocConnectTimer = window.setTimeout(() => {
-      if (!collabConnectedRef.current && stateAppliedRef.current) {
-        const metadata = doc.getMap("metadata");
-        const initialMarkdown = metadata.get("initialContent") as
-          | string
-          | undefined;
-        if (initialMarkdown) {
-          metadata.delete("initialContent");
-        }
-        connectCollab(initialMarkdown);
+    // Safety net for the one case `tryConnectCollab` cannot cover: no server
+    // state at all, so the join never completed. Retrying is honest — silently
+    // binding an empty doc would look like data loss to the user.
+    const stateRetryTimer = window.setTimeout(() => {
+      if (!stateAppliedRef.current) {
+        socket.emit("doc:join", documentId);
       }
-    }, 300);
+    }, STATE_RETRY_MS);
 
     return () => {
-      window.clearTimeout(emptyDocConnectTimer);
+      window.clearTimeout(stateRetryTimer);
       socket.off("doc:state", handleState);
       socket.off("doc:update", handleUpdate);
+      socket.off("connect", handleConnect);
+      socket.off("doc:error", handleError);
       doc.off("update", onDocUpdate);
 
       if (collabConnectedRef.current) {
@@ -210,18 +247,23 @@ const MilkdownEditor = ({ documentId, containerRef }: MilkdownEditorProps) => {
       collabConnectedRef.current = false;
       stateAppliedRef.current = false;
     };
-  }, [documentId, get, loading]);
+  }, [documentId, loading]);
 
   return <Milkdown />;
-};
+});
 
 /**
  * Collaborative Markdown editor for one document.
  *
  * Remount per `documentId` (keyed by the parent) so each doc gets a fresh
  * Yjs session, Milkdown provider, and socket room.
+ *
+ * Memoised because its parent re-renders on unrelated state (AI token streams,
+ * tab highlighting); without this the whole editor subtree re-renders with it.
  */
-export const MarkdownEditor = ({ documentId }: MarkdownEditorProps) => {
+export const MarkdownEditor = memo(function MarkdownEditor({
+  documentId,
+}: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -231,4 +273,4 @@ export const MarkdownEditor = ({ documentId }: MarkdownEditorProps) => {
       </div>
     </MilkdownProvider>
   );
-};
+});

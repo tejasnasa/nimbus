@@ -74,6 +74,17 @@ function renderEditor() {
   );
 }
 
+/**
+ * The close button for the tab at `index`, in strip order.
+ *
+ * @param index - Position of the tab in the strip.
+ */
+function closeButtonAt(index: number): HTMLElement {
+  const button = screen.getAllByTitle("Close tab")[index];
+  if (!button) throw new Error(`no close button at index ${index}`);
+  return button;
+}
+
 describe("DocEditor", () => {
   it("mounts a tab per document and opens the first one", () => {
     renderEditor();
@@ -136,5 +147,54 @@ describe("DocEditor", () => {
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
 
     expect(screen.queryByText("Groq timed out")).not.toBeInTheDocument();
+  });
+
+  /**
+   * Tab list and selection live in one state object so no setter is ever called
+   * from inside another's updater — React may run an updater more than once,
+   * and a selection change buried in one would fire twice or be dropped.
+   */
+  it("moves the selection to the previous tab when the active one closes", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    // Roadmap (index 1) is active; closing it must fall back to Readme (0).
+    await user.click(screen.getByText("Roadmap"));
+    await user.click(closeButtonAt(1));
+
+    expect(screen.getByTestId("markdown")).toHaveTextContent(
+      "cm_document_00000000000001",
+    );
+    expect(screen.queryByTestId("canvas")).not.toBeInTheDocument();
+  });
+
+  it("keeps the active document selected when an earlier tab closes", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByText("Roadmap"));
+    await user.click(closeButtonAt(0));
+
+    // The selection must follow the document, not the index it used to sit at.
+    expect(screen.getByTestId("canvas")).toHaveTextContent(
+      "cm_document_00000000000002",
+    );
+  });
+
+  it("clears the generating overlay when its tab is closed", async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    serverEvent("doc:ai:start", { type: "MARKDOWN", label: "Sprint Notes" });
+    expect(
+      screen.getByRole("heading", { name: 'Creating "Sprint Notes"' }),
+    ).toBeInTheDocument();
+
+    // The generating tab is appended last.
+    await user.click(closeButtonAt(screen.getAllByTitle("Close tab").length - 1));
+
+    expect(
+      screen.queryByRole("heading", { name: 'Creating "Sprint Notes"' }),
+    ).not.toBeInTheDocument();
   });
 });

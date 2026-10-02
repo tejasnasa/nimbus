@@ -2,7 +2,14 @@
 
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import DocTabs from "@nimbus/ui/DocTabs";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ClientDocument } from "../api/document";
 import { socket } from "../lib/socket";
 import { AIGenerationState, AiGenOverlay } from "./AiGenOverlay";
@@ -45,6 +52,45 @@ function isGeneratingTab(tab: EditorTab): tab is GeneratingTab {
 }
 
 /**
+ * Tab list and selection as one value.
+ *
+ * They move together — opening, closing, replacing and reordering a tab all
+ * change which index should be selected — so holding them in separate states
+ * forces one store's setter to be called from inside the other's updater. React
+ * requires updaters to be pure, and double-invokes them under StrictMode, so
+ * that pattern fires the selection change twice or drops it.
+ */
+type EditorState = {
+  tabs: EditorTab[];
+  active: number;
+};
+
+/**
+ * Applies a next-tab list and recomputes the selection, given the index that
+ * was removed (or `-1` when nothing was).
+ *
+ * @param prev - Current state.
+ * @param nextTabs - Tab list to install.
+ * @param removedIndex - Index removed by this change, if any.
+ */
+const withTabs = (
+  prev: EditorState,
+  nextTabs: EditorTab[],
+  removedIndex = -1,
+): EditorState => {
+  if (removedIndex < 0) return { tabs: nextTabs, active: prev.active };
+
+  if (nextTabs.length === 0) return { tabs: nextTabs, active: 0 };
+  if (prev.active > removedIndex) {
+    return { tabs: nextTabs, active: prev.active - 1 };
+  }
+  if (prev.active === removedIndex) {
+    return { tabs: nextTabs, active: Math.max(0, removedIndex - 1) };
+  }
+  return { tabs: nextTabs, active: prev.active };
+};
+
+/**
  * Tabbed editor over the workspace's documents.
  *
  * @param props.documents - Initial tabs (first tab active).
@@ -54,8 +100,11 @@ export default function DocEditor({
 }: {
   documents: ClientDocument[];
 }) {
-  const [tabs, setTabs] = useState<EditorTab[]>(documents);
-  const [active, setActive] = useState(0);
+  const [state, setState] = useState<EditorState>(() => ({
+    tabs: documents,
+    active: 0,
+  }));
+  const { tabs, active } = state;
   const [highlightTabId, setHighlightTabId] = useState<string | null>(null);
   const [aiGenerating, setAiGenerating] = useState<AIGenerationState | null>(
     null,
@@ -74,21 +123,35 @@ export default function DocEditor({
     }, 2000);
   }, []);
 
+  // Adapters so `DocTabs` keeps its plain tabs/setter surface while the two
+  // values live in a single state object.
+  const setTabs = useCallback<Dispatch<SetStateAction<EditorTab[]>>>((value) => {
+    setState((prev) => ({
+      tabs: typeof value === "function" ? value(prev.tabs) : value,
+      active: prev.active,
+    }));
+  }, []);
+
+  const setActive = useCallback<Dispatch<SetStateAction<number>>>((value) => {
+    setState((prev) => ({
+      tabs: prev.tabs,
+      active: typeof value === "function" ? value(prev.active) : value,
+    }));
+  }, []);
+
   // Idempotent open: existing docs focus instead of duplicating tabs.
   const addTab = useCallback(
     (doc: ClientDocument) => {
-      setTabs((prev) => {
-        const existingIndex = prev.findIndex(
+      setState((prev) => {
+        const existingIndex = prev.tabs.findIndex(
           (tab) => !isGeneratingTab(tab) && tab.id === doc.id,
         );
 
         if (existingIndex >= 0) {
-          setActive(existingIndex);
-          return prev;
+          return { tabs: prev.tabs, active: existingIndex };
         }
 
-        setActive(prev.length);
-        return [...prev, doc];
+        return { tabs: [...prev.tabs, doc], active: prev.tabs.length };
       });
       setHighlightForTab(doc.id);
     },
@@ -104,79 +167,56 @@ export default function DocEditor({
 
   const replaceGeneratingTab = useCallback(
     (generatingTabId: string, nextDoc: ClientDocument) => {
-      setTabs((currentTabs) => {
-        const generatingIndex = currentTabs.findIndex(
+      setState((prev) => {
+        const generatingIndex = prev.tabs.findIndex(
           (tab) => isGeneratingTab(tab) && tab.id === generatingTabId,
         );
 
         if (generatingIndex < 0) {
-          const existingIndex = currentTabs.findIndex(
+          const existingIndex = prev.tabs.findIndex(
             (tab) => !isGeneratingTab(tab) && tab.id === nextDoc.id,
           );
 
           if (existingIndex >= 0) {
-            setActive(existingIndex);
-            return currentTabs;
+            return { tabs: prev.tabs, active: existingIndex };
           }
 
-          setActive(currentTabs.length);
-          return [...currentTabs, nextDoc];
+          return { tabs: [...prev.tabs, nextDoc], active: prev.tabs.length };
         }
 
-        const nextTabs = [...currentTabs];
+        const nextTabs = [...prev.tabs];
         nextTabs[generatingIndex] = nextDoc;
-        setActive(generatingIndex);
-        return nextTabs;
+        return { tabs: nextTabs, active: generatingIndex };
       });
     },
     [],
   );
 
-  const removeGeneratingTab = useCallback((generatingTabId: string) => {
-    setTabs((currentTabs) => {
-      const removedIndex = currentTabs.findIndex(
-        (tab) => tab.id === generatingTabId,
-      );
-      const nextTabs = currentTabs.filter((tab) => tab.id !== generatingTabId);
-
-      setActive((currentActive) => {
-        if (removedIndex < 0) return currentActive;
-        if (nextTabs.length === 0) return 0;
-        if (currentActive > removedIndex) return currentActive - 1;
-        if (currentActive === removedIndex) {
-          return Math.max(0, removedIndex - 1);
-        }
-        return currentActive;
-      });
-
-      return nextTabs;
-    });
-  }, []);
-
+  /** Closes a tab and moves the selection to a neighbour when it was active. */
   const closeTab = useCallback((tabId: string) => {
-    setTabs((currentTabs) => {
-      const indexToClose = currentTabs.findIndex((tab) => tab.id === tabId);
-      if (indexToClose < 0) return currentTabs;
+    setState((prev) => {
+      const removedIndex = prev.tabs.findIndex((tab) => tab.id === tabId);
+      if (removedIndex < 0) return prev;
 
-      const tabToClose = currentTabs[indexToClose];
-      if (tabToClose && isGeneratingTab(tabToClose)) {
-        setAiGenerating(null);
-      }
-
-      const nextTabs = currentTabs.filter((tab) => tab.id !== tabId);
-
-      setActive((currentActive) => {
-        if (nextTabs.length === 0) return 0;
-        if (currentActive > indexToClose) return currentActive - 1;
-        if (currentActive === indexToClose) {
-          return Math.max(0, indexToClose - 1);
-        }
-        return currentActive;
-      });
-
-      return nextTabs;
+      return withTabs(
+        prev,
+        prev.tabs.filter((tab) => tab.id !== tabId),
+        removedIndex,
+      );
     });
   }, []);
+
+  // A generation whose tab is gone can no longer be rendered. Keeping this in an
+  // effect rather than inside the tab updaters is what lets those updaters stay
+  // pure.
+  useEffect(() => {
+    if (!aiGenerating) return;
+
+    const stillOpen = tabs.some(
+      (tab) => isGeneratingTab(tab) && tab.id === aiGenerating.tabId,
+    );
+    if (!stillOpen) setAiGenerating(null);
+  }, [tabs, aiGenerating]);
 
   useEffect(() => {
     // Single-flight generation: a new start evicts any stale GENERATING tab so
@@ -184,9 +224,9 @@ export default function DocEditor({
     function onStart(data: DocAIStartData) {
       const tabId = `generating:${Date.now()}`;
 
-      setTabs((prev) => {
+      setState((prev) => {
         const nextTabs = [
-          ...prev.filter((tab) => !isGeneratingTab(tab)),
+          ...prev.tabs.filter((tab) => !isGeneratingTab(tab)),
           {
             id: tabId,
             label: `${data.label}`,
@@ -194,8 +234,7 @@ export default function DocEditor({
             docType: data.type,
           },
         ];
-        setActive(nextTabs.length - 1);
-        return nextTabs;
+        return { tabs: nextTabs, active: nextTabs.length - 1 };
       });
 
       setAiGenerating({
@@ -287,9 +326,10 @@ export default function DocEditor({
     const prev = aiGeneratingRef.current;
     if (!prev) return;
 
-    removeGeneratingTab(prev.tabId);
-    setAiGenerating(null);
-  }, [removeGeneratingTab]);
+    // Dropping the tab is enough — the effect above clears the overlay state
+    // once the tab it belongs to is gone.
+    closeTab(prev.tabId);
+  }, [closeTab]);
 
   const current = tabs[active];
   if (!current) return null;

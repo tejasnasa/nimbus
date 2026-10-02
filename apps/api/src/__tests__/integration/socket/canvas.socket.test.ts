@@ -6,6 +6,7 @@
  * The interesting behaviour is the empty-update guard — an empty array normally
  * means "this client hasn't loaded yet", so it must not wipe the room's work.
  */
+import { prisma } from "@nimbus/db";
 import type { Socket as ClientSocket } from "socket.io-client";
 import {
   afterAll,
@@ -15,6 +16,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { createApp } from "../../../app";
 import { canvases } from "../../../socket/canvas";
@@ -119,6 +121,23 @@ describe("socket: canvas", () => {
       expect(canvases.has(canvasId)).toBe(false);
     });
 
+    // A database failure during the join must reach the client as an error —
+    // the alternative is a socket that looks connected and silently never syncs.
+    it("reports a failure when the join cannot reach the database", async () => {
+      const socket = await openSocket(server, owner);
+
+      const spy = vi
+        .spyOn(prisma.document, "findUnique")
+        .mockRejectedValueOnce(new Error("database unavailable"));
+
+      const failure = waitForEvent<string>(socket, "canvas:error");
+      socket.emit("canvas:join", canvasId);
+      const message = await failure;
+      spy.mockRestore();
+
+      expect(message).toBe("Something went wrong");
+    });
+
     it("refuses a canvasId that does not exist", async () => {
       const socket = await openSocket(server, owner);
 
@@ -152,24 +171,58 @@ describe("socket: canvas", () => {
       expect(canvases.get(canvasId)).toHaveLength(2);
     });
 
-    // The guard that matters: an empty array usually means "sender not loaded".
-    it("ignores an empty update when the room already has elements", async () => {
+    // The guard that matters: an empty array from a sender that has not yet
+    // applied the authoritative state means "not loaded", not "cleared".
+    it("ignores an empty update from a client that has not initialized", async () => {
       const ownerSocket = await openSocket(server, owner);
       await joinCanvas(ownerSocket, canvasId);
 
       ownerSocket.emit("canvas:update", {
         documentId: canvasId,
         elements: [element("kept")],
+        initialized: true,
       });
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       const peerSocket = await openSocket(server, peer);
       await joinCanvas(peerSocket, canvasId);
 
+      // No `initialized` flag — a joiner that has not rendered the state yet.
       peerSocket.emit("canvas:update", { documentId: canvasId, elements: [] });
       await new Promise((resolve) => setTimeout(resolve, 250));
 
       expect(canvases.get(canvasId)).toHaveLength(1);
+    });
+
+    // The capability the length-based guard could not express: a client that
+    // *has* loaded and deleted everything really did clear the canvas, and the
+    // deletion has to relay and persist rather than silently reverting.
+    it("lets an initialized client clear the canvas", async () => {
+      const ownerSocket = await openSocket(server, owner);
+      await joinCanvas(ownerSocket, canvasId);
+      const peerSocket = await openSocket(server, peer);
+      await joinCanvas(peerSocket, canvasId);
+
+      ownerSocket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("drawn")],
+        initialized: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      expect(canvases.get(canvasId)).toHaveLength(1);
+
+      const cleared = waitForEvent<{ elements: unknown[] }>(
+        peerSocket,
+        "canvas:update",
+      );
+      ownerSocket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [],
+        initialized: true,
+      });
+
+      await expect(cleared).resolves.toMatchObject({ elements: [] });
+      expect(canvases.get(canvasId)).toEqual([]);
     });
 
     it("debounces rapid-fire updates into a single 3s save", async () => {
@@ -208,13 +261,27 @@ describe("socket: canvas", () => {
       expect(stored?.canvasData).toHaveLength(1);
     });
 
-    it("accepts an empty update when the canvas is already empty", async () => {
+    it("leaves an already-empty canvas empty when an uninitialized client reports it", async () => {
       const socket = await openSocket(server, owner);
       await joinCanvas(socket, canvasId);
 
+      // Dropped by the guard, which is a no-op here because joining already
+      // seeded the in-memory entry with an empty array.
       socket.emit("canvas:update", { documentId: canvasId, elements: [] });
       await new Promise((resolve) => setTimeout(resolve, 250));
 
+      expect(canvases.get(canvasId)).toEqual([]);
+    });
+
+    it("reports a malformed payload without crashing the handler", async () => {
+      const socket = await openSocket(server, owner);
+      await joinCanvas(socket, canvasId);
+
+      const failure = waitForEvent<string>(socket, "canvas:error");
+      // No `elements` at all — the guard dereferences `.length` on it.
+      socket.emit("canvas:update", { documentId: canvasId } as never);
+
+      await expect(failure).resolves.toBe("Something went wrong");
       expect(canvases.get(canvasId)).toEqual([]);
     });
 
@@ -264,6 +331,60 @@ describe("socket: canvas", () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       expect(canvases.has(canvasId)).toBe(true);
+    });
+
+    // Same eviction race as the document suite: the entry must survive a
+    // rejoin that lands inside the leave handler's awaited snapshot.
+    it("keeps syncing across an immediate leave/rejoin", async () => {
+      const ownerSocket = await openSocket(server, owner);
+      await joinCanvas(ownerSocket, canvasId);
+      const peerSocket = await openSocket(server, peer);
+      await joinCanvas(peerSocket, canvasId);
+
+      ownerSocket.emit("canvas:leave", canvasId);
+      const restated = waitForEvent<{ elements: unknown[] }>(
+        ownerSocket,
+        "canvas:state",
+      );
+      ownerSocket.emit("canvas:join", canvasId);
+      await restated;
+
+      const incoming = waitForEvent<{ elements: unknown[] }>(
+        peerSocket,
+        "canvas:update",
+      );
+      ownerSocket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("after-rejoin")],
+        initialized: true,
+      });
+
+      await expect(incoming).resolves.toMatchObject({
+        elements: [expect.objectContaining({ id: "after-rejoin" })],
+      });
+      expect(canvases.has(canvasId)).toBe(true);
+    });
+
+    // A row deleted under a live socket leaves the debounced snapshot with
+    // nothing to update. That must be swallowed where the timer fires, not
+    // surface later as an unhandled rejection.
+    it("survives a snapshot against a row that no longer exists", async () => {
+      const socket = await openSocket(server, owner);
+      await joinCanvas(socket, canvasId);
+
+      socket.emit("canvas:update", {
+        documentId: canvasId,
+        elements: [element("orphan")],
+        initialized: true,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      await testPrisma.document.delete({ where: { id: canvasId } });
+
+      socket.emit("canvas:leave", canvasId);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(canvases.has(canvasId)).toBe(false);
     });
   });
 });

@@ -25,10 +25,18 @@ export type ClientToServerEvents = {
   /** Join a canvas room; server replies with `canvas:state`. */
   "canvas:join": (canvasId: string) => void;
   "canvas:leave": (canvasId: string) => void;
-  /** Replace the room's full elements array (no CRDT — full state sync). */
+  /**
+   * Replace the room's full elements array (no CRDT — full state sync).
+   *
+   * `initialized` must be `true` once the sender has applied the authoritative
+   * `canvas:state`. The server drops an empty array from a sender that has not,
+   * because "I have not loaded yet" and "I deleted everything" are otherwise
+   * indistinguishable — and the former must not wipe the room.
+   */
   "canvas:update": (data: {
     documentId: string;
     elements: readonly OrderedExcalidrawElement[];
+    initialized?: boolean;
   }) => void;
 
   // ── Markdown docs (Yjs binary updates) ──

@@ -1,13 +1,14 @@
 /**
  * @module api/controllers/document
  * @description Document CRUD scoped by workspace membership. Deletes require
- * ADMIN/OWNER and also evict the in-memory Yjs (`docs`) / canvas (`canvases`)
- * entries so deleted documents cannot be resurrected by a stale socket room.
+ * ADMIN/OWNER and also evict the in-memory Yjs / canvas entries — including any
+ * pending debounced save — so a deleted document cannot be resurrected by a
+ * stale socket room or a timer that outlives the row.
  */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
-import { canvases } from "../socket/canvas";
-import { docs } from "../socket/document";
+import { evictCanvas } from "../socket/canvas";
+import { evictDocument } from "../socket/document";
 
 /**
  * Creates a CANVAS (empty `canvasData`) or MARKDOWN document.
@@ -103,8 +104,9 @@ export const getDocument = async (docId: string, userId: string) => {
 /**
  * Deletes a document (ADMIN/OWNER only) and evicts its live socket state.
  *
- * NOTE: the `canvases`/`docs` evictions prevent a deleted doc from being
- * re-persisted by the debounced socket save after deletion.
+ * NOTE: the evictions cancel the pending debounced save as well as the cached
+ * state, so a deleted row is never re-persisted by a timer that was already
+ * scheduled.
  */
 export const deleteDocument = async (docId: string, userId: string) => {
   try {
@@ -122,8 +124,8 @@ export const deleteDocument = async (docId: string, userId: string) => {
       );
 
     await prisma.document.delete({ where: { id: docId } });
-    canvases.delete(docId);
-    docs.delete(docId);
+    evictCanvas(docId);
+    evictDocument(docId);
     return ServerResponse.ok("Document deleted");
   } catch (error) {
     return ServerResponse.internalError(error);

@@ -16,6 +16,7 @@ import { act, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as Y from "yjs";
+import { editorViewCtx } from "@milkdown/kit/core";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
 /** Minimal stand-in for the Milkdown collab service. */
@@ -26,6 +27,12 @@ const collabService = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
 }));
+
+/**
+ * Minimal stand-in for the ProseMirror view. The component reaches for it only
+ * to change editability, which is the invariant the tests below pin.
+ */
+const editorView = vi.hoisted(() => ({ setProps: vi.fn() }));
 
 /**
  * Lets a test force the editor subtree to re-render.
@@ -55,12 +62,15 @@ vi.mock("@milkdown/react", async () => {
     useEditor: () => {
       const [, force] = React.useReducer((n: number) => n + 1, 0);
       React.useEffect(() => rerenderStore.subscribe(force), []);
+      // `ctx.get` is routed by slice: the component reads the collab service
+      // and the editor view from the same context, and a double that answered
+      // both with the collab service would hide a mis-routed lookup.
+      const get = (slice: unknown) =>
+        slice === editorViewCtx ? editorView : collabService;
+
       return {
         loading: false,
-        get: () => ({
-          action: (run: (ctx: { get: () => unknown }) => void) =>
-            run({ get: () => collabService }),
-        }),
+        get: () => ({ action: (run: (ctx: { get: typeof get }) => void) => run({ get }) }),
       };
     },
   };
@@ -113,6 +123,7 @@ beforeEach(() => {
   collabService.applyTemplate.mockClear();
   collabService.connect.mockClear();
   collabService.disconnect.mockClear();
+  editorView.setProps.mockClear();
 });
 
 afterEach(() => {
@@ -194,6 +205,52 @@ describe("MarkdownEditor", () => {
 
     expect(collabService.bindDoc).toHaveBeenCalledTimes(1);
     expect(collabService.connect).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The editor is locked at construction, and released only once the binding
+   * has rendered the Y.Doc into the view.
+   *
+   * Binding REPLACES the view's contents with the doc's, so an editor released
+   * before it accepts keystrokes that render then overwrites. Those keystrokes
+   * are in no Yjs update — nothing emits them, nothing persists them, and a
+   * reload shows the document empty. The window is the join round-trip, so it
+   * is invisible against a local API and seconds against a remote one.
+   */
+  it("stays read-only until the binding has rendered the document", () => {
+    render(<MarkdownEditor documentId={documentId} />);
+
+    // Locking is a view option applied when the view is built, so mount must
+    // not be reaching for the view at all.
+    expect(editorView.setProps).not.toHaveBeenCalled();
+
+    serverEvent("doc:state", emptyState());
+
+    expect(editorView.setProps).toHaveBeenCalledWith({ editable: undefined });
+
+    // Order is the point. Sentinels rather than a bare index: an absent call
+    // must fail this rather than compare as `undefined`, and these place a
+    // missing `connect` after every real call and a missing unlock before it.
+    const boundAt =
+      collabService.connect.mock.invocationCallOrder[0] ?? Infinity;
+    const unlockedAt =
+      editorView.setProps.mock.invocationCallOrder[0] ?? -Infinity;
+
+    expect(unlockedAt).toBeGreaterThan(boundAt);
+  });
+
+  it("re-locks the view when the session tears down", () => {
+    const { unmount } = render(<MarkdownEditor documentId={documentId} />);
+    serverEvent("doc:state", emptyState());
+
+    unmount();
+
+    // Unbinding without re-locking would leave an editable view with nothing
+    // left to sync it.
+    expect(editorView.setProps).toHaveBeenLastCalledWith({
+      editable: expect.any(Function),
+    });
+    expect(collabService.disconnect).toHaveBeenCalled();
   });
 
   /**

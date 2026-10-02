@@ -110,7 +110,16 @@ test.describe("journey", () => {
     // which returns a placeholder until the voice connection is up, and a
     // headless browser never gets a microphone. Asserting on that modal here
     // would pin the voice stack, not workspace deletion.
+    //
+    // @important Leave the room *before* deleting it. Deleting while this page
+    //            still has the workspace's documents mounted makes the API's
+    //            leave-time snapshot run against rows that no longer exist,
+    //            which surfaces as `P2025 No record was found for an update`
+    //            in the server log. That is harmless in itself, but it is
+    //            indistinguishable from a real save failure — and it is the
+    //            signal you would be reading while debugging one.
     const slugId = Number(page.url().match(/\/workspace\/(\d+)$/)![1]);
+    await page.goto("/home");
     const listed = await context.request.get(`${apiUrl}/api/workspace/`);
     const created = (await listed.json()).responseObject.find(
       (candidate: { slugId: number }) => candidate.slugId === slugId,
@@ -151,22 +160,22 @@ test.describe("journey", () => {
     // `.milkdown` is only the outer wrapper; clicking it does not focus the
     // ProseMirror surface, so the typed text goes nowhere. Target the editable
     // element itself.
+    //
+    // @important `contenteditable` is a readiness signal here, not just a way
+    //            to address the element. The editor stays read-only until its
+    //            collaboration binding has rendered the document, because that
+    //            render REPLACES whatever the view holds: anything typed before
+    //            it is discarded, reaches no Yjs update, and is therefore never
+    //            persisted. Waiting for `true` is what makes the typing below
+    //            deterministic rather than a race against the join round-trip.
     const editor = page.locator(".milkdown [contenteditable='true']").first();
     await expect(editor).toBeVisible();
 
     const marker = `smoke-${Date.now().toString(36)}`;
 
-    // @important Retried as a unit. Milkdown attaches its ProseMirror view
-    //            asynchronously, so the editable element can be in the DOM and
-    //            focusable while keystrokes are still dropped — which presents
-    //            as an editor that silently swallows everything typed into it.
-    //            Re-running the click-and-type until the text is actually
-    //            present is what makes this deterministic.
-    await expect(async () => {
-      await editor.click();
-      await editor.pressSequentially(marker, { delay: 10 });
-      await expect(editor).toContainText(marker, { timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
+    await editor.click();
+    await editor.pressSequentially(marker, { delay: 10 });
+    await expect(editor).toContainText(marker);
 
     // The server persists Yjs state on a 5s debounce with no acknowledgement
     // event, so there is nothing to wait on. Reloading also flushes a snapshot

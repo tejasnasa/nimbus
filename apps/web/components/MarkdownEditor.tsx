@@ -2,7 +2,12 @@ import {
   tableBlock,
   tableBlockConfig,
 } from "@milkdown/kit/component/table-block";
-import { Editor, rootCtx } from "@milkdown/kit/core";
+import {
+  Editor,
+  editorViewCtx,
+  editorViewOptionsCtx,
+  rootCtx,
+} from "@milkdown/kit/core";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { collab, collabServiceCtx } from "@milkdown/plugin-collab";
@@ -16,6 +21,16 @@ import "@milkdown/theme-nord/style.css";
  * Lifecycle: `doc:join` → apply server binary state with origin `"socket"`
  * → bind the collab plugin (seeding AI `initialContent` as a template when
  * present) → local edits emit `doc:update`, remote updates apply silently.
+ *
+ * @important The editor is read-only until the collaboration binding is live.
+ *            Binding renders the Y.Doc into the view and REPLACES whatever the
+ *            view already held, so an editor that accepted input before it
+ *            would discard those keystrokes rather than sync them — they reach
+ *            no Yjs update, so nothing persists them and a reload shows the
+ *            document empty. The wait is as long as the join round-trip, which
+ *            is imperceptible locally and seconds against a remote database,
+ *            so this cannot be left to timing. The view is unlocked in
+ *            `connectCollab`, after that render has happened.
  *
  * @important The session effect must never depend on `useEditor().get` — that
  *            package returns a fresh closure on every render, so using it as a
@@ -55,6 +70,12 @@ const MilkdownEditor = memo(function MilkdownEditor({
       .config(nord)
       .config((ctx) => {
         ctx.set(rootCtx, root);
+
+        // The view-level half of the read-only-until-bound rule in the module
+        // note. A view option (rather than a ProseMirror plugin) because this is
+        // read once, when the view is constructed, so the editor is locked from
+        // its very first paint — no window between mount and the lock applying.
+        ctx.set(editorViewOptionsCtx, { editable: () => false });
 
         ctx.update(tableBlockConfig.key, (prev) => ({
           ...prev,
@@ -160,6 +181,13 @@ const MilkdownEditor = memo(function MilkdownEditor({
           collabService.applyTemplate(initialMarkdown);
         }
         collabService.connect();
+
+        // Unlock last, and only now: `connect()` is what renders the Y.Doc into
+        // the view, so releasing before it would accept the keystrokes that
+        // render is about to overwrite. Clearing the option rather than setting
+        // it true hands the decision back to the collab plugin, which disables
+        // editing of its own accord while it renders a snapshot.
+        ctx.get(editorViewCtx).setProps({ editable: undefined });
       });
     };
 
@@ -237,6 +265,10 @@ const MilkdownEditor = memo(function MilkdownEditor({
 
       if (collabConnectedRef.current) {
         editor.action((ctx) => {
+          // Re-lock before unbinding, so there is no moment where the view is
+          // editable with nothing left to sync it. It also restores the initial
+          // state if this editor outlives the document it was bound to.
+          ctx.get(editorViewCtx).setProps({ editable: () => false });
           ctx.get(collabServiceCtx).disconnect();
         });
       }

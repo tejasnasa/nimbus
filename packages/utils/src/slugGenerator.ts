@@ -2,12 +2,13 @@
  * Converts a workspace name into a URL-safe slug.
  *
  * Lowercases, strips accents and apostrophes, replaces non-alphanumeric runs
- * with hyphens, trims edge hyphens, and caps the result at 30 characters.
+ * with hyphens, caps the result at 30 characters, then trims any hyphens the
+ * cap left at either end.
  * The slug is combined with an auto-increment `slugId` in the DB to form the
  * unique `/workspace/[id]` route param.
  *
  * @param name - Raw workspace display name.
- * @returns URL-safe slug, e.g. `"Ada's Dev Lounge!"` → `"ada-s-dev-lounge"`.
+ * @returns URL-safe slug, e.g. `"Ada's Dev Lounge!"` → `"adas-dev-lounge"`.
  */
 export const generateSlug = (name: string): string => {
   return (
@@ -23,8 +24,8 @@ export const generateSlug = (name: string): string => {
       .replace(/[^a-z0-9]+/g, "-")
       // collapse multiple hyphens
       .replace(/-+/g, "-")
-      // trim hyphens from ends
-      .replace(/^-|-$/g, "")
       .slice(0, 30)
+      // the cap can land on a separator, so trim after slicing, never before
+      .replace(/^-+|-+$/g, "")
   );
 };

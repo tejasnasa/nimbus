@@ -114,7 +114,7 @@ describe("UserNavbar", () => {
     expect(requests).toHaveLength(1);
   });
 
-  it.fails(
+  it(
     "returns the user to login even when the sign-out request fails",
     async () => {
       const user = userEvent.setup();

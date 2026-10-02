@@ -273,6 +273,14 @@ function trySalvageIncompleteJson(
  * palette rotation, bad coords → grid fallback positions; edges referencing
  * missing ids, self-loops, or duplicates are dropped. Sizes via
  * `fitNodesToLabels`.
+ *
+ * @important Node ids are made unique here. The prompt asks the model for
+ *            unique ids but nothing enforces it, and every map in the layout
+ *            and element builders is keyed by id — so a repeat would leave one
+ *            node unpositioned and bind its arrows to the other. A repeated id
+ *            is read as the same logical node: later nodes are suffixed, and an
+ *            edge naming that id is applied to every node that claimed it.
+ *            This is the one place the uniqueness invariant can be established.
  */
 function parseDiagramRecord(record: {
   nodes?: unknown;
@@ -315,33 +323,54 @@ function parseDiagramRecord(record: {
     };
   });
 
+  // Every original id is reserved before any alias is assigned, so an alias can
+  // never steal the name of a node the model actually gave that id to.
+  const reservedIds = new Set(nodes.map((n) => n.id));
+  const assignedIds = new Set<string>();
+  const aliasGroups = new Map<string, string[]>();
+
+  for (const node of nodes) {
+    const canonical = node.id;
+    let unique = canonical;
+    let suffix = 1;
+    while (assignedIds.has(unique) || (suffix > 1 && reservedIds.has(unique))) {
+      suffix += 1;
+      unique = `${canonical}_${suffix}`;
+    }
+    assignedIds.add(unique);
+    node.id = unique;
+
+    const group = aliasGroups.get(canonical);
+    if (group) group.push(unique);
+    else aliasGroups.set(canonical, [unique]);
+  }
+
   fitNodesToLabels(nodes);
 
-  const nodeIds = new Set(nodes.map((n) => n.id));
   const seenEdges = new Set<string>();
-  const edges: DiagramEdge[] = Array.isArray(record.edges)
-    ? record.edges
-        .map((edge) => {
-          if (!edge || typeof edge !== "object") return null;
-          const e = edge as Record<string, unknown>;
-          const from = typeof e.from === "string" ? e.from.trim() : "";
-          const to = typeof e.to === "string" ? e.to.trim() : "";
-          const key = `${from}->${to}`;
-          if (
-            !from ||
-            !to ||
-            !nodeIds.has(from) ||
-            !nodeIds.has(to) ||
-            from === to ||
-            seenEdges.has(key)
-          ) {
-            return null;
-          }
+  const edges: DiagramEdge[] = [];
+  if (Array.isArray(record.edges)) {
+    for (const edge of record.edges) {
+      if (!edge || typeof edge !== "object") continue;
+      const e = edge as Record<string, unknown>;
+      const from = typeof e.from === "string" ? e.from.trim() : "";
+      const to = typeof e.to === "string" ? e.to.trim() : "";
+      if (!from || !to || from === to) continue;
+
+      const fromIds = aliasGroups.get(from);
+      const toIds = aliasGroups.get(to);
+      if (!fromIds || !toIds) continue;
+
+      for (const f of fromIds) {
+        for (const t of toIds) {
+          const key = `${f}->${t}`;
+          if (f === t || seenEdges.has(key)) continue;
           seenEdges.add(key);
-          return { from, to };
-        })
-        .filter((e): e is DiagramEdge => e !== null)
-    : [];
+          edges.push({ from: f, to: t });
+        }
+      }
+    }
+  }
 
   return { nodes, edges };
 }

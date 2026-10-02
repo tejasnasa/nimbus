@@ -70,6 +70,23 @@ describe("WorkspaceCard", () => {
     expect(container.textContent).toContain("A place to build things");
   });
 
+  it("renders when the workspace carries no member list", () => {
+    const withoutMembers = {
+      id: "ws_cuid",
+      slugId: 42,
+      name: "Ada's Dev Lounge",
+      description: "A place to build things",
+      inviteCode: "INVITE-42",
+      updatedAt: new Date(),
+    } as unknown as Parameters<typeof WorkspaceCard>[0]["workspace"];
+
+    const { container } = render(
+      <WorkspaceCard workspace={withoutMembers} deleteWorkspace={vi.fn()} />,
+    );
+
+    expect(query(container, "a").getAttribute("href")).toBe("/workspace/42");
+  });
+
   it("renders a relative update time from timeAgo", () => {
     const { container } = setup();
     expect(container.textContent).toContain("just now");

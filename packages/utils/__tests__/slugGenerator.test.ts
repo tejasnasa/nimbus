@@ -43,16 +43,13 @@ describe("generateSlug — length", () => {
     expect(generateSlug("word ".repeat(20)).length).toBeLessThanOrEqual(30);
   });
 
-  it.fails(
-    "does not leave a trailing hyphen when truncation lands on a separator",
-    () => {
-      // 29 'a's followed by " b" slugifies to 29 chars + "-" + "b", so the
-      // 30-character cap cuts exactly on that separator.
-      const slug = generateSlug(`${"a".repeat(29)} b`);
-      expect(slug.endsWith("-")).toBe(false);
-      expect(slug).toBe("a".repeat(29));
-    },
-  );
+  it("does not leave a trailing hyphen when truncation lands on a separator", () => {
+    // 29 'a's followed by " b" slugifies to 29 chars + "-" + "b", so the
+    // 30-character cap cuts exactly on that separator.
+    const slug = generateSlug(`${"a".repeat(29)} b`);
+    expect(slug.endsWith("-")).toBe(false);
+    expect(slug).toBe("a".repeat(29));
+  });
 
   it("produces an empty slug for input that has no alphanumeric characters", () => {
     expect(generateSlug("日本語")).toBe("");
@@ -92,10 +89,8 @@ describe("generateSlug — determinism and collisions", () => {
     }
   });
 
-  it.fails(
-    "matches the slug shown in its own JSDoc example",
-    () => {
-      expect(generateSlug("Ada's Dev Lounge!")).toBe("ada-s-dev-lounge");
-    },
-  );
+  it("matches the slug shown in its own JSDoc example", () => {
+    // Apostrophes are stripped outright, so they leave no separator behind.
+    expect(generateSlug("Ada's Dev Lounge!")).toBe("adas-dev-lounge");
+  });
 });

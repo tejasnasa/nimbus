@@ -20,6 +20,7 @@ const completeEnv = {
   BOT_USERID: "bot-user-id",
   TURN_SECRET: "turn-secret",
   RESEND_API_KEY: "resend-key",
+  CONTACT_TO_EMAIL: "contact@example.com",
   GOOGLE_CLIENT_ID: "google-id",
   GOOGLE_CLIENT_SECRET: "google-secret",
   CLOUDINARY_CLOUD_NAME: "cloudinary-cloud",

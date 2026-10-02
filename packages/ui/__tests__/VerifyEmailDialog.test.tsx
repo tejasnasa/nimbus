@@ -46,6 +46,12 @@ describe("VerifyEmailDialog", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("ignores keys other than Escape while open", () => {
+    const { onClose } = setup();
+    keyDown("a");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("closes when the backdrop is clicked", () => {
     const { onClose } = setup();
     click(query(document.body, "div.absolute.inset-0"));

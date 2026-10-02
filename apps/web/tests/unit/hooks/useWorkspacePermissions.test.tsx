@@ -66,7 +66,7 @@ describe("useWorkspacePermissions", () => {
     expect(result.current.loading).toBeNull();
   });
 
-  it.fails(
+  it(
     "refreshes the route after rotating the invite code so the UI drops the stale code",
     async () => {
       // The rotation invalidates the previous code, but the code the UI shows

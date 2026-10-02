@@ -12,10 +12,27 @@ import { useState } from "react";
  */
 export function useWorkspaceMembers(workspaceId: string) {
   const router = useRouter();
-  const [loading, setLoading] = useState<string | null>(null);
+  // More than one member can have a request in flight at once, so in-flight ids
+  // are tracked as a list and the hook reports the most recent. A single value
+  // would let the first response to land clear the spinner for a request that
+  // is still running.
+  const [inFlight, setInFlight] = useState<string[]>([]);
+  const loading = inFlight[inFlight.length - 1] ?? null;
+
+  const markLoading = (memberId: string) =>
+    setInFlight((prev) => [...prev, memberId]);
+
+  const clearLoading = (memberId: string) =>
+    setInFlight((prev) => {
+      const index = prev.indexOf(memberId);
+      if (index === -1) return prev;
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
 
   const handleUpdateRole = async (memberId: string, role: string) => {
-    setLoading(memberId);
+    markLoading(memberId);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/role/${workspaceId}`,
@@ -36,12 +53,12 @@ export function useWorkspaceMembers(workspaceId: string) {
     } catch (err) {
       alert((err as Error).message);
     } finally {
-      setLoading(null);
+      clearLoading(memberId);
     }
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    setLoading(memberId);
+    markLoading(memberId);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/leave/${workspaceId}`,
@@ -62,7 +79,7 @@ export function useWorkspaceMembers(workspaceId: string) {
     } catch (err) {
       alert((err as Error).message);
     } finally {
-      setLoading(null);
+      clearLoading(memberId);
     }
   };
 

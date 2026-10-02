@@ -83,6 +83,14 @@ describe("OptionMenu", () => {
     expect(items()[1]!.className).toContain("text-sm");
   });
 
+  it("omits the caller classes cleanly when none are given", () => {
+    const { container, trigger } = setup({ className: undefined });
+    click(trigger);
+    const panel = query(container, "div.absolute");
+    expect(panel.className).not.toContain("undefined");
+    expect(panel.className).toContain("right-0");
+  });
+
   it("aligns the panel to the left when direction is right", () => {
     const { container, trigger, items } = setup({ direction: "right", size: "sm" });
     click(trigger);

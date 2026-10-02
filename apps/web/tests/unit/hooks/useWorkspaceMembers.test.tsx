@@ -146,7 +146,7 @@ describe("useWorkspaceMembers", () => {
     expect(result.current.loading).toBeNull();
   });
 
-  it.fails(
+  it(
     "keeps a member marked as loading while their own request is still running",
     async () => {
       // Two admins acting at once: the first response must not clear the
@@ -188,4 +188,43 @@ describe("useWorkspaceMembers", () => {
       expect(loadingWhileSecondInFlight).toBe("user-b");
     },
   );
+
+  it("keeps the spinner while the same member has two overlapping requests", async () => {
+    const releases: Array<() => void> = [];
+    server.use(
+      http.put(
+        ROLE_URL,
+        () =>
+          new Promise<HttpResponse<DefaultBodyType>>((resolve) => {
+            releases.push(() => resolve(ok({ role: "ADMIN" })));
+          }),
+      ),
+    );
+
+    const { result } = renderHook(() => useWorkspaceMembers(WORKSPACE_ID));
+
+    let first: Promise<void>;
+    await act(async () => {
+      first = result.current.handleUpdateRole("user-a", "ADMIN");
+    });
+    let second: Promise<void>;
+    await act(async () => {
+      second = result.current.handleUpdateRole("user-a", "ADMIN");
+    });
+
+    await act(async () => {
+      releases[0]?.();
+      await first;
+    });
+
+    // One of that member's requests is still running, so the row stays loading.
+    expect(result.current.loading).toBe("user-a");
+
+    await act(async () => {
+      releases[1]?.();
+      await second;
+    });
+
+    expect(result.current.loading).toBeNull();
+  });
 });

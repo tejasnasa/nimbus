@@ -14,10 +14,16 @@ import { useForgotPasswordForm } from "../hooks/useForgotPasswordForm";
  */
 interface ForgotPasswordFormProps {
   openLogin: () => void;
+  /**
+   * Whether this is the card currently shown. Inactive cards stay mounted for
+   * the crossfade but must not be reachable by keyboard or a screen reader.
+   */
+  isActive?: boolean;
 }
 
 export default function ForgotPasswordForm({
   openLogin,
+  isActive = true,
 }: ForgotPasswordFormProps) {
   const { register, firstError, isSubmitting, onSubmit, sent } =
     useForgotPasswordForm();
@@ -37,7 +43,11 @@ export default function ForgotPasswordForm({
       </div>
 
       {sent ? (
-        <div className="flex flex-col items-center gap-4 py-2">
+        <div
+          className="flex flex-col items-center gap-4 py-2"
+          inert={!isActive}
+          aria-hidden={isActive ? undefined : true}
+        >
           <p className="text-sm text-center text-(--muted-foreground)">
             If an account exists for that email, a reset link has been sent.
             Check your inbox.
@@ -50,7 +60,12 @@ export default function ForgotPasswordForm({
           </button>
         </div>
       ) : (
-        <form className="flex flex-col gap-5" onSubmit={onSubmit}>
+        <form
+          className="flex flex-col gap-5"
+          onSubmit={onSubmit}
+          inert={!isActive}
+          aria-hidden={isActive ? undefined : true}
+        >
           <div className="flex flex-col gap-2">
             <label
               htmlFor="forgot-email"

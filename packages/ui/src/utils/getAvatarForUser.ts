@@ -13,7 +13,32 @@ import pic3 from "../assets/avatars/picture3.jpg";
 import pic4 from "../assets/avatars/picture4.jpg";
 import pic5 from "../assets/avatars/picture5.jpg";
 
-const avatars = [pic1, pic2, pic3, pic4, pic5];
+/**
+ * Resolves an imported image asset to a URL string.
+ *
+ * The bundlers this package is consumed through disagree on the import shape:
+ * Next.js returns `{ src, height, width }` metadata, while Vite (and therefore
+ * Vitest) returns the URL string itself. Reading `.src` unconditionally yields
+ * `undefined` under the second, so both shapes are handled here.
+ *
+ * @param asset - Imported asset in either shape.
+ * @returns Usable image URL, or `""` when neither shape matches.
+ */
+export function assetSrc(asset: unknown): string {
+  if (typeof asset === "string") return asset;
+  if (
+    asset &&
+    typeof asset === "object" &&
+    "src" in asset &&
+    typeof (asset as { src: unknown }).src === "string"
+  ) {
+    return (asset as { src: string }).src;
+  }
+  return "";
+}
+
+/** Resolved URLs, normalised once at module load so lookups stay a plain index. */
+const avatars: string[] = [pic1, pic2, pic3, pic4, pic5].map(assetSrc);
 
 /**
  * Hashes a user ID to a stable array index using a 31-multiplier string hash.
@@ -34,9 +59,11 @@ function hashUserId(userId: string | number): number {
  * Returns a deterministic fallback avatar URL for the given user.
  *
  * @param userId - User ID to map to an avatar; falsy values fall back to the first picture.
- * @returns Resolved image `src` URL.
+ * @returns Resolved image URL.
  */
 export function getAvatarForUser(userId: string | number | undefined): string {
-  if (!userId) return avatars[0]!.src;
-  return avatars[hashUserId(userId) % avatars.length]!.src ?? avatars[0]!.src;
+  // `avatars` is built from a five-element literal, so both lookups are always
+  // in range — the assertions are here only to satisfy indexed-access checking.
+  if (!userId) return avatars[0]!;
+  return avatars[hashUserId(userId) % avatars.length]!;
 }

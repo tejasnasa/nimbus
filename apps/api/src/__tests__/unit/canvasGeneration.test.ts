@@ -24,6 +24,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   OVERLONG_WORD,
   SHARED_LABEL,
+  aliasCollision,
   cyclicFlow,
   danglingEdges,
   duplicateIds,
@@ -985,59 +986,72 @@ describe("lib/canvasGeneration", () => {
     });
   });
 
-  /* ── Known defects, pinned as expected failures ─────────────────────────── */
+  /* ── Repeated ids and unusable coordinate hints ─────────────────────────── */
 
-  describe("known defects, pinned as expected failures", () => {
-    it("leaves the earlier node at its hint position when two nodes share an id", async () => {
+  describe("repeated ids and unusable coordinate hints", () => {
+    it("suffixes a repeated id and lays out every node that claimed it", async () => {
       const { elements } = await runPayload(duplicateIds);
 
-      // Behaviour today: rank/layout maps are keyed by id, so the last node with
-      // a given id absorbs every layout write and the earlier one keeps the
-      // coordinates the model hinted at (80 + 1*280).
-      expect(shapesOf(elements).map((shape) => shape.x)).toEqual([
-        80, 360, 480,
-      ]);
-      const orphan = shapesOf(elements)[1]!;
-      expect(orphan.boundElements!.map((b) => b.type)).toEqual(["text"]);
-    });
-
-    it.fails("lays out both nodes when two nodes share an id", async () => {
-      const { elements } = await runPayload(duplicateIds);
-
-      // Same logical rank, so the two `task` nodes belong in the same column —
-      // instead one escapes the layout pass entirely.
+      // The two `task` nodes share a logical rank, so both belong in the same
+      // column — neither escapes the layout pass, and each gets its own arrow.
       const [entry, first, second] = shapesOf(elements);
+      expect(shapesOf(elements).map((shape) => shape.x)).toEqual([
+        80, 480, 480,
+      ]);
       expect(entry!.x).toBe(80);
       expect(first!.x).toBe(second!.x);
+      expect(first!.boundElements!.map((b) => b.type)).toEqual([
+        "text",
+        "arrow",
+      ]);
+      expect(second!.boundElements!.map((b) => b.type)).toEqual([
+        "text",
+        "arrow",
+      ]);
+      expect(arrowsOf(elements)).toHaveLength(2);
     });
 
-    it.fails(
-      "treats a null coordinate hint as no hint rather than as y = 0",
-      async () => {
-        const { elements } = await runPayload({
-          nodes: [
-            { id: "alpha", label: "Alpha", y: 500 },
-            { id: "beta", label: "Beta", y: null },
-            { id: "sink", label: "Sink" },
-          ],
-          edges: [
-            { from: "alpha", to: "sink" },
-            { from: "beta", to: "sink" },
-          ],
-        });
+    it("keeps a literal id that collides with a generated alias", async () => {
+      const { elements } = await runPayload(aliasCollision);
 
-        const texts = textByShapeId(elements);
-        const firstColumn = shapesOf(elements)
-          .filter((shape) => shape.x === 80)
-          .sort((a, b) => a.y - b.y)
-          .map((shape) => texts.get(shape.id)!.text);
+      // The fourth node duplicates `task` while the third is genuinely named
+      // `task_2`, so the duplicate has to skip that name rather than take it.
+      expect(shapesOf(elements)).toHaveLength(4);
+      expect(textsOf(elements).map((text) => text.text)).toEqual([
+        "Entry",
+        "First task",
+        "Named task_2",
+        "Second task",
+      ]);
+      // Two rank columns: the duplicate was laid out rather than left at its
+      // parse-time hint, which would show up as a third distinct x.
+      expect(new Set(shapesOf(elements).map((shape) => shape.x)).size).toBe(2);
+    });
 
-        // `Number(null)` is 0 and 0 is finite, so the fallback for bad coordinates
-        // never runs and `beta` jumps the queue. With the fallback, both nodes sit
-        // in the same default row (y = 80) and the array order survives.
-        expect(firstColumn).toEqual(["Alpha", "Beta"]);
-      },
-    );
+    it("treats a null coordinate hint as no hint rather than as y = 0", async () => {
+      const { elements } = await runPayload({
+        nodes: [
+          { id: "alpha", label: "Alpha", y: 40 },
+          { id: "beta", label: "Beta", y: null },
+          { id: "sink", label: "Sink" },
+        ],
+        edges: [
+          { from: "alpha", to: "sink" },
+          { from: "beta", to: "sink" },
+        ],
+      });
+
+      const texts = textByShapeId(elements);
+      const firstColumn = shapesOf(elements)
+        .filter((shape) => shape.x === 80)
+        .sort((a, b) => a.y - b.y)
+        .map((shape) => texts.get(shape.id)!.text);
+
+      // `Number(null)` is 0 and 0 is finite, so reading the hint as 0 would sort
+      // `beta` ahead of `alpha`'s real hint of 40. The fallback is the
+      // index-derived default (y = 80), which leaves `alpha` in front.
+      expect(firstColumn).toEqual(["Alpha", "Beta"]);
+    });
 
     it("starts a cyclic flow at the canvas origin", async () => {
       const { elements } = await runPayload(cyclicFlow);

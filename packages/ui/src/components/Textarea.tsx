@@ -35,7 +35,7 @@ export default function Textarea({ className, size = "sm", ...props }: Props) {
   return (
     <textarea
       {...props}
-      className={`bg-(--muted)/50 ${heights[size]} rounded-xl px-4 py-3 text-sm border border-(--border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:border-(--primary)/30 transition-all duration-200 resize-none placeholder:text-(--muted-foreground)/50 ${className}`}
+      className={`bg-(--muted)/50 ${heights[size]} rounded-xl px-4 py-3 text-sm border border-(--border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:border-(--primary)/30 transition-all duration-200 resize-none placeholder:text-(--muted-foreground)/50 ${className ?? ""}`}
     ></textarea>
   );
 }

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { resetSchema } from "@nimbus/types";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
@@ -21,6 +21,15 @@ export function useResetPasswordForm(token: string) {
     defaultValues: { password: "", confirmPassword: "" },
   });
   const [done, setDone] = useState(false);
+  // The pending redirect is cancellable: a user who leaves the page inside the
+  // delay window must not still be navigated away from whatever they moved to.
+  const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   const { password, confirmPassword, root } = form.formState.errors;
   const firstError =
@@ -40,7 +49,10 @@ export function useResetPasswordForm(token: string) {
           },
           onSuccess: () => {
             setDone(true);
-            setTimeout(() => router.push("/login"), 2500);
+            redirectTimer.current = setTimeout(
+              () => router.push("/login"),
+              2500,
+            );
           },
         },
       );

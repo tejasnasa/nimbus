@@ -153,6 +153,22 @@ describe("ChatMsgB", () => {
     expect(container.textContent).toContain("Ada");
     expect(container.textContent).toContain("12:01");
   });
+
+  it("highlights a bot mention inside the outgoing message", () => {
+    const { container } = render(
+      <ChatMsgB
+        name="Ada"
+        image="/ada.png"
+        message="hey @nimbusbot make a diagram"
+        time="12:02"
+      />,
+    );
+
+    const mention = queryAll<HTMLSpanElement>(container, "span").find((span) =>
+      span.className.includes("text-(--chart-2)"),
+    );
+    expect(mention?.textContent).toBe("@nimbusbot");
+  });
 });
 
 describe("Skeleton", () => {
@@ -211,7 +227,7 @@ describe("Textarea", () => {
     );
   });
 
-  it.fails("does not emit a literal 'undefined' class when className is omitted", () => {
+  it("does not emit a literal 'undefined' class when className is omitted", () => {
     const { container } = render(<Textarea />);
     expect(query(container, "textarea").className).not.toContain("undefined");
   });

@@ -4,18 +4,20 @@ import { test, expect, e2eState } from "./fixtures";
 /**
  * The credential forms' client-side behaviour.
  *
- * @important Two things about this screen shape every locator below, and both
- *            stem from recorded defects rather than from the spec's preference:
+ * @important Two things about this screen shape every locator below:
  *
  *            1. `FormSwitch` mounts the sign-in, sign-up and forgot-password
  *               cards **simultaneously** and swaps them with `opacity-0` +
  *               `pointer-events-none`. Nothing is unmounted, `display: none` is
  *               never used, and `opacity: 0` still counts as visible to
- *               Playwright — so every `getByLabel("Email")` on this page matches
- *               more than one element, and "which card is showing" is only
- *               observable as that opacity.
- *            2. `LoginForm` and `SignupForm` both hard-code `id="email"` and
- *               `id="password"`, so the ids cannot disambiguate either.
+ *               Playwright — so `getByLabel("Email")` still matches the hidden
+ *               cards as well, and "which card is showing" is only observable as
+ *               that opacity. Only the card's body is `aria-hidden`; its heading
+ *               stays in the role tree, which is what keeps `card()` able to
+ *               find an inactive card at all.
+ *            2. The field ids are unique per card (`login-email`,
+ *               `signup-email`, `forgot-email`), so within a card every label
+ *               resolves to exactly one field.
  *
  *            Every locator is therefore scoped to the card that owns it, and the
  *            card switch is asserted through opacity.

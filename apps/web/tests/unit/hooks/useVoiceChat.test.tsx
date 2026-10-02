@@ -861,7 +861,7 @@ describe("useVoiceChat", () => {
     );
   });
 
-  it.fails(
+  it(
     "shows the current user's updated display name in the roster",
     async () => {
       // The session effect captures `userName` without depending on it, so the

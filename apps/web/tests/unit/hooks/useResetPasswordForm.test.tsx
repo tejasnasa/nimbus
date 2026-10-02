@@ -195,7 +195,7 @@ describe("useResetPasswordForm", () => {
     expect(result.current.isSubmitting).toBe(false);
   });
 
-  it.fails(
+  it(
     "does not navigate to /login after the reset form has unmounted",
     async () => {
       // The redirect timer is never cleared, so a user who leaves the page

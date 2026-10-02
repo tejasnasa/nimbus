@@ -21,6 +21,10 @@ interface ToggleGroupProps {
 export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
   const [selected, setSelected] = useState<string>(options[0] ?? "");
 
+  // `options` can change while `selected` still names an older entry, so the
+  // rendered value is derived rather than trusted from state.
+  const active = options.includes(selected) ? selected : (options[0] ?? "");
+
   function toggle(option: string) {
     setSelected(option);
     onChange?.(option);
@@ -35,7 +39,7 @@ export default function ToggleGroup({ options, onChange }: ToggleGroupProps) {
           onClick={() => toggle(option)}
           className={`px-5 py-2 text-sm font-medium rounded-lg transition-all duration-300 cursor-pointer
             ${
-              selected === option
+              active === option
                 ? "bg-(--primary) text-(--primary-foreground) shadow-md shadow-(--primary)/20"
                 : "hover:bg-(--muted) text-(--muted-foreground) hover:text-(--foreground)"
             }`}

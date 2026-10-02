@@ -7,9 +7,9 @@
  * exercised.
  *
  * All three cards are mounted at once (the switch is a CSS crossfade), so every
- * query is scoped to the `section` that owns the heading. Placeholder-based
- * queries are used inside those sections because the login and signup cards
- * reuse the same `id` values, which makes label lookups document-wide.
+ * query is scoped to the `section` that owns the heading, and a test that acts
+ * on a card brings it forward first — only the visible card's fields are in the
+ * accessibility tree.
  */
 import "./testUtils";
 import { render, screen, within } from "@testing-library/react";
@@ -138,6 +138,9 @@ describe("FormSwitch", () => {
       const bodies = capture("/api/auth/sign-up/email");
       render(<FormSwitch />);
 
+      await user.click(
+        within(loginCard()).getByRole("button", { name: /Sign up/ }),
+      );
       await user.type(signupName(), "Ada Lovelace");
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "onlyletters");
@@ -156,6 +159,9 @@ describe("FormSwitch", () => {
       const bodies = capture("/api/auth/sign-up/email");
       render(<FormSwitch />);
 
+      await user.click(
+        within(loginCard()).getByRole("button", { name: /Sign up/ }),
+      );
       await user.type(signupName(), "Ada Lovelace");
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "supersecret1!");
@@ -178,6 +184,9 @@ describe("FormSwitch", () => {
       capture("/api/auth/sign-up/email", fail(422, "User already exists"));
       render(<FormSwitch />);
 
+      await user.click(
+        within(loginCard()).getByRole("button", { name: /Sign up/ }),
+      );
       await user.type(signupName(), "Ada Lovelace");
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "supersecret1!");
@@ -213,9 +222,12 @@ describe("FormSwitch", () => {
       const user = userEvent.setup();
       render(<FormSwitch />);
 
+      await user.click(
+        within(loginCard()).getByRole("button", { name: /Sign up/ }),
+      );
       await user.type(signupEmail(), "ada@example.com");
       await user.click(
-        within(loginCard()).getByRole("button", { name: "Forgot password?" }),
+        within(signupCard()).getByRole("button", { name: /Sign in/ }),
       );
       await user.click(
         within(loginCard()).getByRole("button", { name: /Sign up/ }),
@@ -226,17 +238,24 @@ describe("FormSwitch", () => {
   });
 
   describe("inactive views", () => {
-    it.fails(
+    it(
       "removes the inactive auth cards from the accessibility tree",
       () => {
         render(<FormSwitch />);
 
         expect(within(signupCard()).queryByRole("textbox")).toBeNull();
         expect(within(forgotCard()).queryByRole("textbox")).toBeNull();
+
+        // `aria-hidden` takes the fields out of the accessibility tree; `inert`
+        // is what keeps them out of the tab order. Both are load-bearing, and
+        // the visible card must carry neither.
+        expect(signupCard().querySelector("form")).toHaveAttribute("inert");
+        expect(forgotCard().querySelector("form")).toHaveAttribute("inert");
+        expect(loginCard().querySelector("form")).not.toHaveAttribute("inert");
       },
     );
 
-    it.fails("leaves each card's Email label pointing at its own field", () => {
+    it("leaves each card's Email label pointing at its own field", () => {
       render(<FormSwitch />);
 
       const label = within(signupCard())

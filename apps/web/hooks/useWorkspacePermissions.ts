@@ -30,6 +30,10 @@ export function useWorkspacePermissions(workspaceId: string) {
         const error = await res.json();
         throw new Error(error.message ?? "Failed to regenerate invite code");
       }
+
+      // The code the UI displays and copies is server-rendered, so the route
+      // has to be refreshed or it keeps showing the invalidated code.
+      router.refresh();
     } catch (error) {
       alert((error as { message?: string }).message ?? "Something went wrong.");
     } finally {

@@ -25,6 +25,11 @@ interface LoginFormProps {
   onSubmit: (e: React.FormEvent) => void;
   openSignup?: () => void;
   openForgotPassword?: () => void;
+  /**
+   * Whether this is the card currently shown. Inactive cards stay mounted for
+   * the crossfade but must not be reachable by keyboard or a screen reader.
+   */
+  isActive?: boolean;
 }
 
 export default function LoginForm({
@@ -34,6 +39,7 @@ export default function LoginForm({
   onSubmit,
   openSignup,
   openForgotPassword,
+  isActive = true,
 }: LoginFormProps) {
   return (
     <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
@@ -47,10 +53,15 @@ export default function LoginForm({
         </p>
       </div>
 
-      <form className="flex flex-col gap-5" onSubmit={onSubmit}>
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={onSubmit}
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
         <div className="flex flex-col gap-2">
           <label
-            htmlFor="email"
+            htmlFor="login-email"
             className="text-sm font-medium text-(--muted-foreground)"
           >
             Email
@@ -58,13 +69,13 @@ export default function LoginForm({
           <Input
             placeholder="tejas@example.com"
             className="w-full"
-            id="email"
+            id="login-email"
             {...register("email")}
           />
         </div>
         <div className="flex flex-col gap-2">
           <label
-            htmlFor="password"
+            htmlFor="login-password"
             className="text-sm font-medium text-(--muted-foreground)"
           >
             Password
@@ -74,7 +85,7 @@ export default function LoginForm({
               placeholder="••••••••"
               type="password"
               className="w-full"
-              id="password"
+              id="login-password"
               {...register("password")}
             />
             <button
@@ -101,7 +112,11 @@ export default function LoginForm({
         </Button>
       </form>
 
-      <div className="flex flex-col items-center gap-4 mt-4">
+      <div
+        className="flex flex-col items-center gap-4 mt-4"
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
         <OrContinueWith />
         <Button
           size="sm"

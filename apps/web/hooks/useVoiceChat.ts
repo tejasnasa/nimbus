@@ -82,6 +82,24 @@ export function useVoiceChat({
     voiceUsersRef.current = voiceUsers;
   }, [voiceUsers]);
 
+  // The roster entry for self is seeded once, from the props of the render that
+  // opened the session, so a later name or avatar change never reaches it.
+  // Returning `prev` untouched when nothing differs keeps this from adding a
+  // render on every mount.
+  useEffect(() => {
+    setVoiceUsers((prev) => {
+      const needsSync = prev.some(
+        (u) =>
+          u.userId === userId &&
+          (u.name !== userName || u.image !== userImage),
+      );
+      if (!needsSync) return prev;
+      return prev.map((u) =>
+        u.userId === userId ? { ...u, name: userName, image: userImage } : u,
+      );
+    });
+  }, [userId, userName, userImage]);
+
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);

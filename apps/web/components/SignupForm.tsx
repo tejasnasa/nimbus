@@ -27,6 +27,11 @@ interface SignupFormProps {
   showVerifyDialog: boolean;
   setShowVerifyDialog: (open: boolean) => void;
   submittedEmail: string;
+  /**
+   * Whether this is the card currently shown. Inactive cards stay mounted for
+   * the crossfade but must not be reachable by keyboard or a screen reader.
+   */
+  isActive?: boolean;
 }
 
 export default function SignupForm({
@@ -38,6 +43,7 @@ export default function SignupForm({
   showVerifyDialog,
   setShowVerifyDialog,
   submittedEmail,
+  isActive = true,
 }: SignupFormProps) {
   return (
     <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
@@ -53,10 +59,15 @@ export default function SignupForm({
         </p>
       </div>
 
-      <form className="flex flex-col gap-5" onSubmit={onSubmit}>
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={onSubmit}
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
         <div className="flex flex-col gap-2">
           <label
-            htmlFor="name"
+            htmlFor="signup-name"
             className="text-sm font-medium text-(--muted-foreground)"
           >
             Name
@@ -64,13 +75,13 @@ export default function SignupForm({
           <Input
             placeholder="Tejas Nasa"
             className="w-full"
-            id="name"
+            id="signup-name"
             {...register("name")}
           />
         </div>
         <div className="flex flex-col gap-2">
           <label
-            htmlFor="email"
+            htmlFor="signup-email"
             className="text-sm font-medium text-(--muted-foreground)"
           >
             Email
@@ -78,13 +89,13 @@ export default function SignupForm({
           <Input
             placeholder="tejas@example.com"
             className="w-full"
-            id="email"
+            id="signup-email"
             {...register("email")}
           />
         </div>
         <div className="flex flex-col gap-2">
           <label
-            htmlFor="password"
+            htmlFor="signup-password"
             className="text-sm font-medium text-(--muted-foreground)"
           >
             Password
@@ -93,7 +104,7 @@ export default function SignupForm({
             placeholder="••••••••"
             type="password"
             className="w-full"
-            id="password"
+            id="signup-password"
             {...register("password")}
           />
         </div>
@@ -112,7 +123,11 @@ export default function SignupForm({
         </Button>
       </form>
 
-      <div className="flex flex-col items-center gap-4 mt-4">
+      <div
+        className="flex flex-col items-center gap-4 mt-4"
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
         <OrContinueWith />
         <Button
           size="sm"

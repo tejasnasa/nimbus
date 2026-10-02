@@ -79,7 +79,7 @@ describe("ToggleGroup", () => {
     }
   });
 
-  it.fails("keeps the selection pointing at a real option when options change", () => {
+  it("keeps the selection pointing at a real option when options change", () => {
     const { rerender, container } = render(<ToggleGroup options={["a", "b"]} />);
     click(queryAll(container, "button")[1]!);
     rerender(<ToggleGroup options={["x", "y"]} />);

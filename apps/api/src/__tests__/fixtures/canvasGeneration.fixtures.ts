@@ -173,6 +173,20 @@ export const duplicateIds: RawPayload = {
   edges: [{ from: "entry", to: "task" }],
 };
 
+/**
+ * A duplicate id alongside a node the model literally named `task_2`, so
+ * generating an alias for the duplicate must not steal a name already in use.
+ */
+export const aliasCollision: RawPayload = {
+  nodes: [
+    { id: "entry", label: "Entry" },
+    { id: "task", label: "First task" },
+    { id: "task_2", label: "Named task_2" },
+    { id: "task", label: "Second task" },
+  ],
+  edges: [{ from: "entry", to: "task" }],
+};
+
 /** A model that answered with prose and no JSON at all. */
 export const proseOnly =
   "I can't draw that as a diagram because the request is ambiguous.";

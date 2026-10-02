@@ -29,15 +29,10 @@ export default function UserNavbar({
 
   const handleLogout = async () => {
     try {
-      await authClient.signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            router.push("/login");
-          },
-        },
-      });
+      await authClient.signOut();
     } catch (error) {
       console.error("Sign out failed", error);
+    } finally {
       router.push("/login");
     }
   };

@@ -59,6 +59,7 @@ export default function FormSwitch() {
             onSubmit={loginOnSubmit}
             openSignup={() => setFormType("signup")}
             openForgotPassword={() => setFormType("forgot")}
+            isActive={formType === "login"}
           />
         </div>
         <div
@@ -67,7 +68,10 @@ export default function FormSwitch() {
             ${formType === "forgot" ? "opacity-100 translate-y-0 scale-100 z-10" : "opacity-0 -translate-y-4 scale-[0.98] pointer-events-none z-0"}
           `}
         >
-          <ForgotPasswordForm openLogin={() => setFormType("login")} />
+          <ForgotPasswordForm
+            openLogin={() => setFormType("login")}
+            isActive={formType === "forgot"}
+          />
         </div>
         <div
           className={`
@@ -84,6 +88,7 @@ export default function FormSwitch() {
             showVerifyDialog={showVerifyDialog}
             setShowVerifyDialog={setShowVerifyDialog}
             submittedEmail={submittedEmail}
+            isActive={formType === "signup"}
           />
         </div>
       </div>

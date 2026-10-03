@@ -14,7 +14,7 @@ import { evictDocument } from "../socket/document";
  * Creates a CANVAS (empty `canvasData`) or MARKDOWN document.
  *
  * @param title - Document title.
- * @param workspaceId - Owning workspace (caller must be a member).
+ * @param workspaceId - Owning workspace (must exist; caller must be a member).
  * @param userId - Acting user's ID.
  * @param type - Document kind.
  */
@@ -25,12 +25,14 @@ export const createDocument = async (
   type: "CANVAS" | "MARKDOWN",
 ) => {
   try {
-    const member = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId },
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { members: { select: { userId: true } } },
     });
-    if (!member) return ServerResponse.forbidden("Not a member");
+    if (!workspace) return ServerResponse.notFound("Workspace not found");
+
+    const isMember = workspace.members.some((m) => m.userId === userId);
+    if (!isMember) return ServerResponse.forbidden("Not a member");
 
     let document;
 
@@ -44,7 +46,7 @@ export const createDocument = async (
       });
     }
 
-    return ServerResponse.ok(document);
+    return ServerResponse.created(document, "Document created");
   } catch (error) {
     return ServerResponse.internalError(error);
   }
@@ -61,12 +63,14 @@ export const getWorkspaceDocuments = async (
   userId: string,
 ) => {
   try {
-    const member = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: { userId, workspaceId },
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { members: { select: { userId: true } } },
     });
-    if (!member) return ServerResponse.forbidden("Not a member");
+    if (!workspace) return ServerResponse.notFound("Workspace not found");
+
+    const isMember = workspace.members.some((m) => m.userId === userId);
+    if (!isMember) return ServerResponse.forbidden("Not a member");
 
     const documents = await prisma.document.findMany({
       where: { workspaceId },

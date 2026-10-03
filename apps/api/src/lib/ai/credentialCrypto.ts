@@ -253,7 +253,7 @@ function parseEnvelope(envelope: string): ParsedEnvelope {
 /** The candidate keys to try, in order: current first, then each comma-
  *  separated previous. Each derived only on demand so a process that never
  *  decrypts never has them in memory. */
-function candidateKeys(envelopeKeyId: string): Buffer[] {
+function candidateKeys(): Buffer[] {
   const current = process.env[MASTER_KEY_ENV];
   const keys: { id: string; key: Buffer }[] = [];
   if (current && current.length >= 32) {
@@ -269,12 +269,10 @@ function candidateKeys(envelopeKeyId: string): Buffer[] {
       keys.push({ id: keyIdFor(derived), key: derived });
     }
   }
-  // Optimise the common case: the envelope's keyId is the current key, try
-  // it first; otherwise fall through to the rest in declared order. We do
-  // not move the matching key to the front because GCM's failure mode is
-  // "throws" (auth tag mismatch), so any wrong key produces the same error.
-  // Sorting here would just hide that fact.
-  void envelopeKeyId;
+  // Keys are tried in declared order — current first, then each previous.
+  // There is nothing to gain by matching `keyId` first: GCM's failure mode is
+  // a throw (auth-tag mismatch), so a wrong key and a tampered envelope are
+  // indistinguishable from the outside.
   return keys.map((entry) => entry.key);
 }
 
@@ -291,7 +289,7 @@ function candidateKeys(envelopeKeyId: string): Buffer[] {
  */
 export function decryptSecret(envelope: string, aad: Buffer): string {
   const parsed = parseEnvelope(envelope);
-  const keys = candidateKeys(parsed.keyId);
+  const keys = candidateKeys();
   if (keys.length === 0) {
     throw new Error(
       "No encryption key is configured; cannot decrypt stored credential.",

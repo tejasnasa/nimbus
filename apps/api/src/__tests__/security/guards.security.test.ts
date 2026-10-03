@@ -143,14 +143,11 @@ describe("security: cross-workspace access by a non-member", () => {
     expect(res.status).toBe(403);
   });
 
-  // The message controller answers non-members with 401 (not 403). Pinned as
-  // observed: it is a non-disclosure choice, but it reads as "unauthenticated"
-  // rather than "forbidden", which is worth a conscious decision.
-  it("answers a non-member's message-list request with 401", async () => {
+  it("answers a non-member's message-list request with 403", async () => {
     const res = await as(app, outsider).get(`/api/messages/${workspaceId}`);
 
-    expect(res.status).toBe(401);
-    expect(res.body.message).toBe("Unauthorized");
+    expect(res.status).toBe(403);
+    expect(res.body.message).toBe("Not a member");
   });
 
   it("hides a workspace from a non-member as 404 rather than 403", async () => {

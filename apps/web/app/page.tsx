@@ -104,7 +104,7 @@ export default function LandingPage() {
           </h1>
 
           <p
-            className="text-md lg:text-xl text-(--foreground)/70 max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
+            className="text-md lg:text-xl text-(--foreground)/80 max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
             style={{ animationDelay: "0.1s" }}
           >
             Nimbus brings your entire workflow into one space - real-time

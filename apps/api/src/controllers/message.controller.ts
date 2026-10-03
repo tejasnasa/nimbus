@@ -24,7 +24,7 @@ export const getWorkspaceMessages = async (workspaceId: string, id: string) => {
       },
     });
 
-    if (!member) return ServerResponse.unauthorized();
+    if (!member) return ServerResponse.forbidden("Not a member");
 
     const messages = await prisma.message.findMany({
       where: { workspaceId },

@@ -5,7 +5,12 @@
  * delete, and slug lookup. All routes inherit `authCheck` from the master
  * router; `req.user` is guaranteed present.
  */
-import { workspaceSchema } from "@nimbus/types";
+import {
+  workspaceJoinSchema,
+  workspaceMemberSchema,
+  workspaceRoleSchema,
+  workspaceSchema,
+} from "@nimbus/types";
 import express from "express";
 import validate from "../middleware/validate.middleware";
 import {
@@ -39,14 +44,18 @@ workspaceRouter.get("/", async (req, res) => {
   return res.status(response.statusCode).json(response);
 });
 
-workspaceRouter.post("/join", async (req, res) => {
-  const { inviteCode } = req.body;
-  const { id } = req.user!;
+workspaceRouter.post(
+  "/join",
+  validate(workspaceJoinSchema),
+  async (req, res) => {
+    const { inviteCode } = req.body;
+    const { id } = req.user!;
 
-  const response = await joinWorkspace(inviteCode, id);
+    const response = await joinWorkspace(inviteCode, id);
 
-  return res.status(response.statusCode).json(response);
-});
+    return res.status(response.statusCode).json(response);
+  },
+);
 
 workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
   const { wsid } = req.params;
@@ -57,35 +66,47 @@ workspaceRouter.put("/regenerate-invite/:wsid", async (req, res) => {
   return res.status(response.statusCode).json(response);
 });
 
-workspaceRouter.put("/role/:wsid", async (req, res) => {
-  const { wsid } = req.params;
-  const { id } = req.user!;
-  const { memberId, role } = req.body;
+workspaceRouter.put(
+  "/role/:wsid",
+  validate(workspaceRoleSchema),
+  async (req, res) => {
+    const { wsid } = req.params;
+    const { id } = req.user!;
+    const { memberId, role } = req.body;
 
-  const response = await updateMemberRole(wsid, id, memberId, role);
+    const response = await updateMemberRole(wsid, id, memberId, role);
 
-  return res.status(response.statusCode).json(response);
-});
+    return res.status(response.statusCode).json(response);
+  },
+);
 
-workspaceRouter.delete("/leave/:wsid", async (req, res) => {
-  const { wsid } = req.params;
-  const { id } = req.user!;
-  const { memberId } = req.body;
+workspaceRouter.delete(
+  "/leave/:wsid",
+  validate(workspaceMemberSchema),
+  async (req, res) => {
+    const { wsid } = req.params;
+    const { id } = req.user!;
+    const { memberId } = req.body;
 
-  const response = await removeMember(wsid, id, memberId);
+    const response = await removeMember(wsid, id, memberId);
 
-  return res.status(response.statusCode).json(response);
-});
+    return res.status(response.statusCode).json(response);
+  },
+);
 
-workspaceRouter.put("/update/:wsid", async (req, res) => {
-  const { wsid } = req.params;
-  const { id } = req.user!;
-  const { name, description } = req.body;
+workspaceRouter.put(
+  "/update/:wsid",
+  validate(workspaceSchema),
+  async (req, res) => {
+    const { wsid } = req.params;
+    const { id } = req.user!;
+    const { name, description } = req.body;
 
-  const response = await updateWorkspace(wsid, id, name, description);
+    const response = await updateWorkspace(wsid, id, name, description);
 
-  return res.status(response.statusCode).json(response);
-});
+    return res.status(response.statusCode).json(response);
+  },
+);
 
 workspaceRouter.delete("/delete/:wsid", async (req, res) => {
   const { wsid } = req.params;

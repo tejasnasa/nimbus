@@ -26,6 +26,12 @@ import {
   resetDatabase,
   testPrisma,
 } from "@testhelpers";
+import * as Y from "yjs";
+import { canvases } from "../../socket/canvas";
+import { docs } from "../../socket/document";
+
+/** A syntactically valid cuid that no row uses. */
+const MISSING_ID = "clxxxxxxxxxxxxxxxxxxxxxx";
 
 afterAll(closeTestResources);
 
@@ -224,6 +230,14 @@ describe("controllers/workspace", () => {
 
       expect(response.statusCode).toBe(403);
     });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const owner = await createUser("Owner");
+
+      const response = await regenerateInviteCode(MISSING_ID, owner.id);
+
+      expect(response.statusCode).toBe(404);
+    });
   });
 
   describe("updateMemberRole", () => {
@@ -242,6 +256,33 @@ describe("controllers/workspace", () => {
 
       expect(response.statusCode).toBe(403);
     });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const owner = await createUser("Owner");
+
+      const response = await updateMemberRole(
+        MISSING_ID,
+        owner.id,
+        owner.id,
+        "MEMBER",
+      );
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("returns 404 when the target member does not exist", async () => {
+      const owner = await createUser("Owner");
+      const created = await createWorkspace("Roles", "", owner.id);
+
+      const response = await updateMemberRole(
+        created.responseObject.workspaceId,
+        owner.id,
+        MISSING_ID,
+        "MEMBER",
+      );
+
+      expect(response.statusCode).toBe(404);
+    });
   });
 
   describe("removeMember", () => {
@@ -258,6 +299,27 @@ describe("controllers/workspace", () => {
       );
 
       expect(response.statusCode).toBe(403);
+    });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const owner = await createUser("Owner");
+
+      const response = await removeMember(MISSING_ID, owner.id, owner.id);
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it("returns 404 when the target member does not exist", async () => {
+      const owner = await createUser("Owner");
+      const created = await createWorkspace("Removals", "", owner.id);
+
+      const response = await removeMember(
+        created.responseObject.workspaceId,
+        owner.id,
+        MISSING_ID,
+      );
+
+      expect(response.statusCode).toBe(404);
     });
   });
 
@@ -328,13 +390,34 @@ describe("controllers/workspace", () => {
       ).resolves.toBe(0);
     });
 
+    it("evicts live in-memory state, not just the rows", async () => {
+      const owner = await createUser("Owner");
+      const created = await createWorkspace("Doomed", "", owner.id);
+      const wsId = created.responseObject.workspaceId;
+
+      const seeded = await testPrisma.document.findMany({
+        where: { workspaceId: wsId },
+        select: { id: true },
+      });
+      expect(seeded.length).toBeGreaterThan(0);
+
+      // Stand in for two open rooms: the process-local maps that the row
+      // cascade cannot reach.
+      const docId = seeded[0]!.id;
+      docs.set(docId, new Y.Doc());
+      canvases.set(docId, []);
+
+      const response = await deleteWorkspace(wsId, owner.id);
+
+      expect(response.statusCode).toBe(200);
+      expect(docs.has(docId)).toBe(false);
+      expect(canvases.has(docId)).toBe(false);
+    });
+
     it("returns 404 when the workspace does not exist", async () => {
       const owner = await createUser("Owner");
 
-      const response = await deleteWorkspace(
-        "clxxxxxxxxxxxxxxxxxxxxxx",
-        owner.id,
-      );
+      const response = await deleteWorkspace(MISSING_ID, owner.id);
 
       expect(response.statusCode).toBe(404);
     });

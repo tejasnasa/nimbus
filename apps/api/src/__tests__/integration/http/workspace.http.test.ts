@@ -48,7 +48,9 @@ describe("http: workspace", () => {
       const wsId = res.body.responseObject.workspaceId;
       await expect(
         testPrisma.workspaceMember.findUnique({
-          where: { userId_workspaceId: { userId: owner.id, workspaceId: wsId } },
+          where: {
+            userId_workspaceId: { userId: owner.id, workspaceId: wsId },
+          },
         }),
       ).resolves.toMatchObject({ role: "OWNER" });
     });
@@ -59,7 +61,9 @@ describe("http: workspace", () => {
         .send({ name: "ab", description: "" });
 
       expect(res.status).toBe(400);
-      expect(res.body.responseObject.properties.name.errors[0]).toMatch(/at least 3/i);
+      expect(res.body.responseObject.properties.name.errors[0]).toMatch(
+        /at least 3/i,
+      );
     });
 
     it("rejects a name beyond the schema's maximum", async () => {
@@ -154,7 +158,9 @@ describe("http: workspace", () => {
       const ws = await createWorkspace(owner.id);
       await addMember(ws.id, member.id, "ADMIN");
 
-      const res = await as(app, member).delete(`/api/workspace/delete/${ws.id}`);
+      const res = await as(app, member).delete(
+        `/api/workspace/delete/${ws.id}`,
+      );
 
       expect(res.status).toBe(403);
     });
@@ -169,10 +175,15 @@ describe("http: workspace", () => {
         .send({ inviteCode: ws.inviteCode });
 
       expect(res.status).toBe(200);
-      expect(res.body.responseObject).toMatchObject({ slug: ws.slug, slugId: ws.slugId });
+      expect(res.body.responseObject).toMatchObject({
+        slug: ws.slug,
+        slugId: ws.slugId,
+      });
       await expect(
         testPrisma.workspaceMember.findUnique({
-          where: { userId_workspaceId: { userId: outsider.id, workspaceId: ws.id } },
+          where: {
+            userId_workspaceId: { userId: outsider.id, workspaceId: ws.id },
+          },
         }),
       ).resolves.toMatchObject({ role: "MEMBER" });
     });
@@ -187,7 +198,9 @@ describe("http: workspace", () => {
 
     it("rejects joining twice", async () => {
       const ws = await createWorkspace(owner.id);
-      await as(app, outsider).post("/api/workspace/join").send({ inviteCode: ws.inviteCode });
+      await as(app, outsider)
+        .post("/api/workspace/join")
+        .send({ inviteCode: ws.inviteCode });
 
       const again = await as(app, outsider)
         .post("/api/workspace/join")
@@ -209,7 +222,9 @@ describe("http: workspace", () => {
       expect(res.status).toBe(200);
       await expect(
         testPrisma.workspaceMember.findUnique({
-          where: { userId_workspaceId: { userId: member.id, workspaceId: ws.id } },
+          where: {
+            userId_workspaceId: { userId: member.id, workspaceId: ws.id },
+          },
         }),
       ).resolves.toBeNull();
     });
@@ -223,6 +238,56 @@ describe("http: workspace", () => {
         .send({ memberId: owner.id });
 
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe("request validation", () => {
+    // Every workspace mutation is Zod-validated ahead of the controller, so a
+    // malformed body is a 400 rather than reaching Prisma unvalidated.
+    it("rejects a join with no invite code", async () => {
+      const res = await as(app, owner).post("/api/workspace/join").send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a role change with no memberId", async () => {
+      const ws = await createWorkspace(owner.id);
+
+      const res = await as(app, owner)
+        .put(`/api/workspace/role/${ws.id}`)
+        .send({ role: "ADMIN" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a role change with an unknown role", async () => {
+      const ws = await createWorkspace(owner.id);
+
+      const res = await as(app, owner)
+        .put(`/api/workspace/role/${ws.id}`)
+        .send({ memberId: member.id, role: "SUPERUSER" });
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a removal with no memberId", async () => {
+      const ws = await createWorkspace(owner.id);
+
+      const res = await as(app, owner)
+        .delete(`/api/workspace/leave/${ws.id}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a rename with an out-of-range name", async () => {
+      const ws = await createWorkspace(owner.id);
+
+      const res = await as(app, owner)
+        .put(`/api/workspace/update/${ws.id}`)
+        .send({ name: "ab" });
+
+      expect(res.status).toBe(400);
     });
   });
 });

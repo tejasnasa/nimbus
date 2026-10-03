@@ -40,15 +40,16 @@ describe("http: document", () => {
   });
 
   describe("POST /api/document/create", () => {
-    // Pins the observed status: `createDocument` uses `ServerResponse.ok`,
-    // whereas `createWorkspace` uses `.created`. Worth aligning deliberately.
-    it("creates a CANVAS document and reports 200", async () => {
+    it("creates a CANVAS document and reports 201", async () => {
       const res = await as(app, owner)
         .post("/api/document/create")
         .send({ title: "Sketch", workspaceId: wsId, type: "CANVAS" });
 
-      expect(res.status).toBe(200);
-      expect(res.body.responseObject).toMatchObject({ title: "Sketch", type: "CANVAS" });
+      expect(res.status).toBe(201);
+      expect(res.body.responseObject).toMatchObject({
+        title: "Sketch",
+        type: "CANVAS",
+      });
     });
 
     it("creates a MARKDOWN document", async () => {
@@ -56,7 +57,7 @@ describe("http: document", () => {
         .post("/api/document/create")
         .send({ title: "Notes", workspaceId: wsId, type: "MARKDOWN" });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(201);
       expect(res.body.responseObject.type).toBe("MARKDOWN");
     });
 
@@ -66,7 +67,9 @@ describe("http: document", () => {
         .send({ title: "Weird", workspaceId: wsId, type: "SPREADSHEET" });
 
       expect(res.status).toBe(400);
-      expect(res.body.responseObject.properties.type.errors.length).toBeGreaterThan(0);
+      expect(
+        res.body.responseObject.properties.type.errors.length,
+      ).toBeGreaterThan(0);
     });
 
     it("rejects a title below the minimum length", async () => {
@@ -78,9 +81,11 @@ describe("http: document", () => {
     });
 
     it("rejects a non-cuid workspaceId", async () => {
-      const res = await as(app, owner)
-        .post("/api/document/create")
-        .send({ title: "Valid Title", workspaceId: "not-a-cuid", type: "CANVAS" });
+      const res = await as(app, owner).post("/api/document/create").send({
+        title: "Valid Title",
+        workspaceId: "not-a-cuid",
+        type: "CANVAS",
+      });
 
       expect(res.status).toBe(400);
     });
@@ -95,6 +100,16 @@ describe("http: document", () => {
         testPrisma.document.count({ where: { workspaceId: wsId } }),
       ).resolves.toBe(0);
     });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const res = await as(app, owner).post("/api/document/create").send({
+        title: "Orphan",
+        workspaceId: "clxxxxxxxxxxxxxxxxxxxxxx",
+        type: "CANVAS",
+      });
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("GET /api/document/workspace/:workspaceId", () => {
@@ -105,7 +120,9 @@ describe("http: document", () => {
       const res = await as(app, owner).get(`/api/document/workspace/${wsId}`);
 
       expect(res.status).toBe(200);
-      const titles = res.body.responseObject.map((d: { title: string }) => d.title);
+      const titles = res.body.responseObject.map(
+        (d: { title: string }) => d.title,
+      );
       expect(titles).toEqual(expect.arrayContaining(["First", "Second"]));
       expect(res.body.responseObject).toHaveLength(2);
       expect(new Set([first.id, second.id]).size).toBe(2);
@@ -114,9 +131,19 @@ describe("http: document", () => {
     it("refuses a non-member", async () => {
       await createDocument(wsId);
 
-      const res = await as(app, outsider).get(`/api/document/workspace/${wsId}`);
+      const res = await as(app, outsider).get(
+        `/api/document/workspace/${wsId}`,
+      );
 
       expect(res.status).toBe(403);
+    });
+
+    it("returns 404 when the workspace does not exist", async () => {
+      const res = await as(app, owner).get(
+        "/api/document/workspace/clxxxxxxxxxxxxxxxxxxxxxx",
+      );
+
+      expect(res.status).toBe(404);
     });
   });
 
@@ -131,7 +158,9 @@ describe("http: document", () => {
     });
 
     it("404s an unknown document", async () => {
-      const res = await as(app, owner).get("/api/document/cm_does_not_exist_000");
+      const res = await as(app, owner).get(
+        "/api/document/cm_does_not_exist_000",
+      );
 
       expect(res.status).toBe(404);
     });

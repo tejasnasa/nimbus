@@ -1,6 +1,6 @@
 /**
  * @module api/routers/master
- * @description Top-level `/api` composition: mounts the four domain routers,
+ * @description Top-level `/api` composition: mounts the six domain routers,
  * each behind `authCheck` so every REST endpoint is authenticated by default.
  * (better-auth's own `/api/auth/*` is mounted separately in `src/index.ts`.)
  */

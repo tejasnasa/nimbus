@@ -13,6 +13,8 @@ import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
+import { evictCanvas } from "../socket/canvas";
+import { evictDocument } from "../socket/document";
 
 /**
  * Creates a workspace with default documents and bot membership.
@@ -132,10 +134,6 @@ export const getMyWorkspaces = async (id: string) => {
         updatedAt: "desc",
       },
     });
-
-    if (!workspaces) {
-      return ServerResponse.ok([], "No workspaces found");
-    }
 
     return ServerResponse.ok(
       workspaces.map((ws) => ({
@@ -289,14 +287,16 @@ export const joinWorkspace = async (inviteCode: string, id: string) => {
  */
 export const regenerateInviteCode = async (wsid: string, id: string) => {
   try {
-    const member = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: id,
-          workspaceId: wsid,
-        },
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: wsid },
+      include: { members: true },
     });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const member = workspace.members.find((m) => m.userId === id);
 
     if (member?.role !== "ADMIN" && member?.role !== "OWNER") {
       return ServerResponse.forbidden("Access denied");
@@ -340,14 +340,16 @@ export const updateMemberRole = async (
   role: "OWNER" | "ADMIN" | "MEMBER",
 ) => {
   try {
-    const loggedInUser = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: id,
-          workspaceId: wsid,
-        },
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: wsid },
+      include: { members: true },
     });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const loggedInUser = workspace.members.find((m) => m.userId === id);
 
     if (loggedInUser?.role !== "ADMIN" && loggedInUser?.role !== "OWNER") {
       return ServerResponse.forbidden("Access denied");
@@ -357,16 +359,13 @@ export const updateMemberRole = async (
       return ServerResponse.forbidden("You cannot make someone owner");
     }
 
-    const member = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: memberId,
-          workspaceId: wsid,
-        },
-      },
-    });
+    const member = workspace.members.find((m) => m.userId === memberId);
 
-    if (member?.role === "OWNER") {
+    if (!member) {
+      return ServerResponse.notFound("Member not found");
+    }
+
+    if (member.role === "OWNER") {
       return ServerResponse.forbidden("You cannot change owner's role");
     }
 
@@ -405,29 +404,28 @@ export const removeMember = async (
   memberId: string,
 ) => {
   try {
-    const loggedInUser = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: id,
-          workspaceId: wsid,
-        },
-      },
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: wsid },
+      include: { members: true },
     });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const loggedInUser = workspace.members.find((m) => m.userId === id);
 
     if (loggedInUser?.role !== "ADMIN" && loggedInUser?.role !== "OWNER") {
       return ServerResponse.forbidden("Access denied");
     }
 
-    const member = await prisma.workspaceMember.findUnique({
-      where: {
-        userId_workspaceId: {
-          userId: memberId,
-          workspaceId: wsid,
-        },
-      },
-    });
+    const member = workspace.members.find((m) => m.userId === memberId);
 
-    if (member?.role === "OWNER") {
+    if (!member) {
+      return ServerResponse.notFound("Member not found");
+    }
+
+    if (member.role === "OWNER") {
       return ServerResponse.forbidden("You cannot remove owner");
     }
 
@@ -520,6 +518,7 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
       },
       include: {
         members: true,
+        documents: { select: { id: true } },
       },
     });
 
@@ -546,6 +545,15 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
         id: wsid,
       },
     });
+
+    // The rows cascade, but the process-local Yjs and canvas maps do not.
+    // Evicting each document drops its cached state and cancels any pending
+    // debounced save that would otherwise re-persist a row this delete just
+    // removed.
+    for (const document of workspace.documents) {
+      evictCanvas(document.id);
+      evictDocument(document.id);
+    }
 
     return ServerResponse.ok(null, "Workspace deleted");
   } catch (error) {

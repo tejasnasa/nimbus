@@ -29,6 +29,7 @@
  *            call) but a useful hook for stubbing in tests — if E2E ever
  *            needs to intercept model calls, that is the lever.
  */
+import { createHash } from "node:crypto";
 import OpenAI from "openai";
 import {
   AI_PROVIDERS,
@@ -175,10 +176,6 @@ function evictIfOverCap(): void {
  * non-crypto operation.
  */
 function fingerprintForLogging(apiKey: string): string {
-  // Dynamic import of node:crypto to keep the module surface area small —
-  // the SDK is the dominant cost.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createHash } = require("node:crypto") as typeof import("node:crypto");
   return createHash("sha256").update(apiKey, "utf8").digest("hex").slice(0, 16);
 }
 

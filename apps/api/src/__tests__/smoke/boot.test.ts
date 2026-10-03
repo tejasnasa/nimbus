@@ -11,11 +11,15 @@ import { createApp } from "../../app";
 const app = createApp();
 
 describe("api smoke: boot", () => {
-  it("answers the root health string", async () => {
+  it("answers the root route with the standard envelope", async () => {
     const res = await request(app).get("/");
 
     expect(res.status).toBe(200);
-    expect(res.text).toBe("Hello World to u!");
+    expect(res.body).toMatchObject({
+      success: true,
+      statusCode: 200,
+      responseObject: null,
+    });
   });
 
   it("mounts better-auth ahead of the app routers", async () => {

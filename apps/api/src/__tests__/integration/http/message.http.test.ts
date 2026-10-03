@@ -75,20 +75,17 @@ describe("http: messages", () => {
 
     const res = await as(app, owner).get(`/api/messages/${wsId}`);
 
-    expect(res.body.responseObject.map((m: { content: string }) => m.content)).toEqual([
-      "mine",
-    ]);
+    expect(
+      res.body.responseObject.map((m: { content: string }) => m.content),
+    ).toEqual(["mine"]);
   });
 
-  // Pinned as observed: the controller answers a non-member with 401 rather than
-  // 403 — a "you are not authenticated" signal for what is really a permission
-  // denial, which clients may handle very differently (e.g. redirect to login).
-  it("answers a non-member with 401", async () => {
+  it("answers a non-member with 403", async () => {
     await createMessage(wsId, authorId, "hello");
 
     const res = await as(app, outsider).get(`/api/messages/${wsId}`);
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
   });
 
   it("caps the window at the 50 most recent messages", async () => {
@@ -106,7 +103,9 @@ describe("http: messages", () => {
     });
 
     const res = await as(app, owner).get(`/api/messages/${wsId}`);
-    const contents = res.body.responseObject.map((m: { content: string }) => m.content);
+    const contents = res.body.responseObject.map(
+      (m: { content: string }) => m.content,
+    );
 
     expect(contents).toHaveLength(50);
     // Queried newest-first, then reversed: the window keeps the tail, oldest-first.

@@ -26,7 +26,12 @@ export {
 export { documentSchema } from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export { signupSchema } from "./validations/signup";
-export { workspaceJoinSchema, workspaceSchema } from "./validations/workspace";
+export {
+  workspaceJoinSchema,
+  workspaceMemberSchema,
+  workspaceRoleSchema,
+  workspaceSchema,
+} from "./validations/workspace";
 
 export { ServerResponse } from "./api/serverResponse";
 

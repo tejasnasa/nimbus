@@ -128,7 +128,7 @@ export default function VantaClouds({ className }: { className?: string }) {
           gyroControls: false,
           minHeight: 100,
           minWidth: 200,
-          scale: 2,
+          scale: 1,
           ...SKY,
         });
       })

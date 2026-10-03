@@ -11,6 +11,7 @@
  * the terminal error handler. The two handlers at the end are what keep every
  * response, failures included, in the `ServerResponse` envelope.
  */
+import { ServerResponse } from "@nimbus/types";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { toNodeHandler } from "better-auth/node";
 import cors from "cors";
@@ -71,7 +72,8 @@ export const createApp = (): Express => {
   app.use("/api", apiNotFoundHandler);
 
   app.get("/", (req, res) => {
-    res.send("Hello World to u!");
+    const response = ServerResponse.ok(null, "Nimbus API");
+    res.status(response.statusCode).json(response);
   });
 
   // Last, so it catches anything the route stack above did not handle.

@@ -1,17 +1,17 @@
 <div align="center">
 
-  # ☁️ Nimbus
-  
-  **The Unified Real-time Collaborative Workspace for Modern Teams**
+# ☁️ Nimbus
 
-  A comprehensive, highly scalable real-time collaborative workspace unifying rich document editing, infinite canvas whiteboarding, and embedded AI assistance.
+**The Unified Real-time Collaborative Workspace for Modern Teams**
 
-  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-  [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg?logo=next.js)](https://nextjs.org/)
-  [![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-EF4444.svg?logo=turborepo)](https://turbo.build/)
-  [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+A comprehensive, highly scalable real-time collaborative workspace unifying rich document editing, infinite canvas whiteboarding, and embedded AI assistance.
 
-  [Live Demo](https://nimbus.tejasnasa.me) · [Report Bug](https://github.com/tejasnasa/nimbus/issues) · [Request Feature](https://github.com/tejasnasa/nimbus/issues)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black.svg?logo=next.js)](https://nextjs.org/)
+[![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-EF4444.svg?logo=turborepo)](https://turbo.build/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+
+[Live Demo](https://nimbus.tejasnasa.me) · [Report Bug](https://github.com/tejasnasa/nimbus/issues) · [Request Feature](https://github.com/tejasnasa/nimbus/issues)
 
 </div>
 
@@ -19,7 +19,7 @@
 
 ## 🌟 Why Nimbus?
 
-In a world where remote work and asynchronous communication are the norm, context switching between tools kills productivity. **Nimbus** eliminates the friction by combining your text documents, whiteboard diagrams, instant chat, voice calls, and an AI assistant into a single, cohesive environment. 
+In a world where remote work and asynchronous communication are the norm, context switching between tools kills productivity. **Nimbus** eliminates the friction by combining your text documents, whiteboard diagrams, instant chat, voice calls, and an AI assistant into a single, cohesive environment.
 
 Designed for **scale and performance**, Nimbus handles thousands of concurrent users in real-time, making it the perfect choice for enterprises, open-source communities, and fast-moving startups.
 
@@ -28,28 +28,45 @@ Designed for **scale and performance**, Nimbus handles thousands of concurrent u
 ## ✨ Enterprise-Grade Features
 
 ### 🔄 Real-Time Collaboration at Scale
-- **Conflict-Free Replication (CRDT)** — Powered by Yjs, Nimbus guarantees that complex document states and canvas vectors synchronize flawlessly across all connected clients without merge conflicts.
-- **High-Throughput WebSockets** — Built on Socket.io with an `ioredis` adapter, allowing horizontal scaling across multiple Node.js instances to support tens of thousands of concurrent users.
-- **Sub-Millisecond Latency** — Optimized network payload delivery ensures instantaneous updates across the globe.
+
+- **Two sync models, chosen per workload** — Rich-text documents are a true CRDT (Yjs), so concurrent typing merges character-by-character and nobody's keystrokes are lost. Canvases are full-state, last-write-wins, because diagram elements are discrete objects where "the last drag wins" is the outcome a user expects. The split is deliberate — see [docs/document-sync.md](docs/document-sync.md).
+- **High-Throughput WebSockets** — Built on Socket.io with an `ioredis` adapter, so broadcasts fan out across multiple Node.js instances.
+- **Presence, typing and voice rosters in Redis** — Ephemeral state lives in Redis with a TTL guard rather than in a single process's memory.
+- **Honest scaling story** — Document and canvas state is process-local today, so a multi-replica deployment needs sticky sessions or a shared Yjs store. [docs/document-sync.md](docs/document-sync.md#scaling) explains the failure mode and both fixes.
 
 ### 📝 Integrated, Powerful Editors
+
 - **Rich-Text Document Editor (Milkdown)** — A beautiful, highly extensible Markdown editor that natively syncs via Yjs. Supports slash commands, embeddable blocks, and collaborative cursors.
 - **Infinite Canvas Whiteboarding (Excalidraw)** — Sketch diagrams, build flowcharts, or wireframe UIs on an infinite canvas seamlessly embedded into your workspace.
 
 ### 🎙️ Native WebRTC Voice Rooms
+
 - **Zero-Latency Audio** — Embedded audio rooms per workspace using peer-to-peer WebRTC connections for instant team standups.
 - **TURN Relay Infrastructure** — Integrated Coturn TURN relay server configuration to bypass firewalls and ensure stable peer connections on restricted networks.
 - **Seamless UX** — Toggle voice chat inside any channel with a single click without leaving your active workspace.
 
 ### 🤖 Intelligent AI Assistance & Generation (@NimbusBot)
-- **AI Document Generation** — Instantly draft high-fidelity Markdown documents (via Qwen) and structured Excalidraw whiteboards (via GPT-OSS) directly from prompts.
-- **Yjs Server-Side Injection** — Real-time streaming content injection server-side, propagating document updates dynamically to all connected Yjs collaborators.
-- **Context-Aware Companion** — NimbusBot analyzes your workspace state, chat logs, and active canvases to provide hyper-relevant advice, summaries, and code snippets.
 
-### 🔒 Bank-Grade Security & Privacy
-- **Robust Authentication** — Secured by Better-Auth, providing bulletproof session management, OAuth integrations, and granular role-based access control (RBAC).
-- **End-to-End Encryption Readiness** — Architecture designed to support E2EE for sensitive corporate data.
+- **Bring your own key, or use the free tier** — Add a key for OpenAI, Groq, DeepSeek or OpenRouter and choose the model per feature (chat replies, Markdown documents, canvas diagrams). Users without a key fall back to the operator's free tier, metered at a configurable number of free document generations.
+- **AI Document Generation** — Mention `@nimbusbot` in chat to draft a rich Markdown document or a structured Excalidraw diagram. Markdown streams straight from the model; canvases go through a JSON → validate → layout → Excalidraw pipeline, so the geometry is computed deterministically instead of guessed by the model. See [docs/document-generation.md](docs/document-generation.md).
+- **Credentials encrypted at rest** — BYOK keys are sealed with AES-256-GCM in an envelope format, bound to their owning user and provider, with key-rotation support. The plaintext key is never stored, and a save-time probe validates a key before it is persisted.
+- **Context-Aware Companion** — NimbusBot reads the last 20 workspace messages to answer in context, and runs detached from the chat path so a slow model never delays message delivery.
+
+### 🔒 Security & Privacy
+
+- **Robust Authentication** — Better-Auth with email + password (verification required) and Google OAuth, server-validated sessions, and per-device session management from the settings page.
+- **Granular RBAC** — `OWNER > ADMIN > MEMBER`, enforced in the controller layer with an immutable sole owner. Socket handlers re-check workspace membership on every event, so a revoked member loses access immediately.
+- **Encrypted Credentials** — User-supplied AI keys are sealed with AES-256-GCM, bound to their owner and provider, and never written in plaintext.
 - **Data Sovereignty** — Self-hostable architecture gives you complete control over where your data lives.
+
+### 👤 Account & Workspace Management
+
+- **Account settings** — A dedicated `/settings` page with Profile, Password, Sessions, AI and Danger Zone tabs.
+- **Avatars** — Upload, replace or remove a profile picture, stored on Cloudinary via signed direct uploads with a deterministic per-user asset id.
+- **Password & recovery** — Change your password (optionally signing out every other device), or complete a full forgot-password reset by email. Google-only accounts are offered a "set a password" link instead of a form they cannot fill in.
+- **Active sessions** — See each signed-in device with a parsed user-agent, IP and last-active time; revoke one, or sign out of all others at once.
+- **Account deletion** — Typed-email confirmation plus password re-auth, cascading every solely-owned workspace along with its documents and messages, and cleaning up the avatar asset.
+- **Contact** — A public, unauthenticated contact form with honeypot spam protection that emails the operator directly.
 
 ---
 
@@ -57,18 +74,20 @@ Designed for **scale and performance**, Nimbus handles thousands of concurrent u
 
 Nimbus leverages a modern, robust tech stack designed for high availability and rapid iteration.
 
-| Layer | Technology | Description |
-|---|---|---|
-| **Framework** | Next.js 16 (App Router) | React framework for production-grade React applications. |
-| **Monorepo** | Turborepo | High-performance build system for JS/TS codebases. |
-| **Backend** | Node.js + Express | Lightweight, fast backend for API and WebSocket handling. |
-| **Real-Time** | WebSockets (Socket.io) + Yjs | Real-time bi-directional event-based communication. |
-| **Voice Chat** | WebRTC + Coturn TURN | Zero-latency peer-to-peer voice channel relay. |
-| **AI Layer** | LLMs (Qwen & GPT-OSS) | Backend AI pipeline for streaming Markdown and structured JSON whiteboards. |
-| **Database** | PostgreSQL | Robust, scalable relational database (managed via Prisma). |
-| **Cache/PubSub**| Redis (ioredis) | In-memory data structure store used for WebSocket multiplexing. |
-| **Authentication**| Better-Auth | Comprehensive authentication and authorization. |
-| **UI & Styling** | Tailwind CSS + Framer Motion | Utility-first CSS framework and animation library for fluid UX. |
+| Layer              | Technology                                          | Description                                                                                                 |
+| ------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Framework**      | Next.js 16 (App Router)                             | React framework for production-grade React applications.                                                    |
+| **Monorepo**       | Turborepo                                           | High-performance build system for JS/TS codebases.                                                          |
+| **Backend**        | Node.js + Express                                   | Lightweight, fast backend for API and WebSocket handling.                                                   |
+| **Real-Time**      | WebSockets (Socket.io) + Yjs                        | Real-time bi-directional event-based communication.                                                         |
+| **Voice Chat**     | WebRTC + Coturn TURN                                | Peer-to-peer voice channel relay with a TURN fallback for restricted networks.                              |
+| **AI Layer**       | Multi-provider (OpenAI, Groq, DeepSeek, OpenRouter) | Per-feature model selection, BYOK or operator free tier, streamed Markdown and structured JSON whiteboards. |
+| **Database**       | PostgreSQL                                          | Robust, scalable relational database (managed via Prisma).                                                  |
+| **Cache/PubSub**   | Redis (ioredis)                                     | Presence, typing, voice rosters, and WebSocket broadcast fan-out.                                           |
+| **File Storage**   | Cloudinary                                          | Signed direct avatar uploads with a deterministic per-user asset id.                                        |
+| **Email**          | Resend                                              | Signup verification, password reset, and contact-form delivery.                                             |
+| **Authentication** | Better-Auth                                         | Comprehensive authentication and authorization.                                                             |
+| **UI & Styling**   | Tailwind CSS + Framer Motion                        | Utility-first CSS framework and animation library for fluid UX.                                             |
 
 ---
 
@@ -77,6 +96,7 @@ Nimbus leverages a modern, robust tech stack designed for high availability and 
 Want to run Nimbus locally or contribute to the project? Follow these steps.
 
 ### Prerequisites
+
 - **Node.js** 18.x or later
 - **PostgreSQL** 14+
 - **Redis** 6+ (Required for WebSocket multiplexing)
@@ -85,33 +105,44 @@ Want to run Nimbus locally or contribute to the project? Follow these steps.
 ### Local Development Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/tejasnasa/nimbus.git
    cd nimbus
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Environment Configuration**
-   Copy the example environment file and configure your database and Redis credentials.
+   Copy the example environment file and fill in your database, Redis and auth credentials. It lists
+   every variable the API reads, splits required from optional, and explains the ones with non-obvious
+   behaviour.
+
    ```bash
-   cp .env.example .env.local
+   cp .env.example .env
    ```
 
 4. **Database Migration**
-   Run Prisma migrations to set up your PostgreSQL schema.
+   Create and apply the schema, and generate the Prisma client.
+
    ```bash
-   npm run db:push
+   npx turbo run db:migrate
    ```
 
 5. **Start the Development Server**
+
    ```bash
    npm run dev
    ```
-   *The Web client will be available at `http://localhost:3000` and the API/WebSocket server at `http://localhost:8080`.*
+
+   _The web client is available at `http://localhost:3000` and the API/WebSocket server at `http://localhost:3001`._
+
+   Note that the browser reaches the API directly via `NEXT_PUBLIC_BACKEND_URL` — there are no Next.js
+   route handlers proxying to it, and no `app/api` directory.
 
 ---
 
@@ -192,24 +223,98 @@ instead of filling in the sign-in form. And the API is started with
 `DOTENV_CONFIG_PATH` pointing at `.env.test`, which is what keeps the suite off any
 real database — do not remove it.
 
+### Production smoke suite
+
+A second, separate Playwright suite (`apps/web/e2e-prod`, nightly at 04:41 UTC) drives the **deployed**
+site rather than a local stack: it signs in through the real form, creates a workspace, and exercises
+document persistence, chat delivery, real-time sync, NimbusBot replies and RBAC against production. It
+has its own config with no `webServer` and no seeding, and refuses to start unless the target is an
+allowlisted host over HTTPS. Traces are deliberately off there, because a trace records form `fill`
+values — which for sign-in means the password.
+
+[docs/testing.md](docs/testing.md) is the long-form guide to all of it: fixtures, the defects once
+pinned as `it.fails` markers, and troubleshooting.
+
 ---
 
 ## 🏗 Architecture Overview
+
+Nimbus runs as **two processes** that share code only through `packages/*`:
+
+```mermaid
+graph LR
+    B["Browser"]
+
+    subgraph W["apps/web — Next.js 16"]
+        UI["App Router, editors,<br/>client-side Yjs"]
+    end
+
+    subgraph A["apps/api — Express 5 + Socket.IO"]
+        API["REST, auth, realtime,<br/>AI, WebRTC signaling"]
+    end
+
+    PG[("PostgreSQL")]
+    R[("Redis")]
+    COT["Coturn<br/>TURN relay"]
+
+    B --> UI
+    B -->|"NEXT_PUBLIC_BACKEND_URL<br/>absolute, no proxy"| API
+    API --> PG
+    API --> R
+    API -.->|"mints credentials"| COT
+```
+
+The API owns every piece of persistence, authentication, and realtime coordination — the web app
+renders and talks to it directly. There is no Next.js `app/api` directory.
 
 Nimbus uses a monorepo structure managed by Turborepo, separating concerns while maintaining shared type safety.
 
 ```text
 nimbus/
 ├── apps/
-│   ├── web/               # Next.js 16 Client (App Router, UI, Client-side Yjs)
-│   ├── api/               # Express Server (Socket.io, Yjs coordination, API Routes)
+│   ├── web/                  # Next.js 16 client — App Router, UI, client-side Yjs (port 3000)
+│   └── api/                  # Express 5 + Socket.IO — persistence, auth, realtime, AI, signaling (port 3001)
 ├── packages/
-│   ├── db/                # Prisma ORM, Database schemas, and Migrations
-│   ├── ui/                # Shared React components (Design System)
-│   ├── types/             # Shared TypeScript interfaces across full-stack
-│   └── config/            # Shared ESLint, TSConfig, and Tailwind configurations
-└── turbo.json             # Turborepo orchestration and caching rules
+│   ├── database/             # Prisma schema, migrations and client (package name: @nimbus/db)
+│   ├── ui/                   # Shared React components and design system
+│   ├── types/                # Socket event contract, API types, Zod validation schemas
+│   ├── utils/                # Pure helpers (model selection, slugs, time formatting)
+│   ├── eslint-config/        # Shared ESLint configuration
+│   └── typescript-config/    # Shared tsconfig bases
+├── docs/                     # Architecture and subsystem documentation
+└── turbo.json                # Turborepo orchestration and caching rules
 ```
+
+Note the package name differs from the directory: `@nimbus/db` lives in `packages/database/`.
+
+---
+
+## 📚 Documentation
+
+Nimbus is documented subsystem by subsystem in [`docs/`](docs/). Each page explains not only how
+something works, but **why it was built that way and what the alternatives were** — the trade-offs
+are written down rather than left implicit.
+
+**Start here**
+
+| Document                                   | Covers                                                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| [Architecture](docs/architecture.md)       | The two-process model, the monorepo graph, one request traced end to end, and where every kind of state lives. |
+| [Getting Started](docs/getting-started.md) | Local setup, every environment variable, the turbo env contract, code conventions, troubleshooting.            |
+
+**Subsystems**
+
+| Document                                           | Covers                                                                                                                                                    |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [API](docs/api.md)                                 | REST conventions, the response envelope, the full endpoint reference, and the RBAC model.                                                                 |
+| [Realtime](docs/realtime.md)                       | The socket layer: handshake auth, the event contract, presence, typing, voice signaling, and scaling.                                                     |
+| [Document Sync](docs/document-sync.md)             | The two sync models — Yjs CRDT for Markdown, last-write-wins for canvas — plus persistence, eviction races, and what breaks when you scale out.           |
+| [Document Generation](docs/document-generation.md) | The `@nimbusbot` pipeline end to end: entitlements, the atomic quota claim, streamed Markdown, and the canvas JSON → validate → layout → Excalidraw path. |
+| [AI Subsystem](docs/ai.md)                         | The provider registry, model selection, encrypted credential storage, the save-time probe, and the free-tier quota.                                       |
+| [Data Model](docs/data.md)                         | Every Prisma model and enum, cascade and deletion order, the migration history, and debounced persistence.                                                |
+| [Frontend](docs/frontend.md)                       | Route map, the no-state-library model, the socket singleton, the editor ref bridge, and the Tailwind v4 token system.                                     |
+| [Operations](docs/operations.md)                   | Deployment topology, the Docker image, all four CI/CD workflows, the security model, and a runbook.                                                       |
+| [Testing](docs/testing.md)                         | Every suite — API shards, web, packages, end-to-end, and the production smoke run — plus fixtures, the coverage ratchet and CI.                           |
 
 ---
 

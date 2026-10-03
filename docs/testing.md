@@ -26,7 +26,7 @@ to follow when adding tests.
 ## Quick start
 
 ```bash
-make test-infra     # start Postgres (5434) and Redis (6381) for the test stack
+make test-infra-up  # start Postgres (5434) and Redis (6381) for the test stack
 make test-schema    # apply migrations to the test database — first run, or after a migration
 npm test            # every workspace's suite
 ```

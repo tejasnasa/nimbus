@@ -1,8 +1,9 @@
 /**
  * @module web/app/page
  * @description Public marketing landing page (static, no data fetching):
- * fixed nav, hero, feature grid, product preview screenshots, how-it-works,
- * testimonials, and footer. Entry point forlogged-out visitors (`/`).
+ * fixed nav, hero, feature grid, product preview screenshots, the AI
+ * bring-your-own-key section, how-it-works, account security, testimonials,
+ * and footer. Entry point for logged-out visitors (`/`).
  */
 import Chat from "@nimbus/ui/icons/Chat";
 import Cloud from "@nimbus/ui/icons/Cloud";
@@ -207,9 +208,9 @@ export default function LandingPage() {
                 Real-Time Messaging
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Instant messaging with live updates. See who&apos;s online,
-                typing indicators, and threaded conversations — all in real-time
-                via WebSockets.
+                Instant messaging with live updates. See who&apos;s online and
+                watch typing indicators appear, with @NimbusBot mentions
+                highlighted inline.
               </p>
             </div>
 
@@ -221,9 +222,9 @@ export default function LandingPage() {
                 Collaborative Documents
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Work side-by-side with a beautiful Markdown editor featuring
-                slash commands, real-time cursor tracking, and offline syncing
-                via Yjs.
+                Work side-by-side in a beautiful Markdown editor with live
+                cursor awareness and conflict-free syncing via Yjs, so edits
+                merge as you type.
               </p>
             </div>
 
@@ -242,11 +243,13 @@ export default function LandingPage() {
               <div className="w-12 h-12 rounded-xl bg-linear-to-br from-(--primary)/20 to-(--chart-2)/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
                 <Markdown className="w-6 h-6 text-gradient" />
               </div>
-              <h3 className="text-xl font-semibold mb-2">AI Document Gen</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                AI Document Generation
+              </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Generate technical blueprints, specifications, and structured
-                whiteboard diagrams with streamable, server-injected LLM
-                outputs.
+                Turn a chat message into a real document or whiteboard. Stream
+                the output of the model you choose — bring your own key or start
+                on the free tier.
               </p>
             </div>
 
@@ -256,9 +259,9 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Voice Chat</h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Crystal-clear, zero-latency voice rooms built directly into your
-                workspace. Backed by Coturn STUN/TURN relays to bypass
-                firewalls.
+                Crystal-clear, low-latency voice rooms built directly into your
+                workspace. STUN/TURN relaying keeps calls connected across
+                restrictive networks.
               </p>
             </div>
 
@@ -270,8 +273,9 @@ export default function LandingPage() {
                 AI Workspace Copilot
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                @NimbusBot contextually analyzes your active markdown documents,
-                messages, and whiteboards to provide relevant assistance.
+                Mention @NimbusBot in chat and it answers from your conversation
+                — or drafts a spec, note, or flowchart straight into the
+                workspace.
               </p>
             </div>
           </div>
@@ -306,7 +310,7 @@ export default function LandingPage() {
                   <span className="w-5 h-5 rounded-full bg-(--chart-2)/20 flex items-center justify-center shrink-0">
                     <span className="w-2 h-2 rounded-full bg-(--chart-2)" />
                   </span>
-                  Typing indicators & read receipts
+                  Typing indicators & live presence
                 </li>
                 <li className="flex items-center gap-3 text-sm">
                   <span className="w-5 h-5 rounded-full bg-(--chart-2)/20 flex items-center justify-center shrink-0">
@@ -505,16 +509,16 @@ export default function LandingPage() {
               <p className="text-(--muted-foreground) leading-relaxed mb-6">
                 Skip the external meeting link. Nimbus features integrated voice
                 rooms built right into your project workspace. Connect
-                peer-to-peer over WebRTC with sub-millisecond audio sync. Backed
-                by an enterprise-grade Coturn TURN cluster, voice rooms bypass
-                complex network configurations and firewalls seamlessly.
+                peer-to-peer over WebRTC for clear, low-latency audio, with a
+                self-hosted Coturn STUN/TURN relay handling the restrictive
+                networks that block direct connections.
               </p>
               <ul className="space-y-3">
                 <li className="flex items-center gap-3 text-sm">
                   <span className="w-5 h-5 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center shrink-0">
                     <span className="w-2 h-2 rounded-full bg-(--sidebar-primary)" />
                   </span>
-                  One-click voice room connection inside channels
+                  One-click voice room connection inside your workspace
                 </li>
                 <li className="flex items-center gap-3 text-sm">
                   <span className="w-5 h-5 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center shrink-0">
@@ -541,12 +545,11 @@ export default function LandingPage() {
                 Draft Specifications & Canvas Diagrams Instantly
               </h3>
               <p className="text-(--muted-foreground) leading-relaxed mb-6">
-                Turn your discussions into action. Nimbus integrates
-                state-of-the-art LLMs (like Qwen and GPT-OSS) that generate
-                high-fidelity Markdown documents and interactive Excalidraw
-                whiteboard files directly from your workspace chat. Watch your
-                ideas build step-by-step with real-time text and canvas
-                injection.
+                Turn your discussions into action. Nimbus integrates your own
+                LLM API keys which generate high-fidelity Markdown documents and
+                interactive Excalidraw whiteboard files directly from your
+                workspace chat. Watch your ideas build step-by-step with
+                real-time text and canvas injection.
               </p>
               <ul className="space-y-3">
                 <li className="flex items-center gap-3 text-sm">
@@ -624,8 +627,8 @@ export default function LandingPage() {
                 Create Your Account
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Sign up with your email in seconds. No credit card, no phone
-                verification — just your name and password.
+                Sign up with your email and confirm it in a click. No credit
+                card, no phone verification.
               </p>
             </div>
 

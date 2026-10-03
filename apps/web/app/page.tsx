@@ -24,6 +24,7 @@ import docgen from "../assets/docgen.png";
 import markdown from "../assets/markdown.png";
 import message from "../assets/message.png";
 import voice from "../assets/voice.png";
+import VantaClouds from "../components/VantaClouds";
 
 export default function LandingPage() {
   return (
@@ -86,7 +87,8 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      <section className="relative pt-40 pb-32 px-6">
+      <section className="relative pt-40 pb-20 mb-16 px-6" id="hero">
+        <VantaClouds className="absolute inset-0 pointer-events-none" />
         <div className="absolute top-20 left-1/4 w-150 h-150 bg-(--primary)/25 rounded-full blur-3xl animate-pulse-glow pointer-events-none" />
         <div
           className="absolute top-40 right-1/4 w-80 h-80 bg-(--chart-2)/20 rounded-full blur-3xl animate-pulse-glow pointer-events-none"
@@ -102,7 +104,7 @@ export default function LandingPage() {
           </h1>
 
           <p
-            className="text-md lg:text-xl text-(--muted-foreground) max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
+            className="text-md lg:text-xl text-(--foreground)/70 max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up"
             style={{ animationDelay: "0.1s" }}
           >
             Nimbus brings your entire workflow into one space - real-time
@@ -122,14 +124,14 @@ export default function LandingPage() {
             </Link>
             <a
               href="#preview"
-              className="px-8 py-3.5 text-base font-medium rounded-xl border border-(--border) text-(--muted-foreground) hover:text-(--foreground) hover:border-(--muted-foreground) transition-all duration-200"
+              className="px-8 py-3.5 text-base font-medium rounded-xl border border-(--foreground) text-(--foreground) hover:text-(--foreground) hover:border-(--muted-foreground) transition-all duration-200"
             >
               See It In Action ↓
             </a>
           </div>
 
           <div
-            className="flex items-center justify-center gap-12 mt-14 text-sm text-(--muted-foreground) animate-slide-up"
+            className="flex items-center justify-center gap-6 lg:gap-12 mt-14 text-sm text-(--foreground) animate-slide-up"
             style={{ animationDelay: "0.3s" }}
           >
             <div className="flex flex-col items-center gap-1">

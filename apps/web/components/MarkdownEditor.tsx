@@ -75,7 +75,18 @@ const MilkdownEditor = memo(function MilkdownEditor({
         // note. A view option (rather than a ProseMirror plugin) because this is
         // read once, when the view is constructed, so the editor is locked from
         // its very first paint — no window between mount and the lock applying.
-        ctx.set(editorViewOptionsCtx, { editable: () => false });
+        //
+        // @important Merge into the slice, never `ctx.set` it. This object is
+        //            shared: the `nord` config above contributes the editor's
+        //            `attributes` (the `milkdown-theme-nord` and `prose` classes
+        //            every typographic rule in the theme is scoped to) through
+        //            the same slice. Assigning a fresh object drops them, and the
+        //            editor then renders unstyled — headings fall back to the
+        //            preflight `font-size: inherit`, so `#` looks like body text.
+        ctx.update(editorViewOptionsCtx, (prev) => ({
+          ...prev,
+          editable: () => false,
+        }));
 
         ctx.update(tableBlockConfig.key, (prev) => ({
           ...prev,

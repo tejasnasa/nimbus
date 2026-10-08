@@ -27,6 +27,52 @@ html {
   height: 100%;
 }
 
+/* ═══ Milkdown Theme Overrides — Lists & Code ═══
+ * The nord theme states these one class deep and unlayered, so prefixing with
+ * `.milkdown` outranks it by specificity — no `!important`, and no reliance on
+ * which stylesheet Next happens to emit first.
+ */
+
+/* Decimal markers are positioned `outside`, so the marker box lives in the
+ * list's gutter and grows leftward as the numbering widens. The theme's 1.25rem
+ * clears "1." and "10." by roughly 3px, which is to say it is a coin toss on a
+ * different font or a wider container, and a three-digit marker (29px) hangs
+ * past the editor's 4px padding where the container's overflow clips it. `ul`
+ * keeps the theme's value: a disc marker is a fixed width and never overruns
+ * it. */
+.milkdown .milkdown-theme-nord ol {
+  padding-left: 2.5rem;
+}
+
+/* The app's secondary text hue rather than the theme's nord-blue, which is dim
+ * against a near-black surface. */
+.milkdown .milkdown-theme-nord.prose ol > li::marker {
+  color: var(--muted-foreground);
+}
+
+/* The theme's code surfaces are Tailwind's neutral grays, and its dark variant
+ * sits behind `prefers-color-scheme` — which a single dark palette never matches
+ * on a light-mode OS, leaving near-white text on a near-white block. The app's
+ * own surfaces keep the panel legible either way. */
+.milkdown .milkdown-theme-nord pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.milkdown .milkdown-theme-nord code {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* Re-assert the block's own reset: the inline-chip rule above outranks the
+ * theme's `.milkdown-theme-nord pre code`, which would otherwise leave a chip
+ * background behind every line of a fenced block. */
+.milkdown .milkdown-theme-nord pre code {
+  background: transparent;
+  color: inherit;
+}
+
 /* ═══ Keyframes — Entrance (fade / slide / scale) ═══ */
 @keyframes fade-in {
   from {

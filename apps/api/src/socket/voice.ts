@@ -53,9 +53,14 @@ export const registerVoiceHandlers = (io: Server, socket: Socket) => {
       // peer connection per entry in this list.
       const others = currentUsers.filter((u) => u.userId !== user.id);
       socket.emit("voice:current-users", { users: others });
+      // The avatar travels with the announcement. This is the room's only
+      // chance to learn it: `voice:current-users` above goes to the joiner
+      // alone, so a peer who arrives after you would otherwise stay on the
+      // fallback avatar for the rest of the session.
       socket.to(VOICE_ROOM(workspaceId)).emit("voice:user-joined", {
         userId: user.id,
         name: user.name,
+        image: user.image ?? null,
       });
 
       console.log(`${user.name} joined voice in workspace: ${workspaceId}`);

@@ -566,14 +566,25 @@ describe("useVoiceChat", () => {
   it("adds a late joiner once, muted until their own state arrives", async () => {
     const { result } = await connectedVoice();
 
-    await fireServer("voice:user-joined", { userId: "user-2", name: "Grace" });
-    await fireServer("voice:user-joined", { userId: "user-2", name: "Grace" });
+    const avatar = "https://cdn.example.com/grace.png";
+    await fireServer("voice:user-joined", {
+      userId: "user-2",
+      name: "Grace",
+      image: avatar,
+    });
+    await fireServer("voice:user-joined", {
+      userId: "user-2",
+      name: "Grace",
+      image: avatar,
+    });
 
     await waitFor(() => expect(result.current.voiceUsers).toHaveLength(2));
+    // The avatar has to be taken from this event: nothing re-delivers it, so
+    // dropping it here is what leaves a late joiner on the fallback picture.
     expect(result.current.voiceUsers[1]).toEqual({
       userId: "user-2",
       name: "Grace",
-      image: null,
+      image: avatar,
       isMuted: true,
     });
 

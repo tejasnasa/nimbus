@@ -4,6 +4,11 @@
  * when a user starts speaking and linger 1.5s after they stop (swept on a
  * 100ms interval), so brief pauses don't flicker the UI. Pointer-events-none
  * overlay; renders null when nobody is speaking.
+ *
+ * @important Identity is read from the live roster at render time; the map only
+ *            carries who is speaking and when they last did. A badge outlives
+ *            the moment it appeared, so a snapshot of the avatar taken back then
+ *            would pin the fallback picture for as long as the badge lives.
  */
 "use client";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
@@ -102,21 +107,35 @@ export default function VoiceOverlay() {
 
   return (
     <div className="absolute top-8 right-8 z-50 flex flex-col pointer-events-none">
-      {speakersList.map((speaker) => (
-        <div
-          key={speaker.userId}
-          className="flex items-center bg-(--background)/85 backdrop-blur-md p-1 rounded-full border border-(--chart-3)/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)] animate-fade-in transition-all duration-300 transform scale-100 hover:scale-105"
-        >
-          <div className="relative">
-            <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
-            <img
-              src={speaker.image || getAvatarForUser(speaker.userId)}
-              alt={speaker.name}
-              className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-            />
+      {speakersList.map((speaker) => {
+        // Read the roster now rather than trusting the snapshot taken when they
+        // started speaking: an avatar can land after that moment, and the frozen
+        // copy would pin the fallback for the badge's whole life. A speaker who
+        // has already left the channel is gone from the roster, so the snapshot
+        // is still what the 1.5s linger shows.
+        const live =
+          speaker.userId === localUser.userId
+            ? localUser
+            : voiceUsers.find((u) => u.userId === speaker.userId);
+        const name = live ? live.name : speaker.name;
+        const image = live ? live.image : speaker.image;
+
+        return (
+          <div
+            key={speaker.userId}
+            className="flex items-center bg-(--background)/85 backdrop-blur-md p-1 rounded-full border border-(--chart-3)/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)] animate-fade-in transition-all duration-300 transform scale-100 hover:scale-105"
+          >
+            <div className="relative">
+              <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
+              <img
+                src={image || getAvatarForUser(speaker.userId)}
+                alt={name}
+                className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

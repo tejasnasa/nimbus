@@ -26,6 +26,7 @@ import {
   mintUser,
   resetDatabase,
   startTestServer,
+  testPrisma,
   waitForEvent,
   type TestServer,
   type TestUser,
@@ -102,21 +103,46 @@ describe("socket: voice", () => {
       expect(roster.users[0]).toMatchObject({ userId: alice.id });
     });
 
-    it("announces a joiner to those already in the channel", async () => {
+    it("announces a joiner to those already in the channel, avatar included", async () => {
       const aliceSocket = await openSocket(server, alice);
       await joinVoice(aliceSocket, wsId);
 
-      const announcement = waitForEvent<{ userId: string; name: string }>(
-        aliceSocket,
-        "voice:user-joined",
-      );
+      // The announcement is the room's only chance to learn the avatar:
+      // `voice:current-users` is replayed to the joiner alone, so a missing
+      // image here leaves everyone already in the channel on the fallback.
+      const avatar = "https://cdn.example.com/bob.png";
+      await testPrisma.user.update({
+        where: { id: bob.id },
+        data: { image: avatar },
+      });
+
+      const announcement = waitForEvent<{
+        userId: string;
+        name: string;
+        image: string | null;
+      }>(aliceSocket, "voice:user-joined");
       const bobSocket = await openSocket(server, bob);
       await joinVoice(bobSocket, wsId);
 
       await expect(announcement).resolves.toMatchObject({
         userId: bob.id,
         name: bob.name,
+        image: avatar,
       });
+    });
+
+    it("announces a joiner with a null avatar when they have none", async () => {
+      const aliceSocket = await openSocket(server, alice);
+      await joinVoice(aliceSocket, wsId);
+
+      const announcement = waitForEvent<{ image: string | null }>(
+        aliceSocket,
+        "voice:user-joined",
+      );
+      const bobSocket = await openSocket(server, bob);
+      await joinVoice(bobSocket, wsId);
+
+      await expect(announcement).resolves.toMatchObject({ image: null });
     });
 
     it("removes a leaver from the roster and tells the room", async () => {

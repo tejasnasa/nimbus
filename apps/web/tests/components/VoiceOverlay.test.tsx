@@ -78,6 +78,32 @@ describe("VoiceOverlay", () => {
     );
   });
 
+  /**
+   * A badge outlives the moment it appeared, and the roster can gain an avatar
+   * after that moment. Reading identity from the roster at render time is what
+   * lets the real picture replace the fallback; a snapshot taken when the
+   * speaker started speaking would pin the fallback for the badge's whole life.
+   */
+  it("adopts an avatar that arrives after the speaker started talking", () => {
+    const avatar = "https://cdn.example.com/grace.png";
+    setVoice(["user-2"], [
+      { userId: "user-2", name: "Grace Hopper", image: null, isMuted: false },
+    ]);
+
+    const { rerender } = render(<VoiceOverlay />);
+    expect(screen.getByAltText("Grace Hopper")).not.toHaveAttribute(
+      "src",
+      avatar,
+    );
+
+    setVoice(["user-2"], [
+      { userId: "user-2", name: "Grace Hopper", image: avatar, isMuted: false },
+    ]);
+    rerender(<VoiceOverlay />);
+
+    expect(screen.getByAltText("Grace Hopper")).toHaveAttribute("src", avatar);
+  });
+
   it("identifies the local user without consulting the peer roster", () => {
     setVoice(["user-1"]);
 

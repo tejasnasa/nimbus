@@ -145,7 +145,18 @@ export type ServerToClientEvents = {
   }) => void;
 
   // ── Voice ──
-  "voice:user-joined": (data: { userId: string; name: string }) => void;
+  /**
+   * A peer entered the voice channel. Carries the avatar, not just the name:
+   * `voice:current-users` — the only other event with an image on it — is
+   * replayed to the *joiner* alone, so the room gets no second chance to learn
+   * this peer's avatar. Without it here, everyone already in the channel renders
+   * the fallback for the rest of the session.
+   */
+  "voice:user-joined": (data: {
+    userId: string;
+    name: string;
+    image: string | null;
+  }) => void;
   "voice:user-left": (data: { userId: string }) => void;
   /** Snapshot of current voice participants (from Redis voice presence). */
   "voice:current-users": (data: { users: VoiceUser[] }) => void;

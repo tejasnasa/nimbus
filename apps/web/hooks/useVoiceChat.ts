@@ -421,9 +421,13 @@ export function useVoiceChat({
 
     // Late joiners are answered by US via the offer flow above — here we only
     // add the roster entry, optimistically muted until their mute-state arrives.
-    // NOTE: the server's `voice:user-joined` carries id+name only (no avatar),
-    // so image resolves later via `voice:current-users` refreshes or defaults.
-    const handleUserJoined = (data: { userId: string; name: string }) => {
+    // The avatar rides along on the event: nothing else re-delivers it to us,
+    // since `voice:current-users` is replayed only to the user joining.
+    const handleUserJoined = (data: {
+      userId: string;
+      name: string;
+      image: string | null;
+    }) => {
       setVoiceUsers((prev) => {
         // Dup guard: `voice:current-users` and `voice:user-joined` can race on
         // join (roster already includes the newcomer), and double entries
@@ -431,7 +435,12 @@ export function useVoiceChat({
         if (prev.some((u) => u.userId === data.userId)) return prev;
         return [
           ...prev,
-          { userId: data.userId, name: data.name, image: null, isMuted: true },
+          {
+            userId: data.userId,
+            name: data.name,
+            image: data.image,
+            isMuted: true,
+          },
         ];
       });
     };

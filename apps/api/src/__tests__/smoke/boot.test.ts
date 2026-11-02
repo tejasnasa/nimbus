@@ -5,8 +5,16 @@
  * routers reject anonymous callers with the standard envelope.
  */
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { ensureBotUser } from "../../lib/botUser";
+import {
+  as,
+  closeTestResources,
+  mintUser,
+  resetDatabase,
+  testPrisma,
+} from "@testhelpers";
 
 const app = createApp();
 
@@ -51,5 +59,30 @@ describe("api smoke: boot", () => {
     const res = await request(app).get("/api/definitely-not-a-route");
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("api smoke: bot user at boot", () => {
+  afterAll(closeTestResources);
+
+  it("yields a bot row on a truncated database, so workspace creation succeeds", async () => {
+    await resetDatabase();
+    // A fresh database has no bot row; the boot step is what creates it.
+    await testPrisma.user.deleteMany({ where: { id: process.env.BOT_USERID } });
+    expect(
+      await testPrisma.user.count({ where: { id: process.env.BOT_USERID } }),
+    ).toBe(0);
+
+    await ensureBotUser(testPrisma);
+    expect(
+      await testPrisma.user.count({ where: { id: process.env.BOT_USERID } }),
+    ).toBe(1);
+
+    const user = await mintUser(app);
+    const res = await as(app, user)
+      .post("/api/workspace/create")
+      .send({ name: "First Workspace", description: "fresh database" });
+
+    expect(res.status).toBe(201);
   });
 });

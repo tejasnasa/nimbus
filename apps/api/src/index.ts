@@ -7,6 +7,10 @@
  *            fails the process naming any missing variable. See that module for
  *            the required/optional split.
  *
+ * @important Startup needs valid configuration and a reachable, migrated
+ *            database: NimbusBot's user row is upserted before the server binds
+ *            (see `lib/botUser`), and a failure there exits non-zero.
+ *
  * @important The Redis adapter (attached in `app.ts`) is what allows
  *            multi-instance horizontal scaling — without it, rooms and
  *            broadcasts are process-local.
@@ -16,6 +20,7 @@ import "dotenv/config";
 // after `dotenv/config`, which is what makes the file's values visible.
 import "./lib/env";
 import { auth } from "./lib/auth";
+import { ensureBotUser } from "./lib/botUser";
 import {
   describeCookieAttributes,
   resolveCookieAttributes,
@@ -41,8 +46,17 @@ console.log(
 // on the first request.
 void auth;
 
-const { httpServer } = createHttpServer();
+async function main(): Promise<void> {
+  await ensureBotUser();
 
-httpServer.listen(3001, () => {
-  console.log("Server is running on port 3001");
+  const { httpServer } = createHttpServer();
+
+  httpServer.listen(3001, () => {
+    console.log("Server is running on port 3001");
+  });
+}
+
+main().catch((error) => {
+  console.error("[boot] Could not start the server:", error);
+  process.exit(1);
 });

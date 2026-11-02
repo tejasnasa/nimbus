@@ -9,6 +9,7 @@
  * which is unreliable once Socket.IO's async hops own the connection.
  */
 import { createPrismaClient } from "@nimbus/db";
+import { ensureBotUser } from "../src/lib/botUser";
 import { pubClient } from "../src/lib/redis";
 
 /** Dedicated client for the test database: its own pool, independently closable. */
@@ -17,26 +18,13 @@ export const testPrisma = createPrismaClient(process.env.DATABASE_URL);
 /**
  * Re-creates the NimbusBot user row, if `BOT_USERID` is configured.
  *
- * `createWorkspace` inserts the bot as an ADMIN member inside the same
- * transaction that creates the workspace, so its `WorkspaceMember.userId`
- * foreign key needs a real `user` row to point at. Truncation wipes it, so it is
- * restored on every reset; without it, workspace creation over HTTP fails with
- * an opaque `P2003` rather than creating anything.
+ * Truncation wipes it, and `createWorkspace` needs it for the bot's membership
+ * foreign key. The upsert is the same one the server runs at boot, so the tests
+ * and production share one implementation.
  */
 const seedBotUser = async () => {
-  const id = process.env.BOT_USERID;
-  if (!id) return;
-
-  await testPrisma.user.upsert({
-    where: { id },
-    update: {},
-    create: {
-      id,
-      name: "NimbusBot",
-      email: "nimbusbot@example.test",
-      emailVerified: true,
-    },
-  });
+  if (!process.env.BOT_USERID) return;
+  await ensureBotUser(testPrisma);
 };
 
 /**

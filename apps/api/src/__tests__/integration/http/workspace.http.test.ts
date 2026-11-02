@@ -6,7 +6,7 @@
  * Assertions check the response *and* the row it implies, so a controller that
  * reports success without writing is caught.
  */
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../../app";
 import {
   addMember,
@@ -53,6 +53,28 @@ describe("http: workspace", () => {
           },
         }),
       ).resolves.toMatchObject({ role: "OWNER" });
+    });
+
+    it("answers a curated 500 and leaves no rows when the bot user row is gone", async () => {
+      await testPrisma.user.delete({ where: { id: process.env.BOT_USERID } });
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const res = await as(app, owner)
+        .post("/api/workspace/create")
+        .send({ name: "Orphan Check", description: "hello" });
+
+      expect(res.status).toBe(500);
+      expect(res.body.responseObject).toBeNull();
+      expect(res.body.message).toMatch(/misconfigured/i);
+      expect(JSON.stringify(res.body)).not.toMatch(/P2003|foreign key/i);
+      expect(errorLog).toHaveBeenCalledWith(
+        expect.stringContaining("BOT_USERID"),
+      );
+      errorLog.mockRestore();
+
+      expect(await testPrisma.workspace.count()).toBe(0);
+      expect(await testPrisma.workspaceMember.count()).toBe(0);
+      expect(await testPrisma.document.count()).toBe(0);
     });
 
     it("rejects a name that is too short", async () => {

@@ -7,7 +7,10 @@
  *
  * @important Role invariants — OWNER can never be reassigned, demoted, or
  *            removed; ADMINs cannot promote to ADMIN. Creation requires
- *            BOT_USERID for the bot membership row.
+ *            BOT_USERID for the bot membership row, and that row must exist:
+ *            `ensureBotUser` creates it at boot. If it has gone missing,
+ *            creation rolls back and answers with a curated 500 rather than
+ *            leaking the Prisma payload.
  */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
@@ -15,6 +18,23 @@ import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 import { evictCanvas } from "../socket/canvas";
 import { evictDocument } from "../socket/document";
+
+/** Signals that the bot membership insert violated its foreign key. */
+class BotUserMissingError extends Error {
+  constructor() {
+    super("BOT_USERID does not reference an existing user row");
+    this.name = "BotUserMissingError";
+  }
+}
+
+/** Whether a thrown value is Prisma's foreign key violation (`P2003`). */
+function isForeignKeyViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2003"
+  );
+}
 
 /**
  * Creates a workspace with default documents and bot membership.
@@ -70,13 +90,21 @@ export const createWorkspace = async (
         },
       });
 
-      await tx.workspaceMember.create({
-        data: {
-          userId: process.env.BOT_USERID!,
-          workspaceId: ws.id,
-          role: "ADMIN",
-        },
-      });
+      try {
+        await tx.workspaceMember.create({
+          data: {
+            userId: process.env.BOT_USERID!,
+            workspaceId: ws.id,
+            role: "ADMIN",
+          },
+        });
+      } catch (error) {
+        // The creator's row already succeeded in this transaction, so a foreign
+        // key violation here can only be the bot's id. Rethrown as a sentinel so
+        // the whole transaction still rolls back.
+        if (isForeignKeyViolation(error)) throw new BotUserMissingError();
+        throw error;
+      }
 
       return {
         workspaceId: ws.id,
@@ -90,6 +118,16 @@ export const createWorkspace = async (
 
     return ServerResponse.created(workspace, "Workspace created");
   } catch (error) {
+    if (error instanceof BotUserMissingError) {
+      console.error(
+        "[workspace] Cannot add NimbusBot: BOT_USERID does not match any user row. " +
+          "The API upserts that row at boot, so this means it was removed while running.",
+      );
+      return ServerResponse.internalError(
+        null,
+        "Workspace creation is unavailable because the server is misconfigured. Please contact support.",
+      );
+    }
     return ServerResponse.internalError(error);
   }
 };

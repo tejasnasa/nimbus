@@ -1,16 +1,26 @@
 /**
  * @module web/hooks/useWorkspaceDocuments
- * @description Document deletion with per-doc loading state. Reloads the page
- * on success so tab/document lists refresh from the server.
+ * @description Document deletion with per-doc loading state. Refreshes the
+ * route on success so tab/document lists re-render from the server, and returns
+ * failures as `error` state for the consumer to render inline.
  */
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-/** Returns `handleDeleteDocument(docId)` plus the in-flight `loading` id. */
+/**
+ * Returns `handleDeleteDocument(docId)`, the in-flight `loading` id, and the
+ * `error` / `notice` of the latest attempt.
+ */
 export function useWorkspaceDocuments() {
+  const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const handleDeleteDocument = async (docId: string) => {
     setLoading(docId);
+    setError(null);
+    setNotice(null);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/document/${docId}`,
@@ -22,15 +32,14 @@ export function useWorkspaceDocuments() {
       );
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(
-          error.message ?? "Failed to delete document",
-        );
+        const body = await res.json();
+        throw new Error(body.message ?? "Failed to delete document");
       }
 
-      window.location.reload();
-    } catch (error) {
-      alert((error as { message?: string }).message ?? "Something went wrong.");
+      setNotice("Document deleted.");
+      router.refresh();
+    } catch (err) {
+      setError((err as { message?: string }).message ?? "Something went wrong.");
     } finally {
       setLoading(null);
     }
@@ -39,5 +48,7 @@ export function useWorkspaceDocuments() {
   return {
     handleDeleteDocument,
     loading,
+    error,
+    notice,
   };
 }

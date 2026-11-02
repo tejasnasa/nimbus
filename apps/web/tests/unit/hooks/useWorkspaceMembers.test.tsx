@@ -2,7 +2,8 @@
  * @module web/tests/unit/hooks/useWorkspaceMembers
  * @description Member management: role changes and removals, the
  * `router.refresh()` that re-reads the roster, per-member loading state, and
- * the alert shown for RBAC rejections.
+ * the inline `error` / `notice` state for RBAC rejections. `alert` is stubbed to
+ * throw, so any use of it fails the test.
  */
 import { act, renderHook } from "@testing-library/react";
 import { http, HttpResponse, type DefaultBodyType } from "msw";
@@ -19,7 +20,9 @@ const { routerMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
 
-const alertMock = vi.fn();
+const alertMock = vi.fn(() => {
+  throw new Error("alert() must not be used for user feedback");
+});
 const WORKSPACE_ID = "cm_workspace_0000000000000";
 const ROLE_URL = `${BACKEND_URL}/api/workspace/role/${WORKSPACE_ID}`;
 const REMOVE_URL = `${BACKEND_URL}/api/workspace/leave/${WORKSPACE_ID}`;
@@ -58,6 +61,8 @@ describe("useWorkspaceMembers", () => {
     expect(bodies).toEqual([{ memberId: "user-2", role: "ADMIN" }]);
     expect(routerMock.refresh).toHaveBeenCalledTimes(1);
     expect(alertMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+    expect(result.current.notice).toBe("Role updated.");
   });
 
   it("refuses to promote to OWNER client-side by delegating to the server", async () => {
@@ -75,9 +80,9 @@ describe("useWorkspaceMembers", () => {
       await result.current.handleUpdateRole("user-1", "OWNER");
     });
 
-    expect(alertMock).toHaveBeenCalledWith(
-      "The OWNER role cannot be reassigned",
-    );
+    expect(result.current.error).toBe("The OWNER role cannot be reassigned");
+    expect(result.current.notice).toBeNull();
+    expect(alertMock).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
   });
 
@@ -98,6 +103,7 @@ describe("useWorkspaceMembers", () => {
 
     expect(bodies).toEqual([{ memberId: "user-2" }]);
     expect(routerMock.refresh).toHaveBeenCalledTimes(1);
+    expect(result.current.notice).toBe("Member removed.");
   });
 
   it("falls back to a generic message when a removal fails without one", async () => {
@@ -113,8 +119,31 @@ describe("useWorkspaceMembers", () => {
       await result.current.handleRemoveMember("user-2");
     });
 
-    expect(alertMock).toHaveBeenCalledWith("Failed to remove member");
+    expect(result.current.error).toBe("Failed to remove member");
+    expect(alertMock).not.toHaveBeenCalled();
     expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+
+  it("clears a previous error when the next attempt starts", async () => {
+    server.use(
+      http.put(ROLE_URL, () => fail(403, "ADMINs cannot promote members"), {
+        once: true,
+      }),
+      http.put(ROLE_URL, () => ok({ role: "MEMBER" })),
+    );
+
+    const { result } = renderHook(() => useWorkspaceMembers(WORKSPACE_ID));
+
+    await act(async () => {
+      await result.current.handleUpdateRole("user-2", "ADMIN");
+    });
+    expect(result.current.error).toBe("ADMINs cannot promote members");
+
+    await act(async () => {
+      await result.current.handleUpdateRole("user-2", "MEMBER");
+    });
+    expect(result.current.error).toBeNull();
+    expect(result.current.notice).toBe("Role updated.");
   });
 
   it("exposes the in-flight member id and clears it afterwards", async () => {

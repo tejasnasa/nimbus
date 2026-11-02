@@ -1,11 +1,9 @@
 /**
  * @module web/tests/unit/hooks/useWorkspaceDocuments
  * @description Document deletion: the DELETE to `/api/document/:docId`, the
- * full-page reload used to refresh tab/document lists, per-document loading
- * state, and the alert shown when deletion is refused.
- *
- * `window.location.reload` is spied on because happy-dom would otherwise tear
- * the document down mid-test.
+ * `router.refresh()` that re-reads the lists, per-document loading state, and
+ * the inline `error` / `notice` state. `alert` is stubbed to throw and
+ * `window.location.reload` to fail, so either being used fails the test.
  */
 import { act, renderHook } from "@testing-library/react";
 import { http, HttpResponse, type DefaultBodyType } from "msw";
@@ -16,13 +14,24 @@ import { useWorkspaceDocuments } from "../../../hooks/useWorkspaceDocuments";
 
 process.env.NEXT_PUBLIC_BACKEND_URL = BACKEND_URL;
 
-const alertMock = vi.fn();
-const reloadMock = vi.fn();
+const alertMock = vi.fn(() => {
+  throw new Error("alert() must not be used for user feedback");
+});
+const reloadMock = vi.fn(() => {
+  throw new Error("a full-page reload must not be used to refresh the lists");
+});
+
+const { routerMock } = vi.hoisted(() => ({
+  routerMock: { push: vi.fn(), refresh: vi.fn(), replace: vi.fn() },
+}));
+
+vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
 
 describe("useWorkspaceDocuments", () => {
   beforeEach(() => {
     vi.stubGlobal("alert", alertMock);
     vi.spyOn(window.location, "reload").mockImplementation(reloadMock);
+    routerMock.refresh.mockClear();
   });
 
   afterEach(() => {
@@ -36,7 +45,7 @@ describe("useWorkspaceDocuments", () => {
     expect(result.current.loading).toBeNull();
   });
 
-  it("deletes the document and reloads the page so the lists refresh", async () => {
+  it("deletes the document and refreshes the route so the lists re-render", async () => {
     const methods: string[] = [];
     server.use(
       http.delete(`${BACKEND_URL}/api/document/:docId`, ({ request }) => {
@@ -52,8 +61,11 @@ describe("useWorkspaceDocuments", () => {
     });
 
     expect(methods).toEqual(["DELETE"]);
-    expect(reloadMock).toHaveBeenCalledTimes(1);
+    expect(routerMock.refresh).toHaveBeenCalledTimes(1);
+    expect(reloadMock).not.toHaveBeenCalled();
     expect(alertMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+    expect(result.current.notice).toBe("Document deleted.");
   });
 
   it("targets the document in the URL path", async () => {
@@ -74,7 +86,7 @@ describe("useWorkspaceDocuments", () => {
     expect(urls).toEqual(["/api/document/cm_target_document"]);
   });
 
-  it("alerts the envelope message and does not reload when deletion fails", async () => {
+  it("returns the envelope message as error and does not refresh when deletion fails", async () => {
     server.use(
       http.delete(`${BACKEND_URL}/api/document/:docId`, () =>
         fail(403, "You cannot delete this document"),
@@ -87,11 +99,12 @@ describe("useWorkspaceDocuments", () => {
       await result.current.handleDeleteDocument("cm_document_00000000000000");
     });
 
-    expect(alertMock).toHaveBeenCalledWith("You cannot delete this document");
-    expect(reloadMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBe("You cannot delete this document");
+    expect(result.current.notice).toBeNull();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
   });
 
-  it("falls back to a generic alert when the failure body carries no message", async () => {
+  it("falls back to a generic error message when the failure body carries no message", async () => {
     server.use(
       http.delete(`${BACKEND_URL}/api/document/:docId`, () =>
         HttpResponse.json({ success: false, statusCode: 500 }, { status: 500 }),
@@ -104,8 +117,8 @@ describe("useWorkspaceDocuments", () => {
       await result.current.handleDeleteDocument("cm_document_00000000000000");
     });
 
-    expect(alertMock).toHaveBeenCalledWith("Failed to delete document");
-    expect(reloadMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBe("Failed to delete document");
+    expect(routerMock.refresh).not.toHaveBeenCalled();
   });
 
   it("tracks the in-flight document id and clears it afterwards", async () => {
@@ -151,6 +164,6 @@ describe("useWorkspaceDocuments", () => {
     });
 
     expect(result.current.loading).toBeNull();
-    expect(alertMock).toHaveBeenCalledWith("Document not found");
+    expect(result.current.error).toBe("Document not found");
   });
 });

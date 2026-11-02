@@ -106,9 +106,11 @@ Grouped by what breaks without them:
 
 Two are worth calling out:
 
-- **`BOT_USERID` must reference a row that actually exists.** Workspace creation inserts NimbusBot as
-  an ADMIN member, so the foreign key rolls back the entire creation transaction if the user row is
-  missing. Bot message persistence and history role-mapping also degrade without it.
+- **`BOT_USERID` names NimbusBot's user row, and the API creates it at boot.** Workspace creation
+  inserts NimbusBot as an ADMIN member, so the foreign key needs that row; the server upserts it
+  before it starts listening (`lib/botUser.ts`). The consequence is that a boot needs a reachable,
+  migrated database as well as valid config, and exits non-zero otherwise. Bot message persistence
+  and history role-mapping also depend on the id.
 - **`AI_CREDENTIAL_ENCRYPTION_KEY` has no default and no degraded mode.** There is deliberately no
   "BYOK off" runtime state — a missing or short key is a boot failure rather than an unconfigured
   path. Use `openssl rand -base64 32`.
@@ -195,6 +197,10 @@ than as a Prisma problem.
 | `npm run test:coverage`     | The same, with coverage               |
 | `npx turbo run db:generate` | Regenerate the Prisma client          |
 | `npx turbo run db:migrate`  | Create and apply a migration          |
+
+A bare `tsc` inside `apps/api` fails on a fresh clone, with errors that point at unrelated files,
+because `@nimbus/db` resolves through its built `dist`. Run `npx turbo run build --filter=@nimbus/db`
+first (`npm run check-types` does this for you).
 
 The `Makefile` wraps the test workflow — `make help` lists everything:
 

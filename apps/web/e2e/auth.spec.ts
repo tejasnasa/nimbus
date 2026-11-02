@@ -21,14 +21,6 @@ import { test, expect, e2eState } from "./fixtures";
  *
  *            Every locator is therefore scoped to the card that owns it, and the
  *            card switch is asserted through opacity.
- *
- * @important Only failure paths are exercised end to end here. A successful
- *            sign-in cannot be driven through the browser in this environment:
- *            the auth layer pins the session cookie to `Domain=.tejasnasa.me`
- *            with `secure: true`, which a browser refuses to store from
- *            `localhost`. The form submits, the API authenticates, and the
- *            context is still anonymous — so `auth.setup.ts` covers the accepted
- *            path by re-scoping the cookie it reads off the HTTP response.
  */
 
 /** The card that owns the given heading, plus the wrapper that fades it. */
@@ -39,6 +31,29 @@ const card = (page: Page, heading: string) =>
     .locator("xpath=..");
 
 test.describe("auth", () => {
+  test("signs in through the form and lands on /home", async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const login = card(page, "Welcome back");
+
+    await page.goto("/login");
+    await login.getByLabel("Email").fill(e2eState.users.owner.email);
+    await login.getByLabel("Password").fill(e2eState.password);
+    await login.getByRole("button", { name: "Login" }).click();
+
+    await expect(page).toHaveURL(/\/home$/);
+
+    // Revoke the session this sign-in created, so the owner's session list
+    // still holds only the one the settings spec expects.
+    const signOut = await context.request.post(
+      "http://localhost:3001/api/auth/sign-out",
+      { headers: { Origin: "http://localhost:3000" } },
+    );
+    expect(signOut.ok()).toBe(true);
+
+    await context.close();
+  });
+
   test("bad credentials are rejected and the visitor stays on /login", async ({
     browser,
   }) => {

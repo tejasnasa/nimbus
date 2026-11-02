@@ -1,14 +1,21 @@
 /**
  * @module web/hooks/useWorkspaceMembers
  * @description Member management: role updates and removals with per-member
- * loading state. Refreshes the route on success; RBAC errors surface via alert.
+ * loading state. Refreshes the route on success; RBAC errors are returned as
+ * `error` state for the consumer to render inline.
+ *
+ * @important The per-row in-flight tracking (`loading`) and the message state
+ *            (`error`, `notice`) are deliberately separate: several rows can be
+ *            in flight at once, while the messages describe only the most
+ *            recent attempt.
  */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /**
  * @param workspaceId - Workspace the members belong to.
- * @returns `handleUpdateRole`, `handleRemoveMember`, and the in-flight `loading` member id.
+ * @returns `handleUpdateRole`, `handleRemoveMember`, the in-flight `loading`
+ *          member id, and the `error` / `notice` of the latest attempt.
  */
 export function useWorkspaceMembers(workspaceId: string) {
   const router = useRouter();
@@ -18,6 +25,8 @@ export function useWorkspaceMembers(workspaceId: string) {
   // is still running.
   const [inFlight, setInFlight] = useState<string[]>([]);
   const loading = inFlight[inFlight.length - 1] ?? null;
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const markLoading = (memberId: string) =>
     setInFlight((prev) => [...prev, memberId]);
@@ -33,6 +42,8 @@ export function useWorkspaceMembers(workspaceId: string) {
 
   const handleUpdateRole = async (memberId: string, role: string) => {
     markLoading(memberId);
+    setError(null);
+    setNotice(null);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/role/${workspaceId}`,
@@ -49,9 +60,10 @@ export function useWorkspaceMembers(workspaceId: string) {
         throw new Error(data.message || "Failed to update role");
       }
 
+      setNotice("Role updated.");
       router.refresh();
     } catch (err) {
-      alert((err as Error).message);
+      setError((err as Error).message);
     } finally {
       clearLoading(memberId);
     }
@@ -59,6 +71,8 @@ export function useWorkspaceMembers(workspaceId: string) {
 
   const handleRemoveMember = async (memberId: string) => {
     markLoading(memberId);
+    setError(null);
+    setNotice(null);
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/workspace/leave/${workspaceId}`,
@@ -75,9 +89,10 @@ export function useWorkspaceMembers(workspaceId: string) {
         throw new Error(data.message || "Failed to remove member");
       }
 
+      setNotice("Member removed.");
       router.refresh();
     } catch (err) {
-      alert((err as Error).message);
+      setError((err as Error).message);
     } finally {
       clearLoading(memberId);
     }
@@ -87,5 +102,7 @@ export function useWorkspaceMembers(workspaceId: string) {
     handleUpdateRole,
     handleRemoveMember,
     loading,
+    error,
+    notice,
   };
 }

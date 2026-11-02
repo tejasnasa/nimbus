@@ -53,6 +53,8 @@ export default function WorkspaceSettings({
     handleUpdateRole,
     handleRemoveMember,
     loading: memberLoading,
+    error: memberError,
+    notice: memberNotice,
   } = useWorkspaceMembers(workspace.id);
 
   const addTabRef = useDocEditorRef();
@@ -69,13 +71,20 @@ export default function WorkspaceSettings({
     }
   });
 
-  const { handleDeleteDocument, loading: docLoading } = useWorkspaceDocuments();
+  const {
+    handleDeleteDocument,
+    loading: docLoading,
+    error: docDeleteError,
+    notice: docDeleteNotice,
+  } = useWorkspaceDocuments();
 
   const {
     handleRegenerateInviteCode,
     handleDeleteWorkspace,
     handleCopyInviteCode,
     loading: permissionLoading,
+    error: permissionError,
+    notice: permissionNotice,
   } = useWorkspacePermissions(workspace.id);
 
   return (
@@ -152,6 +161,11 @@ export default function WorkspaceSettings({
               label: "Members",
               content: (
                 <div className="space-y-2">
+                  <InlineMessages
+                    scope="members"
+                    error={memberError}
+                    notice={memberNotice}
+                  />
                   {workspace.members.map((member) => (
                     <div
                       key={member.id}
@@ -254,6 +268,11 @@ export default function WorkspaceSettings({
               label: "Documents",
               content: (
                 <div>
+                  <InlineMessages
+                    scope="documents"
+                    error={docDeleteError}
+                    notice={docDeleteNotice}
+                  />
                   <AlertDialog
                     trigger={
                       <Button className="space-y-1 relative hover:cursor-pointer w-135 mb-4">
@@ -415,6 +434,11 @@ export default function WorkspaceSettings({
               label: "Permissions",
               content: (
                 <div className="space-y-4">
+                  <InlineMessages
+                    scope="permissions"
+                    error={permissionError}
+                    notice={permissionNotice}
+                  />
                   <div className="p-4 rounded-xl border border-(--border) bg-(--muted)/20">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-8 h-8 rounded-lg bg-(--primary)/15 flex items-center justify-center">
@@ -519,4 +543,44 @@ export default function WorkspaceSettings({
       </div>
     </div>
   );
+}
+
+/**
+ * Inline result line for a settings tab: an error in the destructive tone, or a
+ * neutral confirmation. Renders nothing when there is neither. Rendered inline
+ * because this app has no toast and does not use `alert()`.
+ */
+function InlineMessages({
+  scope,
+  error,
+  notice,
+}: {
+  scope: string;
+  error: string | null;
+  notice: string | null;
+}) {
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid={`${scope}-error`}
+        className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20"
+      >
+        <Error className="w-4 h-4 text-(--destructive) shrink-0" />
+        <span className="text-xs text-(--destructive)">{error}</span>
+      </div>
+    );
+  }
+  if (notice) {
+    return (
+      <p
+        role="status"
+        data-testid={`${scope}-notice`}
+        className="px-3 py-2 mb-3 rounded-lg bg-(--muted)/30 border border-(--border) text-xs text-(--muted-foreground)"
+      >
+        {notice}
+      </p>
+    );
+  }
+  return null;
 }

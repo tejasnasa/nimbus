@@ -2,7 +2,8 @@
  * @module web/tests/unit/hooks/useWorkspacePermissions
  * @description Danger-zone actions: invite-code rotation, workspace deletion
  * (which routes to `/home`), and clipboard copy. Loading is keyed by action,
- * and every failure surfaces through `alert`.
+ * and failures and confirmations are returned as inline `error` / `notice`
+ * state. `alert` is stubbed to throw, so any use of it fails the test.
  */
 import { act, renderHook } from "@testing-library/react";
 import { http, HttpResponse, type DefaultBodyType } from "msw";
@@ -19,7 +20,9 @@ const { routerMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
 
-const alertMock = vi.fn();
+const alertMock = vi.fn(() => {
+  throw new Error("alert() must not be used for user feedback");
+});
 const WORKSPACE_ID = "cm_workspace_0000000000000";
 const REGENERATE_URL = `${BACKEND_URL}/api/workspace/regenerate-invite/${WORKSPACE_ID}`;
 const DELETE_URL = `${BACKEND_URL}/api/workspace/delete/${WORKSPACE_ID}`;
@@ -104,9 +107,8 @@ describe("useWorkspacePermissions", () => {
       await result.current.handleRegenerateInviteCode();
     });
 
-    expect(alertMock).toHaveBeenCalledWith(
-      "Only admins can rotate the invite code",
-    );
+    expect(result.current.error).toBe("Only admins can rotate the invite code");
+    expect(alertMock).not.toHaveBeenCalled();
     expect(result.current.loading).toBeNull();
   });
 
@@ -130,6 +132,7 @@ describe("useWorkspacePermissions", () => {
     expect(methods).toEqual(["DELETE"]);
     expect(routerMock.push).toHaveBeenCalledWith("/home");
     expect(alertMock).not.toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
   });
 
   it("does not navigate when deletion is refused", async () => {
@@ -147,13 +150,13 @@ describe("useWorkspacePermissions", () => {
       await result.current.handleDeleteWorkspace();
     });
 
-    expect(alertMock).toHaveBeenCalledWith(
+    expect(result.current.error).toBe(
       "Only the owner can delete this workspace",
     );
     expect(routerMock.push).not.toHaveBeenCalled();
   });
 
-  it("uses the generic alert fallback when a deletion failure has no message", async () => {
+  it("uses the generic error fallback when a deletion failure has no message", async () => {
     server.use(
       http.delete(DELETE_URL, () =>
         HttpResponse.json({ success: false }, { status: 500 }),
@@ -168,7 +171,7 @@ describe("useWorkspacePermissions", () => {
       await result.current.handleDeleteWorkspace();
     });
 
-    expect(alertMock).toHaveBeenCalledWith("Failed to delete workspace");
+    expect(result.current.error).toBe("Failed to delete workspace");
     expect(routerMock.push).not.toHaveBeenCalled();
   });
 
@@ -248,6 +251,26 @@ describe("useWorkspacePermissions", () => {
     });
 
     expect(writeText).toHaveBeenCalledWith("invite-code");
-    expect(alertMock).toHaveBeenCalledWith("Invite code copied to clipboard!");
+    expect(result.current.notice).toBe("Invite code copied to clipboard.");
+    expect(alertMock).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when the clipboard write is refused", async () => {
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
+      new Error("denied"),
+    );
+
+    const { result } = renderHook(() =>
+      useWorkspacePermissions(WORKSPACE_ID),
+    );
+
+    await act(async () => {
+      result.current.handleCopyInviteCode("invite-code");
+    });
+
+    await vi.waitFor(() =>
+      expect(result.current.error).toBe("Could not copy the invite code."),
+    );
+    expect(alertMock).not.toHaveBeenCalled();
   });
 });

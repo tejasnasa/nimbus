@@ -216,7 +216,7 @@ describe("WorkspaceSettings", () => {
       expect(refresh).toHaveBeenCalled();
     });
 
-    it("alerts instead of refreshing when the role change is refused", async () => {
+    it("shows the refusal inline instead of refreshing when the role change is refused", async () => {
       const user = userEvent.setup();
       capture(
         "put",
@@ -229,9 +229,10 @@ describe("WorkspaceSettings", () => {
       await user.click(screen.getByRole("button", { name: "MEMBER" }));
       await user.click(screen.getByRole("button", { name: "Admin" }));
 
-      await waitFor(() =>
-        expect(alertSpy).toHaveBeenCalledWith("ADMINs cannot promote members"),
+      expect(await screen.findByTestId("members-error")).toHaveTextContent(
+        "ADMINs cannot promote members",
       );
+      expect(alertSpy).not.toHaveBeenCalled();
       expect(refresh).not.toHaveBeenCalled();
     });
 
@@ -336,7 +337,11 @@ describe("WorkspaceSettings", () => {
       await user.click(await screen.findByRole("button", { name: "Delete" }));
 
       await waitFor(() => expect(deleted).toHaveLength(1));
-      expect(reload).toHaveBeenCalled();
+      await waitFor(() => expect(refresh).toHaveBeenCalled());
+      expect(reload).not.toHaveBeenCalled();
+      expect(await screen.findByTestId("documents-notice")).toHaveTextContent(
+        "Document deleted.",
+      );
       reload.mockRestore();
     });
   });
@@ -353,9 +358,10 @@ describe("WorkspaceSettings", () => {
       await user.click(screen.getByRole("button", { name: "Copy Invite Code" }));
 
       expect(writeText).toHaveBeenCalledWith("invite-code");
-      await waitFor(() =>
-        expect(alertSpy).toHaveBeenCalledWith("Invite code copied to clipboard!"),
+      expect(await screen.findByTestId("permissions-notice")).toHaveTextContent(
+        "Invite code copied to clipboard.",
       );
+      expect(alertSpy).not.toHaveBeenCalled();
       writeText.mockRestore();
     });
 
@@ -373,7 +379,7 @@ describe("WorkspaceSettings", () => {
       await waitFor(() => expect(bodies).toHaveLength(1));
     });
 
-    it("alerts when the invite code cannot be rotated", async () => {
+    it("shows an inline error when the invite code cannot be rotated", async () => {
       const user = userEvent.setup();
       capture(
         "put",
@@ -385,7 +391,10 @@ describe("WorkspaceSettings", () => {
       await openTab(user, "Permissions");
       await user.click(screen.getByRole("button", { name: "Regenerate" }));
 
-      await waitFor(() => expect(alertSpy).toHaveBeenCalledWith("Not allowed"));
+      expect(await screen.findByTestId("permissions-error")).toHaveTextContent(
+        "Not allowed",
+      );
+      expect(alertSpy).not.toHaveBeenCalled();
     });
 
     it("deletes the workspace and returns to the dashboard", async () => {

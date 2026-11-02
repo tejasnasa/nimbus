@@ -84,16 +84,17 @@ command to start it rather than a connection traceback.
 
 ## Test suites
 
-| Suite | Location | Runner | Docker | Tests | Duration |
-|---|---|---|---|---|---|
-| API | `apps/api/src/__tests__/` | Vitest | Yes | 675 passing | ~5 min |
-| Web | `apps/web/tests/` | Vitest + MSW | No | 442 passing | ~1 min |
-| `@nimbus/ui` | `packages/ui/__tests__/` | Vitest | No | 159 passing | ~15 s |
-| `@nimbus/db` | `packages/database/__tests__/` | Vitest | Yes | 122 passing | ~10 s |
-| `@nimbus/utils` | `packages/utils/__tests__/` | Vitest | No | 73 passing | ~3 s |
-| End-to-end | `apps/web/e2e/` | Playwright | Yes | 26 passing (24 specs + 2 setup steps) | ~3 min |
+| Suite | Location | Runner | Docker | Duration |
+|---|---|---|---|---|
+| API | `apps/api/src/__tests__/` | Vitest | Yes | ~5 min |
+| Web | `apps/web/tests/` | Vitest + MSW | No | ~1 min |
+| `@nimbus/ui` | `packages/ui/__tests__/` | Vitest | No | ~15 s |
+| `@nimbus/db` | `packages/database/__tests__/` | Vitest | Yes | ~10 s |
+| `@nimbus/utils` | `packages/utils/__tests__/` | Vitest | No | ~3 s |
+| End-to-end | `apps/web/e2e/` | Playwright | Yes | ~3 min |
 
-Timings are from a serial local run and vary with machine load. The API suite is by far the largest
+Test counts are deliberately not recorded here: they go stale with every change, and the runner
+prints the current figure. Timings are from a serial local run and vary with machine load. The API suite is by far the largest
 because it drives a real HTTP server and real Socket.IO clients against a real database; `vitest`
 reports it as roughly 83% test time.
 
@@ -160,7 +161,7 @@ they can be selected either by path or by project name:
 ```bash
 cd apps/api
 npx vitest run src/__tests__/smoke      # by path
-npx vitest run --project smoke          # by project name — 10 tests in 3 files
+npx vitest run --project smoke          # by project name
 ```
 
 `make test-suite SUITE=smoke` wraps the path form.
@@ -175,8 +176,10 @@ npx vitest run --project happy-dom
 ### Linting the tests
 
 Test code is held to the same standard as application code in the projects that lint it. `npm run
-lint` covers every workspace that declares a `lint` script; the API's runs without `--max-warnings 0`
-(it carries standing warnings) while the web's and `packages/ui`'s treat a warning as a failure.
+lint` covers every workspace that declares a `lint` script, and each one runs against a
+`--max-warnings` budget: `packages/ui` at 0, `apps/web` at 7 (standing warnings in two voice files)
+and `apps/api` at its measured count. A budget is a ratchet: lowering it is welcome, raising it is
+not, so a new warning fails the run.
 
 Type checking is unevenly scoped, which is worth knowing before trusting a green `check-types`.
 `apps/web`'s `tsconfig` includes `**/*.ts` and `**/*.tsx`, so its unit tests and E2E specs are
@@ -209,7 +212,7 @@ auth-heavy suites need.
 
 ### What each shard covers
 
-**Smoke** (10 tests across 3 files) makes no claims about behaviour; it confirms the environment is
+**Smoke** (a handful of tests in a few files) makes no claims about behaviour; it confirms the environment is
 usable, so a broken stack surfaces in seconds instead of as a long list of confusing failures.
 `infra` checks Postgres, the
 applied schema (by table name), and Redis. `boot` checks that the Express app composes, that
@@ -286,10 +289,10 @@ against the test database. The auth configuration under test is therefore the on
 runs, including the email-verification gate (`requireEmailVerification` blocks sign-in, so the helper
 marks the row verified, standing in for following the emailed link).
 
-The cookie it gets back carries `Domain=.tejasnasa.me; Secure` — the app pins those attributes
-unconditionally (see [Known unfixed defects](#known-unfixed-defects)). No browser would store that
-on localhost, and a naive cookie jar would drop it. The helper keeps only the `name=value` pairs and
-discards the attributes, which the server accepts regardless.
+The helper keeps only the `name=value` pairs of the cookies it gets back and discards their
+attributes, so it works whatever the server's cookie configuration is. (Under the test environment
+`BETTER_AUTH_URL` is `http://localhost:3001`, so the server issues the cookie without `Secure` or
+`Domain` anyway.)
 
 ### Mocking
 
@@ -475,18 +478,16 @@ Seeded values are fixed: `e2e-owner@example.test`, `e2e-member@example.test`, th
 
 ### How a signed-in context is produced
 
-`auth.setup.ts` signs in over the **HTTP API**, reads the raw `Set-Cookie` header, and re-injects the
-same name/value pair scoped to `localhost`, rather than filling in the sign-in form.
+`auth.setup.ts` signs in through the **real sign-in form** for each seeded user and saves the
+resulting `storageState`. The API derives its cookie attributes from `BETTER_AUTH_URL`
+(`lib/cookieAttributes.ts`), and the test environment points that at `http://localhost:3001`, so the
+cookie is issued with neither `Secure` nor `Domain` and a browser on `localhost` stores it.
+`auth.spec.ts` also asserts that a form sign-in lands on `/home`, so the accepted path is covered
+alongside the rejection paths.
 
-This is a workaround for a real defect (see [Known unfixed defects](#known-unfixed-defects)): the API
-pins `defaultCookieAttributes` to `domain: ".tejasnasa.me"` and `secure: true`, and a browser refuses
-to store that cookie for `localhost`, so signing in through the UI against a local stack leaves the
-context unauthenticated — the sign-in appears to succeed and every subsequent request is anonymous.
-The domain check is client-side only, so the API accepts the re-scoped cookie unchanged.
-
-The consequence is that **no spec can exercise signing in through the form**. `auth.spec.ts` covers
-the rejection paths and the form's own behaviour, and every authenticated spec depends on the
-re-scoping step. Fixing the cookie attributes would let this workaround be deleted.
+If the setup step ever fails with "stored no session cookie", the likely cause is a test environment
+whose `BETTER_AUTH_URL` is `https:` (which makes the cookie `Secure`) or an `AUTH_COOKIE_DOMAIN`
+that does not cover `localhost`.
 
 ### Specs
 
@@ -652,17 +653,15 @@ its floor.
 
 | Job | Runs |
 |---|---|
-| `Lint & typecheck` | `turbo run check-types --affected`, then `turbo run lint --affected` with `continue-on-error` |
+| `Lint & typecheck` | `turbo run check-types --affected`, then `turbo run lint --affected` (blocking) |
 | `API (smoke · unit · integration · security)` | Postgres + Redis service containers, `db:deploy`, `test:coverage --filter=api`, then the ratchet |
 | `Web (unit · component)` | `test:coverage --filter=web`, then the ratchet |
 | `Shared packages` | Postgres + Redis service containers, `db:deploy`, then `test:coverage` for utils, ui and db, then the ratchet |
 
 Two things about it are worth knowing:
 
-- **The lint step is non-blocking** (`continue-on-error: true`) because `apps/web` carries 10
-  standing ESLint warnings while its script runs with `--max-warnings 0`. It stays visible in the log
-  without gating every PR, and the API's own lint gate deliberately omits `--max-warnings 0` for the
-  same reason. A green run therefore does not mean warning-free.
+- **The lint step is blocking.** `apps/web` and `apps/api` lint against a `--max-warnings` budget
+  rather than zero, so a green run means no *new* warnings, not none. The budgets only move down.
 - **Coverage is checked as a separate step after the test step**, not inside it, so a ratchet failure
   reads as a coverage problem rather than a test problem.
 
@@ -743,25 +742,21 @@ under either reading, so no fix could have made it pass. And `generateSlug` stri
 design — two other passing tests pin that, including the collision between `Ada's Dev` and
 `Adas Dev` — so the JSDoc example, not the function, was the thing that was wrong.
 
-Five more are **worked around rather than pinned** — either they cannot be expressed as an assertion
+Several more are **worked around rather than pinned** — either they cannot be expressed as an assertion
 inside the suite, or they are configuration debt rather than behaviour:
 
-- **Cookie attributes are hardcoded to production** (`apps/api/src/lib/auth.ts`): `Domain=.tejasnasa.me`
-  and `Secure` are applied unconditionally, so local development cannot hold a session in a browser
-  and the E2E suite has to sign in over the API and re-inject the cookie (see
-  [the E2E section](#how-a-signed-in-context-is-produced)). Fixing it would delete that workaround and
-  let a spec cover the sign-in form.
-- **Workspace creation needs a `BOT_USERID` row that no migration creates**: the FK rollback takes
-  the whole transaction with it, so a fresh environment cannot create a workspace. `resetDatabase()`
-  re-seeds the row so the suite can proceed.
+- **Workspace creation needs a bot user row that no migration creates**: the API now upserts it at
+  boot (`lib/botUser.ts`), and `resetDatabase()` calls the same function after truncation, so the
+  suite and production share one implementation. If the row goes missing while the server runs,
+  creation rolls back with a curated 500.
 - **`packages/database` resolves through `dist`**: a bare `tsc --noEmit` inside `apps/api` on a fresh
   clone fails with errors that point at innocent application files. `turbo run check-types` is wired
-  correctly and builds the dependency first, so this only bites someone running `tsc` by hand.
-- **`npm run lint` in `apps/web` fails on an untouched checkout** — 10 standing warnings against
-  `--max-warnings 0`. Two of them (`VoiceControls.tsx` computing an unused `speakingUsers`,
-  `useVoiceChat.ts` computing an unused `iceServers`) look like intent mismatches rather than style.
-- **`apps/api`'s lint runs without `--max-warnings 0`** and reports 29 warnings. Tightening it is the
-  same job as clearing the ten above.
+  correctly and builds the dependency first, so this only bites someone running `tsc` by hand: run
+  `npx turbo run build --filter=@nimbus/db` first.
+- **`apps/web` lints with a budget of 7**, all standing warnings in `hooks/useVoiceChat.ts` and
+  `components/VoiceControls.tsx` (an unused `speakingUsers`, an unused `iceServers`, ref-in-cleanup
+  and dependency-array findings). Both files are due to be replaced, and the budget returns to 0
+  when they are.
 
 ## Writing tests
 

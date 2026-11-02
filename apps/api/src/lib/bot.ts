@@ -1,8 +1,9 @@
 /**
  * @module api/lib/bot
  * @description NimbusBot chat pipeline: loads the last 20 workspace messages
- * as LLM history (bot rows → assistant, others prefixed `Name:`), calls Groq
- * with a strict `create_document` tool (MARKDOWN for text, CANVAS for
+ * as LLM history (bot rows → assistant, others prefixed `Name:`), calls the
+ * model the resolver chose (the user's key or the free tier) with a strict
+ * `create_document` tool (MARKDOWN for text, CANVAS for
  * diagrams), and returns a discriminated `BotResult` (`reply` | `create_document`
  * | `refused`). Plain-text replies only — no Markdown formatting.
  *

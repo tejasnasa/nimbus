@@ -139,7 +139,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
         });
 
         // Case-insensitive mention check; bot work runs detached so the sender's
-        // ack path never waits on Groq/OpenAI latency. Errors are caught and logged.
+        // ack path never waits on model latency. Errors are caught and logged.
         if (data.content.toLowerCase().includes("@nimbusbot")) {
           (async () => {
             await handleBotMention({

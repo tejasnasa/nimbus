@@ -4,7 +4,7 @@ import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { socket } from "../lib/socket";
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((mod) => mod.Excalidraw),
@@ -54,13 +54,10 @@ export default function Canvas({ initialElements, documentId }: CanvasProps) {
   // the server state lands (see the module note).
   const [isReady, setIsReady] = useState(false);
 
-  // WARNING: memoized on documentId only — Excalidraw consumes initialData
-  // once per mount, and the parent remounts (key) per document, so updates to
-  // initialElements after mount intentionally do not re-seed the scene.
-  const initialData = useMemo(
-    () => ({ elements: [...initialElements] }),
-    [documentId],
-  );
+  // WARNING: seeded once per mount. Excalidraw consumes initialData a single
+  // time, and the parent remounts (key) per document, so later changes to
+  // initialElements intentionally do not re-seed the scene.
+  const [initialData] = useState(() => ({ elements: [...initialElements] }));
 
   const handleExcalidrawApi = useCallback((api: ExcalidrawImperativeAPI) => {
     excalidrawAPI.current = api;

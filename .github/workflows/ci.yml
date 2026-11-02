@@ -31,14 +31,11 @@ jobs:
       # workspace that resolves through `dist` rather than source.
       - name: Typecheck
         run: npx turbo run check-types --affected
-      # `apps/web` carries 10 standing ESLint warnings while its script runs with
-      # --max-warnings 0, so this step fails on an untouched checkout. Left
-      # non-blocking so the result stays visible without gating every PR; make
-      # it blocking once those warnings are cleared. `apps/api` lints without
-      # `--max-warnings 0` for the same reason and does pass.
-      - name: Lint (non-blocking)
+      # Both `apps/web` and `apps/api` lint against a `--max-warnings` budget
+      # (a ratchet: lowering it is welcome, raising it is not), so a new warning
+      # fails this step.
+      - name: Lint
         run: npx turbo run lint --affected
-        continue-on-error: true
 
   api-tests:
     name: API (smoke · unit · integration · security)

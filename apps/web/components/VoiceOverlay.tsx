@@ -12,6 +12,7 @@
  */
 "use client";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useVoice } from "../providers/VoiceProvider";
 
@@ -127,9 +128,14 @@ export default function VoiceOverlay() {
           >
             <div className="relative">
               <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
-              <img
+              {/* `unoptimized`: avatars come from arbitrary hosts, so none can be
+                  pre-registered for the image optimiser. */}
+              <Image
                 src={image || getAvatarForUser(speaker.userId)}
                 alt={name}
+                width={40}
+                height={40}
+                unoptimized
                 className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
               />
             </div>

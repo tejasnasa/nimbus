@@ -64,6 +64,13 @@ about rather than hardcoding model names:
 | ------------------ | ------------------------------------------------------------ |
 | `reasoning`        | The model accepts a `reasoning: { effort }` parameter at all |
 | `reasoningSummary` | The model also accepts `reasoning: { summary }`              |
+| `vision`           | The model accepts image input; shown as a chip, never required |
+
+A model may also carry optional `pricing` (USD per million input and output tokens, plus per-minute
+audio and per-million-character speech fields), stamped with the date it was read from the provider's
+own pricing page. A missing price stays absent, and `estimateCostUsd` in `packages/utils/src/ai/cost.ts`
+answers `null` rather than guess. Prices on DeepSeek models are the peak-hour rates, so an estimate is
+an upper bound.
 
 Features declare what they require:
 
@@ -85,6 +92,31 @@ export const AI_FEATURE_RECOMMENDED: Record<
 `meetsRequirements(model, feature)` is the check everything else calls. Requirements are **hard** —
 a model that fails them cannot be used for that feature. Recommended capabilities are **soft** — they
 inform the picker but do not block selection.
+
+### Three sources of models
+
+The registry is not the only place a model can come from. Every saved preference records a
+`modelSource`, and capability checks read from the right place for each:
+
+| Source     | Providers                            | Where capabilities come from                                                    |
+| ---------- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| `registry` | all                                  | The curated `AiModelSpec`                                                       |
+| `catalog`  | OpenRouter                           | OpenRouter's public `GET /api/v1/models`, mapped by `lib/ai/openrouterCatalog.ts` |
+| `custom`   | all                                  | Measured by the capability probe when the user saves the id                     |
+
+For `catalog` and `custom` preferences the capabilities are stored on the row (`modelCapabilities`)
+and `selectModelForFeature` checks the feature's requirements against them instead of looking the id
+up in the registry. A stored set that fails the requirement falls through exactly like a stale
+registry preference. The resolver builds the client from a spec made out of the stored capabilities,
+and `reasoningKwargs` reads `reasoningSummary` from them, so a custom model that rejects `summary`
+never receives it.
+
+The catalogue maps `tools`, `response_format`/`structured_outputs`, `reasoning`/`include_reasoning`
+and an `image` input modality to capabilities, and assumes streaming. It never infers
+`reasoningSummary`. The mapped list is cached in Redis under `ai:catalog:openrouter` for six hours; a
+failed refresh serves the last copy marked `stale`, and only a cold cache with an unreachable
+catalogue is an error (503). Prices arrive per token and are scaled to per million; a negative price
+(a router) becomes `null`.
 
 This indirection is what lets a new provider be added by editing one file: the picker, the resolver,
 and the generators all read capabilities rather than enumerating model names.
@@ -410,7 +442,9 @@ The full claim-then-announce ordering is in
 | `POST`   | `/credentials`             | Probe, then encrypt and upsert                                                   |
 | `DELETE` | `/credentials/:providerId` | Remove a credential and its now-dangling preferences                             |
 | `GET`    | `/preferences`             | The saved provider+model per feature                                             |
-| `PUT`    | `/preferences`             | Validate capability, then upsert a preference                                    |
+| `PUT`    | `/preferences`             | Validate capability, then upsert a preference (`source`: registry, catalog, custom) |
+| `GET`    | `/catalog/openrouter`      | OpenRouter's live catalogue, filtered by `?feature=`, registry picks first        |
+| `POST`   | `/models/probe`            | Measure a custom model id's capabilities with the caller's own key               |
 
 This surface is deliberately **not workspace-scoped**, and the RBAC ladder does not apply to it.
 Ownership is enforced at the query level — every read and write is scoped by `where: { userId }` — so
@@ -423,6 +457,27 @@ a credential that is not yours is not found rather than forbidden:
   meet the feature's requirements, or a provider the user has no credential for. That last one is the
   useful error: "No credential saved for provider … Add an API key first."
 
+Capabilities are **never read from the request**. For a `catalog` preference the id must be in the
+cached catalogue and the server stores its own copy of that entry's capabilities. For a `custom`
+preference the server re-runs the probe, or reuses a result under ten minutes old (cached under
+`ai:probe:<userId>:<provider>:<model>`, which holds no key material), and stores what it measured. A
+body that includes `capabilities` is simply not read.
+
+### The capability probe
+
+`lib/ai/modelProbe.ts` first runs a basic `responses.create`; if that fails the id is rejected with
+the curated reason from the key probe (`incorrect-key`, `model-not-found`, `unreachable`) and nothing
+else runs. Otherwise five narrower probes run in parallel, each with a 15 s timeout, no retries and a
+tiny output cap: a forced function call (`tools`), `json_object` output that parses (`jsonMode`), a
+stream that yields an event (`streaming`), `reasoning.effort` accepted (`reasoning`, then
+`reasoningSummary` with `summary`), and a 1x1 PNG as `input_image` (`vision`). A probe that errors for
+any reason leaves its capability out, which errs towards offering the model for fewer features. The
+key is never logged or returned, and provider error text is discarded.
+
+`apps/api/src/scripts/verifyProvider.ts` runs the key probe and the capability probe from the command
+line (`PROVIDER_ID`, `PROVIDER_API_KEY`, optional `MODEL_ID`), so a provider or a model can be
+verified before its registry entry is stamped.
+
 Deleting a credential also clears the preferences pointing at it, so the user is never left in a UI
 state the resolver cannot honour.
 
@@ -433,13 +488,21 @@ state the resolver cannot honour.
 - **`AiSettingsPanel.tsx`** is the AI tab: the free-tier summary ("X of Y document generations
   remaining"), the credential list with masked previews and add/replace/remove, and the per-feature
   model pickers.
-- **`AiModelPicker.tsx`** renders provider and model comboboxes per feature, filtering by capability —
-  and saves immediately on change rather than behind a submit button.
+- **`AiModelPicker.tsx`** renders a provider select and a searchable model combobox
+  (`@nimbus/ui/Combobox`) per feature. Rows show the label, the id, capability chips (Tools, JSON,
+  Vision, Reasoning) and the price per million tokens when known. Registry models come first; for
+  OpenRouter the live catalogue follows. The last row, **Use a custom model id...**, swaps the
+  combobox for a text input and a **Check model** button that runs the probe, shows the measured
+  chips, and saves only when the measured set can serve the feature (otherwise it names the missing
+  capability and saves nothing). A saved model that is not among the options is still shown as the
+  current choice rather than leaving the control looking empty. Saving is immediate on change rather
+  than behind a submit button.
 - **`ApiKeyDialog.tsx`** is the add/replace modal. The plaintext key field is cleared on success and on
   close, so the secret does not sit in component state after it has been sent.
 - **`AiRefusalBanner.tsx`** appears next to the chat composer when the user's AI is unavailable,
   carrying the `cta` the server sent (`add-key` or `manage-ai`).
-- **Hooks** — `useAiStatus`, `useAiCredentials`, `useAiPreferences`, `useAddApiKeyForm`.
+- **Hooks** — `useAiStatus`, `useAiCredentials`, `useAiPreferences`, `useAddApiKeyForm`,
+  `useAiCatalog` and `useAiModelProbe`.
 
 The status shape is server-seeded: `app/settings/page.tsx` fetches `getAiStatus()` and passes it into
 `AccountSettings` as `initialAiStatus`, so the panel renders populated rather than flashing an empty

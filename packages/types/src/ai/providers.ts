@@ -34,7 +34,37 @@ export type AiCapability =
    * sends both fields, so a provider lacking this capability needs the summary
    * omitted rather than the request failing.
    */
-  | "reasoningSummary";
+  | "reasoningSummary"
+  /** Accepts image input (`input_image`). Shown as a chip; not a hard requirement. */
+  | "vision";
+
+/** Where a selectable model came from. See `AiFeaturePreference.modelSource`. */
+export const AI_MODEL_SOURCES = ["registry", "catalog", "custom"] as const;
+
+/**
+ * - `registry`: the curated {@link AiModelSpec} list in this module.
+ * - `catalog`: OpenRouter's live model catalogue.
+ * - `custom`: an id the user typed, whose capabilities were measured by a probe.
+ */
+export type AiModelSource = (typeof AI_MODEL_SOURCES)[number];
+
+/**
+ * List prices in USD, from the provider's own pricing page. Every price is
+ * optional: a missing one means "not confirmed", and cost estimation returns
+ * `null` rather than guessing.
+ */
+export type AiModelPricing = {
+  /** USD per million input tokens. */
+  inputPerMTok?: number;
+  /** USD per million output tokens. */
+  outputPerMTok?: number;
+  /** USD per minute of audio (transcription). */
+  perAudioMinute?: number;
+  /** USD per million characters (speech synthesis). */
+  perMChars?: number;
+  /** ISO date the price was read from the provider's page. */
+  checkedAt: string;
+};
 
 /** A reasoning effort level. Providers differ; DeepSeek accepts low|high|max. */
 export type AiEffort = "minimal" | "low" | "high" | "max";
@@ -48,6 +78,8 @@ export type AiModelSpec = {
   capabilities: readonly AiCapability[];
   /** Effort levels this model accepts, from the provider's own model listing. */
   effortLevels: readonly AiEffort[];
+  /** List prices, when confirmed from the provider's pricing page. */
+  pricing?: AiModelPricing;
 };
 
 /** One OpenAI-compatible provider. */
@@ -101,8 +133,38 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
       {
         id: "gpt-5-nano",
         label: "GPT-5 Nano",
-        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary"],
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary", "vision"],
         effortLevels: ["minimal", "low", "high"],
+        pricing: { inputPerMTok: 0.05, outputPerMTok: 0.4, checkedAt: "2026-11-02" },
+      },
+      {
+        id: "gpt-6-luna",
+        label: "GPT-6 Luna",
+        // Measured with a live key on 2026-11-03.
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary", "vision"],
+        effortLevels: ["low", "high"],
+        pricing: { inputPerMTok: 0.1, outputPerMTok: 0.5, checkedAt: "2026-11-03" },
+      },
+      {
+        id: "gpt-5-mini",
+        label: "GPT-5 Mini",
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary", "vision"],
+        effortLevels: ["minimal", "low", "high"],
+        pricing: { inputPerMTok: 0.25, outputPerMTok: 2, checkedAt: "2026-11-02" },
+      },
+      {
+        id: "gpt-5",
+        label: "GPT-5",
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary", "vision"],
+        effortLevels: ["minimal", "low", "high"],
+        pricing: { inputPerMTok: 1.25, outputPerMTok: 10, checkedAt: "2026-11-02" },
+      },
+      {
+        id: "gpt-4.1-mini",
+        label: "GPT-4.1 Mini",
+        capabilities: ["tools", "streaming", "jsonMode", "vision"],
+        effortLevels: [],
+        pricing: { inputPerMTok: 0.4, outputPerMTok: 1.6, checkedAt: "2026-11-02" },
       },
     ],
     verifiedAt: "2026-09-27",
@@ -125,16 +187,33 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         label: "GPT-OSS 120B",
         capabilities: ["tools", "streaming", "jsonMode", "reasoning"],
         effortLevels: ["low", "high"],
+        pricing: { inputPerMTok: 0.15, outputPerMTok: 0.6, checkedAt: "2026-11-02" },
       },
       {
         id: "openai/gpt-oss-20b",
         label: "GPT-OSS 20B",
         capabilities: ["tools", "streaming", "jsonMode", "reasoning"],
         effortLevels: ["low", "high"],
+        pricing: { inputPerMTok: 0.075, outputPerMTok: 0.3, checkedAt: "2026-11-02" },
       },
       {
         id: "qwen/qwen3.8-27b",
         label: "Qwen 3.8 27B",
+        capabilities: ["tools", "streaming", "jsonMode"],
+        effortLevels: [],
+        pricing: { inputPerMTok: 0.8, outputPerMTok: 4, checkedAt: "2026-11-02" },
+      },
+      {
+        // Production model; Groq lists its price as "contact sales", so none is recorded.
+        id: "llama-3.3-70b-versatile",
+        label: "Llama 3.3 70B",
+        capabilities: ["tools", "streaming", "jsonMode"],
+        effortLevels: [],
+      },
+      {
+        // Production model; Groq lists its price as "contact sales", so none is recorded.
+        id: "llama-3.1-8b-instant",
+        label: "Llama 3.1 8B Instant",
         capabilities: ["tools", "streaming", "jsonMode"],
         effortLevels: [],
       },
@@ -156,17 +235,23 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         id: "deepseek-flash",
         label: "DeepSeek V4.1 Flash",
         // `reasoningSummary` measured accepted — the measured runs streamed
-        // 1.5k–17k reasoning characters with `summary: "detailed"` set.
-        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary"],
+        // 1.5k–17k reasoning characters with `summary: "detailed"` set. `vision`
+        // measured accepted with a live key on 2026-11-03.
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary", "vision"],
         // From the provider's model listing. Note `minimal` is absent: the
         // cheapest effort DeepSeek accepts is `low`.
         effortLevels: ["low", "high", "max"],
+        // Peak-hour rate. DeepSeek halves it off-peak, so an estimate built from
+        // this is an upper bound.
+        pricing: { inputPerMTok: 0.3, outputPerMTok: 1.2, checkedAt: "2026-11-02" },
       },
       {
         id: "deepseek-v4-pro",
         label: "DeepSeek V4 Pro",
         capabilities: ["tools", "streaming", "jsonMode", "reasoning", "reasoningSummary"],
         effortLevels: ["low", "high", "max"],
+        // Peak-hour rate; see above.
+        pricing: { inputPerMTok: 1.32, outputPerMTok: 3.96, checkedAt: "2026-11-02" },
       },
     ],
     verifiedAt: "2026-09-27",
@@ -184,11 +269,28 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
       {
         id: "openai/gpt-4o-mini",
         label: "GPT-4o mini",
-        capabilities: ["tools", "streaming", "jsonMode"],
+        capabilities: ["tools", "streaming", "jsonMode", "vision"],
+        effortLevels: [],
+        pricing: { inputPerMTok: 0.15, outputPerMTok: 0.6, checkedAt: "2026-11-02" },
+      },
+      {
+        id: "openai/gpt-5-mini",
+        label: "GPT-5 Mini",
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning", "vision"],
         effortLevels: ["low", "high"],
+        pricing: { inputPerMTok: 0.25, outputPerMTok: 2, checkedAt: "2026-11-02" },
+      },
+      {
+        id: "deepseek/deepseek-v4-flash",
+        label: "DeepSeek V4 Flash",
+        capabilities: ["tools", "streaming", "jsonMode", "reasoning"],
+        effortLevels: ["low", "high"],
+        pricing: { inputPerMTok: 0.091, outputPerMTok: 0.182, checkedAt: "2026-11-02" },
       },
     ],
-    verifiedAt: null,
+    // Key probe and capability probe passed against the Responses API with a
+    // live key, measured on a free catalogue model.
+    verifiedAt: "2026-11-03",
   },
 };
 
@@ -241,4 +343,27 @@ export function modelsFor(
   feature: AiFeature,
 ): readonly AiModelSpec[] {
   return provider.models.filter((m) => meetsRequirements(m, feature));
+}
+
+/**
+ * Whether a capability list satisfies every hard requirement for a feature.
+ * The same rule as {@link meetsRequirements}, for models that are not in the
+ * registry and so have no {@link AiModelSpec} (catalogue and custom ids).
+ */
+export function capabilitiesMeetRequirements(
+  capabilities: readonly AiCapability[],
+  feature: AiFeature,
+): boolean {
+  return AI_FEATURE_REQUIREMENTS[feature].every((c) =>
+    capabilities.includes(c),
+  );
+}
+
+/** The features a capability list can serve, in feature order. */
+export function featuresServedBy(
+  capabilities: readonly AiCapability[],
+): AiFeature[] {
+  return (Object.keys(AI_FEATURE_REQUIREMENTS) as AiFeature[]).filter(
+    (feature) => capabilitiesMeetRequirements(capabilities, feature),
+  );
 }

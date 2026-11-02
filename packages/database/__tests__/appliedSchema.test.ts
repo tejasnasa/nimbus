@@ -239,3 +239,19 @@ describe("deployed schema — unique constraints", () => {
     ).toBe(true);
   });
 });
+
+describe("deployed schema — ai_feature_preference model source", () => {
+  it("stores the model source as a non-null text column defaulting to registry", async () => {
+    const source = await column("ai_feature_preference", "modelSource");
+    expect(source.udt_name).toBe("text");
+    expect(source.is_nullable).toBe("NO");
+  });
+
+  it("stores model capabilities as a text array", async () => {
+    const capabilities = await column(
+      "ai_feature_preference",
+      "modelCapabilities",
+    );
+    expect(capabilities.udt_name).toBe("_text");
+  });
+});

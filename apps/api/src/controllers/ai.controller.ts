@@ -29,21 +29,36 @@
  */
 import { prisma } from "@nimbus/db";
 import {
+  type AiCapability,
+  type AiCatalogDTO,
   type AiCredentialDTO,
   type AiFeature,
+  type AiModelSource,
   type AiPreferenceDTO,
+  type AiProbeResultDTO,
   type AiStatusDTO,
   ServerResponse,
+  AI_FEATURE_REQUIREMENTS,
+  AI_PROVIDERS,
+  capabilitiesMeetRequirements,
+  featuresServedBy,
+  meetsRequirements,
 } from "@nimbus/types";
-import { AI_PROVIDERS, meetsRequirements } from "@nimbus/types";
 import {
   buildAad,
+  decryptSecret,
   encryptSecret,
   fingerprintSecret,
   maskSecret,
 } from "../lib/ai/credentialCrypto";
+import {
+  getOpenRouterCatalog,
+  CatalogUnavailableError,
+} from "../lib/ai/openrouterCatalog";
+import { probeModel, probeCacheKey, PROBE_CACHE_TTL_SECONDS } from "../lib/ai/modelProbe";
 import { probeApiKey } from "../lib/ai/probe";
 import { readQuotaState } from "../lib/ai/quota";
+import { pubClient } from "../lib/redis";
 
 /** A thrown signal for "the probe refused". Caught by the controller to
  *  emit a 400 with the probe's curated message; the credentials table is
@@ -53,6 +68,34 @@ export class AiProbeFailedError extends Error {
     super(message);
     this.name = "AiProbeFailedError";
   }
+}
+
+/** The row fields a preference DTO is built from. */
+type PreferenceRow = {
+  feature: string;
+  providerId: string;
+  modelId: string;
+  modelSource: string;
+  modelCapabilities: string[];
+};
+
+/**
+ * Projects a preference row onto its DTO. Capabilities are only exposed for
+ * non-registry models: for a registry model the registry is the source, and a
+ * stored copy would only go stale.
+ */
+function toPreferenceDTO(row: PreferenceRow): AiPreferenceDTO {
+  const modelSource = row.modelSource as AiModelSource;
+  return {
+    feature: row.feature.toLowerCase() as AiFeature,
+    providerId: row.providerId,
+    modelId: row.modelId,
+    modelSource,
+    modelCapabilities:
+      modelSource === "registry"
+        ? []
+        : (row.modelCapabilities as AiCapability[]),
+  };
 }
 
 /**
@@ -87,12 +130,8 @@ export const getAiStatus = async (userId: string) => {
       canvas: null,
     };
     for (const p of preferences) {
-      const feature = p.feature.toLowerCase() as AiFeature;
-      prefDTOs[feature] = {
-        feature,
-        providerId: p.providerId,
-        modelId: p.modelId,
-      };
+      const dto = toPreferenceDTO(p);
+      prefDTOs[dto.feature] = dto;
     }
 
     const freeTierConfigured = Boolean(process.env.AI_API_KEY);
@@ -344,12 +383,8 @@ export const listAiPreferences = async (userId: string) => {
       canvas: null,
     };
     for (const row of rows) {
-      const feature = row.feature.toLowerCase() as AiFeature;
-      result[feature] = {
-        feature,
-        providerId: row.providerId,
-        modelId: row.modelId,
-      };
+      const dto = toPreferenceDTO(row);
+      result[dto.feature] = dto;
     }
 
     return ServerResponse.ok(result);
@@ -359,32 +394,184 @@ export const listAiPreferences = async (userId: string) => {
 };
 
 /**
+ * Looks up a still-fresh probe result for a custom id, or null.
+ *
+ * Results live ten minutes under `ai:probe:<userId>:<provider>:<model>`, so the
+ * save that follows a "Check model" click does not pay for a second round of
+ * provider calls, while a stale answer cannot outlive the window.
+ */
+async function readCachedProbe(
+  userId: string,
+  providerId: string,
+  modelId: string,
+): Promise<AiCapability[] | null> {
+  try {
+    const raw = await pubClient.get(probeCacheKey(userId, providerId, modelId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { capabilities?: AiCapability[] };
+    return Array.isArray(parsed.capabilities) ? parsed.capabilities : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decrypts the caller's key for a provider and measures `modelId` with it.
+ *
+ * @returns `credential-missing` when the caller has no key for the provider,
+ *          the probe's curated refusal, or the measured capabilities (also
+ *          cached for ten minutes).
+ */
+async function measureModel(
+  userId: string,
+  providerId: string,
+  modelId: string,
+): Promise<
+  | { kind: "credential-missing" }
+  | { kind: "refused"; message: string }
+  | { kind: "ok"; capabilities: AiCapability[] }
+> {
+  const provider = AI_PROVIDERS[providerId as keyof typeof AI_PROVIDERS];
+  const credential = await prisma.aiCredential.findUnique({
+    where: { userId_providerId: { userId, providerId } },
+    select: { keyEnvelope: true },
+  });
+  if (!provider || !credential) return { kind: "credential-missing" };
+
+  let apiKey: string;
+  try {
+    apiKey = decryptSecret(credential.keyEnvelope, buildAad(userId, providerId));
+  } catch {
+    return {
+      kind: "refused",
+      message: "Your stored credential could not be read. Please add it again.",
+    };
+  }
+
+  const result = await probeModel(provider, apiKey, modelId);
+  if (!result.ok) return { kind: "refused", message: result.message };
+
+  await pubClient
+    .set(
+      probeCacheKey(userId, providerId, modelId),
+      JSON.stringify({ capabilities: result.capabilities }),
+      "EX",
+      PROBE_CACHE_TTL_SECONDS,
+    )
+    .catch(() => undefined);
+  return { kind: "ok", capabilities: result.capabilities };
+}
+
+/**
+ * Measures a model id with the caller's own credential for the provider.
+ *
+ * @param userId - Authenticated user.
+ * @param providerId - Provider the id belongs to.
+ * @param modelId - The id to measure.
+ * @returns 200 with the measured capabilities and the features they serve;
+ *          422 when the caller has no key for the provider; 400 with the
+ *          probe's curated reason when the id is rejected.
+ */
+export const probeAiModel = async (
+  userId: string,
+  providerId: string,
+  modelId: string,
+) => {
+  try {
+    const measured = await measureModel(userId, providerId, modelId);
+    if (measured.kind === "credential-missing") {
+      return ServerResponse.unprocessableEntity(
+        "No credential saved for that provider. Add an API key first.",
+      );
+    }
+    if (measured.kind === "refused") {
+      return ServerResponse.badRequest(measured.message);
+    }
+
+    const dto: AiProbeResultDTO = {
+      capabilities: measured.capabilities,
+      servesFeatures: featuresServedBy(measured.capabilities),
+    };
+    return ServerResponse.ok(dto, "Model checked");
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+};
+
+/**
+ * The OpenRouter catalogue, filtered to models that meet a feature's hard
+ * requirements, with the registry's own picks first and then by name.
+ *
+ * @param feature - Optional feature to filter for; absent returns every model.
+ * @returns 200 with the catalogue, or 503 when it cannot be reached and nothing
+ *          is cached.
+ */
+export const getOpenRouterCatalogForFeature = async (feature?: AiFeature) => {
+  try {
+    const { models, stale } = await getOpenRouterCatalog(pubClient);
+    const curated = new Set(AI_PROVIDERS.openrouter.models.map((m) => m.id));
+
+    const dto: AiCatalogDTO = {
+      providerId: "openrouter",
+      stale,
+      models: models
+        .filter(
+          (m) =>
+            !feature || capabilitiesMeetRequirements(m.capabilities, feature),
+        )
+        .map((m) => ({ ...m, curated: curated.has(m.id) }))
+        .sort(
+          (a, b) =>
+            Number(b.curated) - Number(a.curated) ||
+            a.label.localeCompare(b.label),
+        ),
+    };
+    return ServerResponse.ok(dto);
+  } catch (error) {
+    if (error instanceof CatalogUnavailableError) {
+      return ServerResponse.serviceUnavailable(
+        "The OpenRouter model list is unavailable right now. Try again shortly.",
+      );
+    }
+    return ServerResponse.internalError(error);
+  }
+};
+
+/**
  * Saves a per-feature preference.
  *
- * Three failure cases the controller enforces that the resolver cannot:
+ * Failure cases the controller enforces that the resolver cannot:
  *
- *   - **Unknown provider**: 422 (the registry does not list it). A bad
- *     `providerId` here would persist and the resolver would refuse the
- *     next request with a confusing message.
- *   - **Capability mismatch**: 422. A model that lacks the feature's hard
- *     requirements cannot serve the feature; the picker's hard filter
- *     hides these, but the controller's Zod-free path must catch them too
- *     in case a client posts a model id the picker never offered.
+ *   - **Unknown provider**: 422 (the registry does not list it).
  *   - **No credential for the provider**: 422. The resolver would silently
  *     fall through to the user's primary credential, which is the
  *     substitution this endpoint exists to prevent.
+ *   - **Unknown or incapable model**: 422. Where the capabilities come from
+ *     depends on `source`:
+ *       - `registry`: the curated spec;
+ *       - `catalog`: the id must be in the (cached) OpenRouter catalogue, and
+ *         the capabilities are the server's copy of its entry;
+ *       - `custom`: the capabilities are measured by a probe, or read from a
+ *         probe result under ten minutes old.
+ *
+ * @important Capabilities are never taken from the request. A client that sends
+ *            them is ignored, because a saved capability set is what the
+ *            resolver trusts instead of the registry.
  *
  * @param userId - Authenticated user.
  * @param feature - Which call site the preference applies to.
  * @param providerId - Provider the user wants to use.
  * @param modelId - Model id within that provider.
- * @returns 200 with the saved DTO, 422 on the three failure cases above.
+ * @param source - Where the model id came from; defaults to `registry`.
+ * @returns 200 with the saved DTO, 422 on the cases above, 400 when a custom id
+ *          is rejected by the probe, 503 when the catalogue is unreachable.
  */
 export const upsertAiPreference = async (
   userId: string,
   feature: AiFeature,
   providerId: string,
   modelId: string,
+  source: AiModelSource = "registry",
 ) => {
   try {
     // Cast to the resolver-side feature type — the controller accepts the
@@ -398,19 +585,6 @@ export const upsertAiPreference = async (
       );
     }
 
-    const model = provider.models.find((m) => m.id === modelId);
-    if (!model) {
-      return ServerResponse.unprocessableEntity(
-        `Unknown model '${modelId}' for provider '${provider.label}'.`,
-      );
-    }
-
-    if (!meetsRequirements(model, feature)) {
-      return ServerResponse.unprocessableEntity(
-        `Model '${modelId}' does not support ${feature}.`,
-      );
-    }
-
     const credential = await prisma.aiCredential.findUnique({
       where: { userId_providerId: { userId, providerId } },
       select: { id: true },
@@ -421,21 +595,90 @@ export const upsertAiPreference = async (
       );
     }
 
+    // Capabilities to store; empty for a registry model, which the registry
+    // describes by itself.
+    let capabilities: AiCapability[] = [];
+
+    if (source === "registry") {
+      const model = provider.models.find((m) => m.id === modelId);
+      if (!model) {
+        return ServerResponse.unprocessableEntity(
+          `Unknown model '${modelId}' for provider '${provider.label}'.`,
+        );
+      }
+      if (!meetsRequirements(model, feature)) {
+        return ServerResponse.unprocessableEntity(
+          `Model '${modelId}' does not support ${feature}.`,
+        );
+      }
+    } else if (source === "catalog") {
+      if (providerId !== "openrouter") {
+        return ServerResponse.unprocessableEntity(
+          "Only OpenRouter has a model catalogue.",
+        );
+      }
+      const { models } = await getOpenRouterCatalog(pubClient);
+      const entry = models.find((m) => m.id === modelId);
+      if (!entry) {
+        return ServerResponse.unprocessableEntity(
+          `Model '${modelId}' is not in the OpenRouter catalogue.`,
+        );
+      }
+      capabilities = entry.capabilities;
+    } else {
+      capabilities =
+        (await readCachedProbe(userId, providerId, modelId)) ?? [];
+      if (capabilities.length === 0) {
+        const measured = await measureModel(userId, providerId, modelId);
+        if (measured.kind === "credential-missing") {
+          return ServerResponse.unprocessableEntity(
+            `No credential saved for provider '${provider.label}'. Add an API key first.`,
+          );
+        }
+        if (measured.kind === "refused") {
+          return ServerResponse.badRequest(measured.message);
+        }
+        capabilities = measured.capabilities;
+      }
+    }
+
+    if (
+      source !== "registry" &&
+      !capabilitiesMeetRequirements(capabilities, feature)
+    ) {
+      const missing = AI_FEATURE_REQUIREMENTS[feature].filter(
+        (c) => !capabilities.includes(c),
+      );
+      return ServerResponse.unprocessableEntity(
+        `Model '${modelId}' does not support ${feature}: it lacks ${missing.join(" and ")}.`,
+      );
+    }
+
     const row = await prisma.aiFeaturePreference.upsert({
       where: { userId_feature: { userId, feature: featureEnum } },
-      create: { userId, feature: featureEnum, providerId, modelId },
-      update: { providerId, modelId },
+      create: {
+        userId,
+        feature: featureEnum,
+        providerId,
+        modelId,
+        modelSource: source,
+        modelCapabilities: capabilities,
+      },
+      update: {
+        providerId,
+        modelId,
+        modelSource: source,
+        modelCapabilities: capabilities,
+      },
     });
 
-    return ServerResponse.ok(
-      {
-        feature,
-        providerId: row.providerId,
-        modelId: row.modelId,
-      },
-      "Preference saved",
-    );
+    return ServerResponse.ok(toPreferenceDTO(row), "Preference saved");
   } catch (error) {
+    if (error instanceof CatalogUnavailableError) {
+      return ServerResponse.serviceUnavailable(
+        "The OpenRouter model list is unavailable right now. Try again shortly.",
+      );
+    }
     return ServerResponse.internalError(error);
   }
 };

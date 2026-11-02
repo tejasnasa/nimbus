@@ -16,7 +16,12 @@
  *      credentials, preferences and quota, so a request never fails because
  *      the deployment is misconfigured.
  */
-import type { AiFeature } from "../ai/providers";
+import type {
+  AiCapability,
+  AiFeature,
+  AiModelSource,
+  AiProviderId,
+} from "../ai/providers";
 
 /** A saved credential, returned by the list endpoint. Never carries the key. */
 export type AiCredentialDTO = {
@@ -39,6 +44,42 @@ export type AiPreferenceDTO = {
   feature: AiFeature;
   providerId: string;
   modelId: string;
+  /** Where the model came from. Absent on a client-built save request. */
+  modelSource?: AiModelSource;
+  /**
+   * Capabilities stored with a catalogue or custom preference, for the picker's
+   * chips. Always empty for `registry` models (the registry is the source) and
+   * never read from a request: the server measures or copies them itself.
+   */
+  modelCapabilities?: AiCapability[];
+};
+
+/** One OpenRouter catalogue entry, mapped to what the picker needs. */
+export type AiCatalogModelDTO = {
+  id: string;
+  label: string;
+  capabilities: AiCapability[];
+  /** USD per million tokens, when the catalogue states a non-negative price. */
+  pricing: { inputPerMTok: number; outputPerMTok: number } | null;
+  contextLength: number | null;
+  /** True for models the curated registry also lists; sorted first. */
+  curated: boolean;
+};
+
+/** The shape of `GET /api/ai/catalog/openrouter`. */
+export type AiCatalogDTO = {
+  providerId: AiProviderId;
+  models: AiCatalogModelDTO[];
+  /** True when the live fetch failed and a cached copy was served. */
+  stale: boolean;
+};
+
+/** The shape of `POST /api/ai/models/probe`. */
+export type AiProbeResultDTO = {
+  /** The measured capabilities of the model id. */
+  capabilities: AiCapability[];
+  /** The features the measured set satisfies. */
+  servesFeatures: AiFeature[];
 };
 
 /**

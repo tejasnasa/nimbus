@@ -521,3 +521,91 @@ describe("AiRefusalReason — the union matches the resolver's contract", () => 
     expect(expectedReasons).toContain(reason);
   });
 });
+
+// ── Catalogue and custom preferences ────────────────────────────────────────
+
+/** A preference saved from the catalogue or a custom id, with its stored capabilities. */
+const insertStoredPreference = async (
+  userId: string,
+  feature: "CHAT" | "MARKDOWN" | "CANVAS",
+  providerId: string,
+  modelId: string,
+  modelSource: "catalog" | "custom",
+  modelCapabilities: string[],
+) =>
+  testPrisma.aiFeaturePreference.create({
+    data: { userId, feature, providerId, modelId, modelSource, modelCapabilities },
+  });
+
+describe("resolveAi — catalogue and custom preferences", () => {
+  it("honours a catalogue model that is not in the registry, using its stored capabilities", async () => {
+    const user = await createUser();
+    await insertCredential(user.id, "openrouter");
+    await insertStoredPreference(user.id, "CHAT", "openrouter", "vendor/unlisted-model", "catalog", [
+      "tools",
+      "streaming",
+    ]);
+
+    const res = await resolveAi(user.id, "chat");
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.source).toBe("byok");
+      expect(res.modelId).toBe("vendor/unlisted-model");
+      expect(res.substituted).toBe(false);
+      expect(res.handle.capabilities).toEqual(["tools", "streaming"]);
+      expect(res.handle.supportsReasoning).toBe(false);
+    }
+  });
+
+  it("carries reasoning from a custom model's stored capabilities onto the handle", async () => {
+    const user = await createUser();
+    await insertCredential(user.id, "openai");
+    await insertStoredPreference(user.id, "CANVAS", "openai", "my-custom-model", "custom", [
+      "tools",
+      "streaming",
+      "jsonMode",
+      "reasoning",
+    ]);
+
+    const res = await resolveAi(user.id, "canvas");
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.modelId).toBe("my-custom-model");
+      expect(res.handle.supportsReasoning).toBe(true);
+      expect(res.handle.capabilities).toContain("reasoning");
+    }
+  });
+
+  it("substitutes the provider default when a custom model's stored capabilities miss a requirement", async () => {
+    const user = await createUser();
+    await insertCredential(user.id, "openai");
+    // Chat needs tools; this custom model was measured without them.
+    await insertStoredPreference(user.id, "CHAT", "openai", "no-tools-model", "custom", ["streaming"]);
+
+    const res = await resolveAi(user.id, "chat");
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.substituted).toBe(true);
+      expect(res.modelId).toBe("gpt-5-nano");
+    }
+  });
+
+  it("ignores a stored preference for a different feature", async () => {
+    const user = await createUser();
+    await insertCredential(user.id, "openrouter");
+    await insertStoredPreference(user.id, "MARKDOWN", "openrouter", "vendor/unlisted-model", "catalog", [
+      "tools",
+      "streaming",
+    ]);
+
+    const res = await resolveAi(user.id, "chat");
+
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.modelId).not.toBe("vendor/unlisted-model");
+    }
+  });
+});

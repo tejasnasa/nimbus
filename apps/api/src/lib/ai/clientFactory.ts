@@ -34,6 +34,7 @@ import OpenAI from "openai";
 import {
   AI_PROVIDERS,
   modelById,
+  type AiCapability,
   type AiEffort,
   type AiModelSpec,
   type AiProviderSpec,
@@ -53,6 +54,14 @@ export type AiClientHandle = {
    * in that case rather than sending an extra the model 400s on.
    */
   readonly supportsReasoning: boolean;
+  /**
+   * The capabilities of the model the handle serves: the registry's for a
+   * curated model, the stored (measured or catalogue-derived) set for any
+   * other. `reasoningKwargs` reads `reasoningSummary` from here, so a custom
+   * model that rejects `summary` never receives it. Optional only so a handle
+   * built by hand in a test still works; production handles always carry it.
+   */
+  readonly capabilities?: readonly AiCapability[];
   /**
    * The constructed SDK client. `baseURL` is already applied, so call sites
    * do not set it again.
@@ -145,6 +154,7 @@ function buildHandle(options: CreateAiClientOptions): AiClientHandle {
     modelId: options.model.id,
     source: options.source,
     supportsReasoning: options.model.capabilities.includes("reasoning"),
+    capabilities: options.model.capabilities,
     client,
   };
 }
@@ -217,11 +227,13 @@ export function reasoningKwargs(
 
   const reasoning: Record<string, unknown> = { effort };
 
-  // The handle carries `supportsReasoning`, not the finer-grained
-  // `reasoningSummary` capability. Look the model up by id: the registry is
-  // a thin re-export, and the model spec is the authoritative source.
-  const modelSpec = lookupModelSpec(handle.providerId, handle.modelId);
-  if (modelSpec?.capabilities.includes("reasoningSummary")) {
+  // Prefer the capabilities the handle was built with: for a catalogue or custom
+  // model they are the only record. A handle without them falls back to the
+  // registry, which is authoritative for curated models.
+  const capabilities =
+    handle.capabilities ??
+    lookupModelSpec(handle.providerId, handle.modelId)?.capabilities;
+  if (capabilities?.includes("reasoningSummary")) {
     reasoning.summary = "detailed";
   }
 

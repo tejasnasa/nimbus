@@ -13,5 +13,6 @@ export {
   type SelectedModel,
   type SelectionRefusal,
 } from "./ai/selectModel";
+export { estimateCostUsd, type TokenUsage, type CostUsage } from "./ai/cost";
 export { generateSlug } from "./slugGenerator";
 export { timeAgo } from "./timeAgo";

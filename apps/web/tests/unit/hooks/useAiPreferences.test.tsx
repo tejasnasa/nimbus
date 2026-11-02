@@ -196,3 +196,38 @@ describe("useAiPreferences", () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe("useAiPreferences: model source on the wire", () => {
+  it("sends the source as `source` and never sends capabilities", async () => {
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.get(`${BACKEND_URL}/api/ai/preferences`, () =>
+        ok({ chat: null, markdown: null, canvas: null }),
+      ),
+      http.put(`${BACKEND_URL}/api/ai/preferences`, async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return ok(sent);
+      }),
+    );
+
+    const { result } = renderHook(() => useAiPreferences());
+    await waitFor(() => expect(result.current.state.kind).toBe("ready"));
+
+    await act(async () => {
+      await result.current.save({
+        feature: "chat",
+        providerId: "openrouter",
+        modelId: "vendor/custom",
+        modelSource: "custom",
+        modelCapabilities: ["tools", "vision"],
+      });
+    });
+
+    expect(sent).toEqual({
+      feature: "chat",
+      providerId: "openrouter",
+      modelId: "vendor/custom",
+      source: "custom",
+    });
+  });
+});

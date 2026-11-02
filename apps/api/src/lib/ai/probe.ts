@@ -118,7 +118,7 @@ export async function probeApiKey(
  * `unreachable` because transport failures (DNS, connection refused, timeout)
  * are exactly the case the SDK reports without a status.
  */
-function classifyProbeError(
+export function classifyProbeError(
   err: unknown,
   provider: AiProviderSpec,
 ): ProbeRefusal {

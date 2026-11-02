@@ -207,6 +207,14 @@ model AiFeaturePreference {
   feature    AiFeature
   providerId String
   modelId    String
+  /// Where the model id came from: `registry` (curated list), `catalog`
+  /// (OpenRouter's live catalogue) or `custom` (a typed id whose capabilities
+  /// were measured by a probe at save time).
+  modelSource String @default("registry")
+  /// Capabilities measured or copied server-side when the preference was saved.
+  /// Consulted instead of the registry when `modelSource` is not `registry`.
+  /// Never taken from the client.
+  modelCapabilities String[] @default([])
   updatedAt  DateTime  @updatedAt
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 

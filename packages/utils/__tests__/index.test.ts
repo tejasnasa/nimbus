@@ -7,6 +7,7 @@ import { timeAgo } from "../src/timeAgo";
 describe("@nimbus/utils barrel", () => {
   it("exposes exactly the shared helpers", () => {
     expect(Object.keys(barrel).sort()).toEqual([
+      "estimateCostUsd",
       "generateSlug",
       "isOfferedFor",
       "selectModelForFeature",

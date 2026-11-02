@@ -94,7 +94,14 @@ export function useAiPreferences(): UseAiPreferences {
             method: "PUT",
             headers: { "content-type": "application/json" },
             credentials: "include",
-            body: JSON.stringify(input),
+            // The wire field is `source`. Capabilities are never sent: the
+            // server copies or measures them itself.
+            body: JSON.stringify({
+              feature: input.feature,
+              providerId: input.providerId,
+              modelId: input.modelId,
+              source: input.modelSource,
+            }),
           },
         );
         const body = (await res.json()) as {

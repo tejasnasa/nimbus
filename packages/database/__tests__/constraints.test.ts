@@ -430,3 +430,43 @@ describe("collaborative state round-trips", () => {
     expect(consumed.initialContent).toBeNull();
   });
 });
+
+describe("ai feature preference model source", () => {
+  it("defaults an existing-style row to the registry source with no stored capabilities", async () => {
+    const user = await createUser(client);
+
+    const row = await client.aiFeaturePreference.create({
+      data: {
+        userId: user.id,
+        feature: "CHAT",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+      },
+    });
+
+    expect(row.modelSource).toBe("registry");
+    expect(row.modelCapabilities).toEqual([]);
+  });
+
+  it("round-trips a custom model with its measured capabilities", async () => {
+    const user = await createUser(client, { email: "pref-custom@example.test" });
+
+    await client.aiFeaturePreference.create({
+      data: {
+        userId: user.id,
+        feature: "CANVAS",
+        providerId: "openrouter",
+        modelId: "vendor/custom",
+        modelSource: "custom",
+        modelCapabilities: ["streaming", "jsonMode"],
+      },
+    });
+
+    await expect(
+      client.aiFeaturePreference.findFirstOrThrow({ where: { userId: user.id } }),
+    ).resolves.toMatchObject({
+      modelSource: "custom",
+      modelCapabilities: ["streaming", "jsonMode"],
+    });
+  });
+});

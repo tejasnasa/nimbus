@@ -28,7 +28,10 @@
  *     call, so its refusals are limited to the rest of the union.
  */
 import {
+  type AiCapability,
   type AiFeature,
+  type AiModelSource,
+  type AiModelSpec,
   type AiProviderId,
   type AiProviderSpec,
 } from "@nimbus/types";
@@ -130,7 +133,13 @@ export async function resolveAi(
     }),
     db.aiFeaturePreference.findMany({
       where: { userId },
-      select: { feature: true, providerId: true, modelId: true },
+      select: {
+        feature: true,
+        providerId: true,
+        modelId: true,
+        modelSource: true,
+        modelCapabilities: true,
+      },
     }),
   ]);
 
@@ -145,6 +154,8 @@ export async function resolveAi(
     feature: p.feature.toLowerCase() as AiFeature,
     providerId: p.providerId as AiProviderId,
     modelId: p.modelId,
+    source: p.modelSource as AiModelSource,
+    capabilities: p.modelCapabilities as AiCapability[],
   }));
 
   const selection = selectModelForFeature(
@@ -158,7 +169,13 @@ export async function resolveAi(
     return refusalFor(selection.reason, freeTier !== null);
   }
 
-  return buildResolution({ feature, selection, userId, db });
+  return buildResolution({
+    feature,
+    selection,
+    userId,
+    db,
+    preference: preferenceViews.find((p) => p.feature === feature),
+  });
 }
 
 /**
@@ -212,7 +229,37 @@ type BuildResolutionDeps = {
   readonly selection: SelectedModel;
   readonly userId: string;
   readonly db: ResolveDeps["prisma"];
+  /** The user's saved preference for the feature, when there is one. */
+  readonly preference?: PreferenceView;
 };
+
+/**
+ * The model spec for a selection that came from a catalogue or custom
+ * preference, built from the capabilities stored with it. `undefined` when the
+ * selection is not that preference (a substituted default, the free tier) or
+ * the preference is a registry one.
+ */
+function storedModelSpec(
+  preference: PreferenceView | undefined,
+  selection: SelectedModel,
+): AiModelSpec | undefined {
+  if (
+    !preference ||
+    preference.source === undefined ||
+    preference.source === "registry" ||
+    preference.providerId !== selection.providerId ||
+    preference.modelId !== selection.modelId
+  ) {
+    return undefined;
+  }
+  const capabilities = preference.capabilities ?? [];
+  return {
+    id: preference.modelId,
+    label: preference.modelId,
+    capabilities,
+    effortLevels: capabilities.includes("reasoning") ? ["low", "high"] : [],
+  };
+}
 
 /**
  * Turns a successful selection into a full {@link AiSuccess}.
@@ -225,7 +272,7 @@ type BuildResolutionDeps = {
 async function buildResolution(
   input: BuildResolutionDeps,
 ): Promise<AiResolution> {
-  const { feature, selection, userId, db } = input;
+  const { feature, selection, userId, db, preference } = input;
 
   if (selection.source === "byok") {
     const credential = await db!.aiCredential.findUnique({
@@ -260,7 +307,9 @@ async function buildResolution(
       };
     }
 
-    const model = provider.models.find((m) => m.id === selection.modelId);
+    const model =
+      provider.models.find((m) => m.id === selection.modelId) ??
+      storedModelSpec(preference, selection);
     if (!model) {
       return {
         ok: false,

@@ -13,7 +13,10 @@ export {
 } from "./validations/account";
 export {
   aiCredentialCreateSchema,
+  aiCatalogQuerySchema,
   aiFeatureSchema,
+  aiModelProbeSchema,
+  aiModelSourceSchema,
   aiPreferenceSchema,
   aiProviderIdSchema,
 } from "./validations/ai";
@@ -36,6 +39,9 @@ export {
 export { ServerResponse } from "./api/serverResponse";
 
 export type {
+  AiCatalogDTO,
+  AiCatalogModelDTO,
+  AiProbeResultDTO,
   AiCredentialDTO,
   AiFeatureStatus,
   AiPreferenceDTO,
@@ -56,14 +62,19 @@ export type { BotResult } from "./api/bot";
 export {
   AI_FEATURE_RECOMMENDED,
   AI_FEATURE_REQUIREMENTS,
+  AI_MODEL_SOURCES,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
+  capabilitiesMeetRequirements,
+  featuresServedBy,
   meetsRequirements,
   modelById,
   modelsFor,
   type AiCapability,
   type AiEffort,
   type AiFeature,
+  type AiModelPricing,
+  type AiModelSource,
   type AiModelSpec,
   type AiProviderId,
   type AiProviderSpec,

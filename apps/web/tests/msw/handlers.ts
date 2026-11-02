@@ -264,6 +264,12 @@ export const handlers = [
   http.delete(url("/api/ai/credentials/:providerId"), () =>
     ok({ clearedPreferences: 0 }, "Credential removed"),
   ),
+  http.get(url("/api/ai/catalog/openrouter"), () =>
+    ok({ providerId: "openrouter", models: [], stale: false }),
+  ),
+  http.post(url("/api/ai/models/probe"), () =>
+    ok({ capabilities: [], servesFeatures: [] }, "Model checked"),
+  ),
   http.get(url("/api/ai/preferences"), () =>
     ok({ chat: null, markdown: null, canvas: null }),
   ),

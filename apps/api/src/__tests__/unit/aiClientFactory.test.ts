@@ -456,3 +456,70 @@ describe("createAiClient — unknown provider is rejected at the type level", ()
     expect(_typed.providerId).toBe("openai");
   });
 });
+
+describe("reasoningKwargs: stored capabilities for models outside the registry", () => {
+  const build = (capabilities: AiModelSpec["capabilities"]) =>
+    createAiClient({
+      provider: PROVIDERS.openrouter,
+      apiKey: "k",
+      // An id the registry has never heard of: only the capabilities carried on
+      // the handle can say what it accepts.
+      model: makeModel("vendor/custom-model", capabilities),
+      source: "byok",
+    });
+
+  it("carries the model capabilities on the handle", () => {
+    const handle = build(["tools", "reasoning"]);
+
+    expect(handle.capabilities).toEqual(["tools", "reasoning"]);
+    expect(handle.supportsReasoning).toBe(true);
+  });
+
+  it("sends effort alone when a custom model measured reasoning without summary", () => {
+    const handle = build(["tools", "streaming", "reasoning"]);
+
+    expect(reasoningKwargs(handle, "low")).toEqual({
+      reasoning: { effort: "low" },
+    });
+  });
+
+  it("adds summary only when the stored capabilities include reasoningSummary", () => {
+    const handle = build(["tools", "reasoning", "reasoningSummary"]);
+
+    expect(reasoningKwargs(handle, "low")).toEqual({
+      reasoning: { effort: "low", summary: "detailed" },
+    });
+  });
+
+  it("sends nothing for a custom model that measured no reasoning", () => {
+    expect(reasoningKwargs(build(["tools", "streaming"]), "low")).toEqual({});
+  });
+
+  it("does not let a registry model of the same id override the stored set", () => {
+    // deepseek-flash is registered with reasoningSummary; a handle built from a
+    // spec without it must not borrow the registry copy.
+    const handle = createAiClient({
+      provider: PROVIDERS.deepseek,
+      apiKey: "k2",
+      model: makeModel("deepseek-flash", ["tools", "reasoning"]),
+      source: "byok",
+    });
+
+    expect(reasoningKwargs(handle, "low")).toEqual({
+      reasoning: { effort: "low" },
+    });
+  });
+
+  it("falls back to the registry for a hand-built handle without capabilities", () => {
+    const legacy = {
+      providerId: "deepseek",
+      modelId: "deepseek-flash",
+      source: "byok",
+      supportsReasoning: true,
+    } as unknown as AiClientHandle;
+
+    expect(reasoningKwargs(legacy, "low")).toEqual({
+      reasoning: { effort: "low", summary: "detailed" },
+    });
+  });
+});

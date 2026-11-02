@@ -23,6 +23,7 @@ import {
   AI_PROVIDERS,
   type AiCredentialDTO,
   type AiFeature,
+  type AiModelSource,
   type AiProviderId,
   type AiStatusDTO,
 } from "@nimbus/types";
@@ -138,11 +139,13 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
     feature: AiFeature,
     providerId: string,
     modelId: string,
+    modelSource: AiModelSource,
   ) => {
     await savePreference({
       feature,
       providerId: providerId as AiProviderId,
       modelId,
+      modelSource,
     });
   };
 
@@ -219,7 +222,8 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
         <h2 className="text-sm font-semibold">Per-feature model</h2>
         <p className="text-xs text-(--muted-foreground)">
           Changes save automatically. Models without the required capabilities
-          for a feature are hidden.
+          for a feature are hidden, and a custom model id is checked before it
+          is saved.
         </p>
 
         <div className="space-y-5">
@@ -244,12 +248,17 @@ export default function AiSettingsPanel({ initialStatus }: Props) {
                 onChangeProviderAction={(providerId) =>
                   void handleChangeProvider(feature, providerId)
                 }
-                onChangeModelAction={(modelId) => {
+                onChangeModelAction={(modelId, modelSource) => {
                   const providerId =
                     preferences[feature]?.providerId ??
                     credentials[0]?.providerId;
                   if (!providerId) return;
-                  void handleChangeModel(feature, providerId, modelId);
+                  void handleChangeModel(
+                    feature,
+                    providerId,
+                    modelId,
+                    modelSource,
+                  );
                 }}
               />
             </div>

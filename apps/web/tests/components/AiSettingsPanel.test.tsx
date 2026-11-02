@@ -200,7 +200,7 @@ describe("AiSettingsPanel — pickers", () => {
       (li) => li.textContent,
     );
     // gpt-5-nano has tools; it is offered.
-    expect(labels).toContain("GPT-5 Nano");
+    expect(labels.some((l) => l?.includes("GPT-5 Nano"))).toBe(true);
   });
 
   it("sends the picked preference to PUT /api/ai/preferences on change", async () => {
@@ -228,7 +228,7 @@ describe("AiSettingsPanel — pickers", () => {
     await user.click(trigger);
 
     const gptOption = await screen.findByRole("option", {
-      name: "GPT-5 Nano",
+      name: /GPT-5 Nano/,
     });
     await user.click(gptOption);
 
@@ -262,7 +262,7 @@ describe("AiSettingsPanel — pickers", () => {
     await user.click(trigger);
 
     const gptOption = await screen.findByRole("option", {
-      name: "GPT-5 Nano",
+      name: /GPT-5 Nano/,
     });
     await user.click(gptOption);
 

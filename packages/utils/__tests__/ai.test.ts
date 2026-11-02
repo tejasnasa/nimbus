@@ -178,6 +178,8 @@ describe("modelsFor — picker filter", () => {
       "openai/gpt-oss-120b",
       "openai/gpt-oss-20b",
       "qwen/qwen3.8-27b",
+      "llama-3.3-70b-versatile",
+      "llama-3.1-8b-instant",
     ]);
   });
 
@@ -751,4 +753,83 @@ describe("requirements and recommended are disjoint", () => {
       }
     },
   );
+});
+
+describe("selectModelForFeature — catalogue and custom preferences", () => {
+  const openrouter = [cred("c1", "openrouter", new Date("2026-01-01"))];
+  const storedPref = (
+    source: "catalog" | "custom",
+    capabilities: PreferenceView["capabilities"],
+    modelId = "vendor/not-in-registry",
+  ): PreferenceView => ({
+    feature: "canvas",
+    providerId: "openrouter",
+    modelId,
+    source,
+    capabilities,
+  });
+
+  for (const source of ["catalog", "custom"] as const) {
+    it(`${source}: honours the stored capabilities for an id the registry lacks`, () => {
+      const result = selectModelForFeature(
+        "canvas",
+        [storedPref(source, ["streaming", "jsonMode"])],
+        openrouter,
+        null,
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        providerId: "openrouter",
+        modelId: "vendor/not-in-registry",
+        substituted: false,
+      });
+    });
+
+    it(`${source}: a model missing a requirement falls through like a stale preference`, () => {
+      const result = selectModelForFeature(
+        "canvas",
+        [storedPref(source, ["streaming"])],
+        openrouter,
+        null,
+      );
+
+      // Falls to the provider default, flagged as substituted.
+      expect(result).toMatchObject({
+        ok: true,
+        modelId: AI_PROVIDERS.openrouter.defaultModel,
+        substituted: true,
+      });
+    });
+
+    it(`${source}: a preference saved without capabilities is not trusted`, () => {
+      const result = selectModelForFeature(
+        "canvas",
+        [storedPref(source, undefined)],
+        openrouter,
+        null,
+      );
+
+      expect(result).toMatchObject({ ok: true, substituted: true });
+    });
+  }
+
+  it("a registry preference still reads the registry, ignoring any stored capabilities", () => {
+    const result = selectModelForFeature(
+      "chat",
+      [
+        {
+          feature: "chat",
+          providerId: "openrouter",
+          modelId: "openai/gpt-4o-mini",
+          source: "registry",
+          capabilities: [],
+        },
+      ],
+      openrouter,
+      null,
+    );
+
+    expect(result).toMatchObject({ ok: true, modelId: "openai/gpt-4o-mini", substituted: false });
+  });
 });

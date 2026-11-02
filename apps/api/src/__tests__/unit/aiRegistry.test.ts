@@ -180,13 +180,10 @@ describe("every model in a verified provider meets the chat hard requirement", (
 // ── verifiedAt semantics ────────────────────────────────────────────────────
 
 describe("verifiedAt — measurement, not assumption", () => {
-  it("is null for providers the probe has not measured", () => {
-    // OpenRouter was not verified in Phase 0 (no API key). The honest
-    // default is null, which the picker treats as "do not offer". This
-    // test will fail the moment Phase 0 (or a future run) records an
-    // OpenRouter verification — at which point the next step is to add the
-    // measured capabilities here.
-    expect(AI_PROVIDERS.openrouter.verifiedAt).toBeNull();
+  it("is stamped for OpenRouter, measured with a live key", () => {
+    // A newly added provider starts at null and stays unoffered until a
+    // measured run stamps it; OpenRouter has been measured.
+    expect(AI_PROVIDERS.openrouter.verifiedAt).toBe("2026-11-03");
   });
 
   it("is an ISO date string for every verified provider", () => {
@@ -337,6 +334,48 @@ describe("registry shape — the contract Phase 3's resolver will rely on", () =
         meetsRequirements(m, "chat"),
       );
       expect(allCapable).toBe(true);
+    }
+  });
+});
+
+describe("pricing", () => {
+  const priced = AI_PROVIDER_IDS.flatMap((id) =>
+    AI_PROVIDERS[id].models
+      .filter((m) => m.pricing !== undefined)
+      .map((m) => ({ provider: id, model: m })),
+  );
+
+  it("is recorded for at least one model on every provider that has a public price list", () => {
+    const providersWithPrices = new Set(priced.map((p) => p.provider));
+    expect(providersWithPrices).toEqual(
+      new Set(["openai", "groq", "deepseek", "openrouter"]),
+    );
+  });
+
+  for (const { provider, model } of priced) {
+    it(`${provider}/${model.id}: checkedAt parses as a date and prices are not negative`, () => {
+      const pricing = model.pricing!;
+
+      expect(pricing.checkedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(Number.isNaN(Date.parse(pricing.checkedAt))).toBe(false);
+
+      for (const value of [
+        pricing.inputPerMTok,
+        pricing.outputPerMTok,
+        pricing.perAudioMinute,
+        pricing.perMChars,
+      ]) {
+        if (value === undefined) continue;
+        expect(Number.isFinite(value)).toBe(true);
+        expect(value).toBeGreaterThanOrEqual(0);
+      }
+    });
+  }
+
+  it("lists a text price pair for every priced token model", () => {
+    for (const { model } of priced) {
+      expect(model.pricing!.inputPerMTok).toBeDefined();
+      expect(model.pricing!.outputPerMTok).toBeDefined();
     }
   });
 });

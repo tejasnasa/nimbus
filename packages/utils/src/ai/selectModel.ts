@@ -22,9 +22,12 @@
 
 import {
   AI_PROVIDERS,
+  capabilitiesMeetRequirements,
   meetsRequirements,
   modelById,
+  type AiCapability,
   type AiFeature,
+  type AiModelSource,
   type AiModelSpec,
   type AiProviderId,
   type AiProviderSpec,
@@ -49,6 +52,14 @@ export type PreferenceView = {
   readonly feature: AiFeature;
   readonly providerId: AiProviderId;
   readonly modelId: string;
+  /** Where the model came from. Absent is treated as `registry`. */
+  readonly source?: AiModelSource;
+  /**
+   * Capabilities stored with the preference. Read only when `source` is not
+   * `registry`: those models are not in the registry, so the stored copy is the
+   * only record of what they can do.
+   */
+  readonly capabilities?: readonly AiCapability[];
 };
 
 /** The free tier the operator has configured, or null when disabled. */
@@ -146,16 +157,33 @@ export function selectModelForFeature(
       (c) => c.providerId === pref.providerId,
     );
     if (credential) {
-      const model = modelById(providers[pref.providerId], pref.modelId);
-      if (model && meetsRequirements(model, feature)) {
-        return {
-          ok: true,
-          source: "byok",
-          providerId: pref.providerId,
-          modelId: model.id,
-          credentialId: credential.id,
-          substituted: false,
-        };
+      const stored = pref.source !== undefined && pref.source !== "registry";
+      if (stored) {
+        // Catalogue and custom ids have no registry entry; the capabilities
+        // saved with the preference stand in for it. A preference saved without
+        // any is treated like a stale one rather than trusted.
+        if (capabilitiesMeetRequirements(pref.capabilities ?? [], feature)) {
+          return {
+            ok: true,
+            source: "byok",
+            providerId: pref.providerId,
+            modelId: pref.modelId,
+            credentialId: credential.id,
+            substituted: false,
+          };
+        }
+      } else {
+        const model = modelById(providers[pref.providerId], pref.modelId);
+        if (model && meetsRequirements(model, feature)) {
+          return {
+            ok: true,
+            source: "byok",
+            providerId: pref.providerId,
+            modelId: model.id,
+            credentialId: credential.id,
+            substituted: false,
+          };
+        }
       }
     }
     // 2. Preference present but credential gone, or model not capable →

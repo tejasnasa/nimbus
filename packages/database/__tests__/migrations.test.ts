@@ -105,6 +105,7 @@ describe("_prisma_migrations ledger", () => {
     expect(applied).toMatch(/add_markdown_using_yjs/);
     expect(applied).toMatch(/add_initial_content/);
     expect(applied).toMatch(/add_ai_credentials/);
+    expect(applied).toMatch(/add_workspace_ai/);
   });
 });
 

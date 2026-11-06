@@ -168,7 +168,7 @@ describe("deployed schema — enums", () => {
     expect(rows.map((r) => r.label)).toEqual(["CANVAS", "MARKDOWN"]);
   });
 
-  it("declares AiFeature labels CHAT, MARKDOWN, CANVAS", async () => {
+  it("declares AiFeature labels, the original three first", async () => {
     const rows = await client.$queryRaw<{ label: string }[]>`
       SELECT e.enumlabel AS label
       FROM pg_enum e
@@ -176,7 +176,29 @@ describe("deployed schema — enums", () => {
       WHERE t.typname = 'AiFeature'
       ORDER BY e.enumsortorder
     `;
-    expect(rows.map((r) => r.label)).toEqual(["CHAT", "MARKDOWN", "CANVAS"]);
+    expect(rows.map((r) => r.label)).toEqual([
+      "CHAT",
+      "MARKDOWN",
+      "CANVAS",
+      "VISION",
+      "TRANSCRIPTION",
+      "SPEECH",
+      "MEETING",
+    ]);
+  });
+
+  it.each([
+    ["AiCallSource", ["BYOK", "FREE"]],
+    ["AiCallStatus", ["OK", "ERROR", "REFUSED", "CANCELLED"]],
+  ])("declares %s labels", async (name, labels) => {
+    const rows = await client.$queryRaw<{ label: string }[]>`
+      SELECT e.enumlabel AS label
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = ${name}
+      ORDER BY e.enumsortorder
+    `;
+    expect(rows.map((r) => r.label)).toEqual(labels);
   });
 });
 
@@ -191,6 +213,16 @@ describe("deployed schema — referential actions", () => {
     ["account", "account_userId_fkey"],
     ["ai_credential", "ai_credential_userId_fkey"],
     ["ai_feature_preference", "ai_feature_preference_userId_fkey"],
+    [
+      "workspace_ai_credential",
+      "workspace_ai_credential_workspaceId_fkey",
+    ],
+    [
+      "workspace_ai_preference",
+      "workspace_ai_preference_workspaceId_fkey",
+    ],
+    ["workspace_ai_settings", "workspace_ai_settings_workspaceId_fkey"],
+    ["ai_call", "ai_call_workspaceId_fkey"],
   ])("%s.%s deletes children with the parent", async (table, constraint) => {
     const found = (await constraintsOf(table)).find(
       (c) => c.conname === constraint,
@@ -253,5 +285,61 @@ describe("deployed schema — ai_feature_preference model source", () => {
       "modelCapabilities",
     );
     expect(capabilities.udt_name).toBe("_text");
+  });
+});
+
+describe("deployed schema — attribution columns outlive the user", () => {
+  it.each([
+    ["workspace_ai_credential", "workspace_ai_credential_createdById_fkey"],
+    ["workspace_ai_preference", "workspace_ai_preference_updatedById_fkey"],
+    ["ai_call", "ai_call_userId_fkey"],
+  ])("%s.%s sets null on delete", async (table, constraint) => {
+    const found = (await constraintsOf(table)).find(
+      (c) => c.conname === constraint,
+    );
+    expect(found, `${constraint} is missing from ${table}`).toBeDefined();
+    expect(found!.contype).toBe("f");
+    // 'n' is SET NULL.
+    expect(found!.confdeltype).toBe("n");
+    expect(found!.definition).toContain("ON DELETE SET NULL");
+  });
+});
+
+describe("deployed schema — workspace AI tables", () => {
+  it("enforces one credential per workspace and provider, and one preference per workspace and feature", async () => {
+    const defs = async (table: string) =>
+      (
+        await client.$queryRaw<{ indexdef: string }[]>`
+          SELECT indexdef FROM pg_indexes
+          WHERE schemaname = 'public' AND tablename = ${table}
+            AND indexdef LIKE 'CREATE UNIQUE%'
+        `
+      ).map((r) => r.indexdef);
+
+    expect((await defs("workspace_ai_credential")).join("\n")).toMatch(
+      /\("workspaceId", "providerId"\)/,
+    );
+    expect((await defs("workspace_ai_preference")).join("\n")).toMatch(
+      /\("workspaceId", feature\)|\("workspaceId", "feature"\)/,
+    );
+  });
+
+  it("indexes the call log by workspace and time", async () => {
+    const rows = await client.$queryRaw<{ indexdef: string }[]>`
+      SELECT indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = 'ai_call'
+    `;
+    expect(rows.map((r) => r.indexdef).join("\n")).toMatch(
+      /\("workspaceId", "createdAt"\)/,
+    );
+  });
+
+  it("adds the voice counter with a default of zero", async () => {
+    const column = await client.$queryRaw<{ udt_name: string; column_default: string | null }[]>`
+      SELECT udt_name, column_default FROM information_schema.columns
+      WHERE table_name = 'user' AND column_name = 'freeVoiceSecondsUsed'
+    `;
+    expect(column[0]?.udt_name).toBe("int4");
+    expect(column[0]?.column_default).toBe("0");
   });
 });

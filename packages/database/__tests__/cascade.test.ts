@@ -173,3 +173,78 @@ describe("deleting a document", () => {
     expect(await client.workspace.findUnique({ where: { id: workspace.id } })).not.toBeNull();
   });
 });
+
+describe("workspace AI data", () => {
+  async function seedAi() {
+    const { owner, workspace } = await seedWorkspace();
+    await client.workspaceAiCredential.create({
+      data: {
+        workspaceId: workspace.id,
+        providerId: "openai",
+        keyEnvelope: "nimbus1.deadbeef.AAAA.BBBB.CCCC",
+        keyId: "deadbeef",
+        keyFingerprint: "cafef00dcafef00d",
+        maskedPreview: "sk-…4f2a",
+        createdById: owner.id,
+      },
+    });
+    await client.workspaceAiPreference.create({
+      data: {
+        workspaceId: workspace.id,
+        feature: "CHAT",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+        updatedById: owner.id,
+      },
+    });
+    await client.workspaceAiSettings.create({
+      data: { workspaceId: workspace.id, monthlySpendCapUsd: 10 },
+    });
+    await client.aiCall.create({
+      data: {
+        workspaceId: workspace.id,
+        userId: owner.id,
+        feature: "CHAT",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+        source: "BYOK",
+        status: "OK",
+        latencyMs: 12,
+        costUsd: 0.000123,
+      },
+    });
+    return { owner, workspace };
+  }
+
+  it("is removed with the workspace", async () => {
+    const { workspace } = await seedAi();
+
+    await client.workspace.delete({ where: { id: workspace.id } });
+
+    expect(await client.workspaceAiCredential.count()).toBe(0);
+    expect(await client.workspaceAiPreference.count()).toBe(0);
+    expect(await client.workspaceAiSettings.count()).toBe(0);
+    expect(await client.aiCall.count()).toBe(0);
+  });
+
+  it("outlives the user who created it, forgetting only who", async () => {
+    const { owner } = await seedAi();
+
+    await client.user.delete({ where: { id: owner.id } });
+
+    const credential = await client.workspaceAiCredential.findFirstOrThrow();
+    expect(credential.createdById).toBeNull();
+    const preference = await client.workspaceAiPreference.findFirstOrThrow();
+    expect(preference.updatedById).toBeNull();
+    const call = await client.aiCall.findFirstOrThrow();
+    expect(call.userId).toBeNull();
+    expect(await client.workspaceAiSettings.count()).toBe(1);
+  });
+
+  it("stores a priced call's cost to six decimal places", async () => {
+    await seedAi();
+    const call = await client.aiCall.findFirstOrThrow();
+    expect(call.costUsd?.toString()).toBe("0.000123");
+  });
+});
+

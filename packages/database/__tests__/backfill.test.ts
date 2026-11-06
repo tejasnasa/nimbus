@@ -143,7 +143,9 @@ describe("add_ai_credentials migration — backfill semantics", () => {
       WHERE t.typname = 'AiFeature'
       ORDER BY e.enumsortorder
     `;
-    expect(enums.map((row) => row.label)).toEqual([
+    // Later migrations append labels, so the ones this migration created
+    // must be the first three, in order.
+    expect(enums.map((row) => row.label).slice(0, 3)).toEqual([
       "CHAT",
       "MARKDOWN",
       "CANVAS",

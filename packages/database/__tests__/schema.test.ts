@@ -72,6 +72,10 @@ const MODELS = [
   "Document",
   "AiCredential",
   "AiFeaturePreference",
+  "WorkspaceAiCredential",
+  "WorkspaceAiPreference",
+  "WorkspaceAiSettings",
+  "AiCall",
 ] as const;
 
 describe("schema.prisma — datasource and generator", () => {
@@ -134,14 +138,36 @@ describe("schema.prisma — enums", () => {
     const enums = [...schema.matchAll(/(?:^|\n)enum\s+(\w+)\s*\{/g)].map(
       (m) => m[1],
     );
-    expect(enums.sort()).toEqual(["AiFeature", "DocumentType", "MemberRole"]);
+    expect(enums.sort()).toEqual([
+      "AiCallSource",
+      "AiCallStatus",
+      "AiFeature",
+      "DocumentType",
+      "MemberRole",
+    ]);
   });
 
-  it("defines AiFeature as exactly CHAT, MARKDOWN, CANVAS", () => {
+  it("defines AiFeature as the original three followed by the added features", () => {
+    // New labels are appended, never inserted: an enum's order is its sort
+    // order in the database, and inserting would need a table rewrite.
     expect(declarations("enum", "AiFeature")).toEqual([
       "CHAT",
       "MARKDOWN",
       "CANVAS",
+      "VISION",
+      "TRANSCRIPTION",
+      "SPEECH",
+      "MEETING",
+    ]);
+  });
+
+  it("defines the call log's source and status enums", () => {
+    expect(declarations("enum", "AiCallSource")).toEqual(["BYOK", "FREE"]);
+    expect(declarations("enum", "AiCallStatus")).toEqual([
+      "OK",
+      "ERROR",
+      "REFUSED",
+      "CANCELLED",
     ]);
   });
 
@@ -156,6 +182,10 @@ describe("schema.prisma — enums", () => {
       "CANVAS",
       "CHAT",
       "MARKDOWN",
+      "MEETING",
+      "SPEECH",
+      "TRANSCRIPTION",
+      "VISION",
     ]);
     expect(new Set(Object.values(MemberRole))).toEqual(
       new Set(declarations("enum", "MemberRole")),
@@ -268,6 +298,10 @@ describe("schema.prisma — User, Message and relations", () => {
     ["Document", "workspaceId"],
     ["AiCredential", "userId"],
     ["AiFeaturePreference", "userId"],
+    ["WorkspaceAiCredential", "workspaceId"],
+    ["WorkspaceAiPreference", "workspaceId"],
+    ["WorkspaceAiSettings", "workspaceId"],
+    ["AiCall", "workspaceId"],
   ] as const)("%s.%s cascades on delete", (model, name) => {
     const relation = declarations("model", model).find((line) =>
       line.includes(`fields: [${name}]`),
@@ -355,5 +389,58 @@ describe("schema.prisma — AiFeaturePreference", () => {
     expect(declarations("model", "AiFeaturePreference").join("\n")).toContain(
       '@@map("ai_feature_preference")',
     );
+  });
+});
+
+describe("schema.prisma — workspace AI tables", () => {
+  it.each([
+    ["WorkspaceAiCredential", "createdById"],
+    ["WorkspaceAiPreference", "updatedById"],
+    ["AiCall", "userId"],
+  ] as const)(
+    "%s.%s survives the user: it is set null, not cascaded",
+    (model, name) => {
+      const relation = declarations("model", model).find((line) =>
+        line.includes(`fields: [${name}]`),
+      );
+      expect(relation, `no relation over ${model}.${name}`).toBeDefined();
+      expect(relation).toContain("onDelete: SetNull");
+      expect(field(model, name).optional).toBe(true);
+    },
+  );
+
+  it("enforces one credential per (workspace, provider)", () => {
+    expect(declarations("model", "WorkspaceAiCredential").join("\n")).toContain(
+      "@@unique([workspaceId, providerId])",
+    );
+  });
+
+  it("enforces one preference per (workspace, feature)", () => {
+    expect(declarations("model", "WorkspaceAiPreference").join("\n")).toContain(
+      "@@unique([workspaceId, feature])",
+    );
+  });
+
+  it("indexes the call log for the usage list and the month-to-date sum", () => {
+    expect(declarations("model", "AiCall").join("\n")).toContain(
+      "@@index([workspaceId, createdAt])",
+    );
+  });
+
+  it("never gives a credential a plaintext column", () => {
+    const names = declarations("model", "WorkspaceAiCredential").map((line) =>
+      line.trim().split(/\s+/)[0],
+    );
+    for (const forbidden of ["apiKey", "key", "secret", "plaintext"]) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps the retained per-user tables and the voice counter", () => {
+    expect(field("User", "freeVoiceSecondsUsed").type).toBe("Int");
+    expect(field("User", "freeVoiceSecondsUsed").attributes).toContain(
+      "@default(0)",
+    );
+    expect(() => declarations("model", "AiCredential")).not.toThrow();
   });
 });

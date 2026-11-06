@@ -27,8 +27,15 @@ model User {
   workspaceMembers WorkspaceMember[]
   messages      Message[]
   freeDocGenerationsUsed Int @default(0)
+  /// Seconds of the in-call assistant this user has spent on the operator's
+  /// free tier. Per user, not per workspace, so ten workspaces are not ten
+  /// allowances.
+  freeVoiceSecondsUsed Int @default(0)
   aiCredentials  AiCredential[]
   aiPreferences  AiFeaturePreference[]
+  workspaceAiCredentialsCreated WorkspaceAiCredential[] @relation("CredentialCreatedBy")
+  workspaceAiPreferencesUpdated WorkspaceAiPreference[] @relation("PreferenceUpdatedBy")
+  aiCalls        AiCall[]
 
   @@unique([email])
   @@map("user")
@@ -104,6 +111,10 @@ model Workspace {
   members   WorkspaceMember[]
   messages  Message[]
   documents Document[]
+  aiCredentials WorkspaceAiCredential[]
+  aiPreferences WorkspaceAiPreference[]
+  aiSettings    WorkspaceAiSettings?
+  aiCalls       AiCall[]
 }
 
 /// Join table linking a User to a Workspace with an RBAC role.
@@ -223,6 +234,112 @@ model AiFeaturePreference {
   @@map("ai_feature_preference")
 }
 
+/// An admin-managed, encrypted provider key that every member of the workspace
+/// spends when they use AI there.
+///
+/// One row per (workspace, provider). The plaintext key never appears in the
+/// database: `keyEnvelope` carries `nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>`
+/// produced by `apps/api/src/lib/ai/credentialCrypto.ts`, bound by AAD to the
+/// workspace and provider so a row copied into another workspace fails to
+/// decrypt.
+model WorkspaceAiCredential {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  providerId     String
+  label          String?
+  /// nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>, AAD `ai-credential:v2:<workspaceId>:<providerId>`.
+  keyEnvelope    String
+  /// sha256(derivedKey).slice(0,8) — which master key encrypted this row.
+  keyId          String
+  /// sha256(apiKey).slice(0,16) — ledger identity, not a secret. Never returned over HTTP.
+  keyFingerprint String
+  /// "sk-…4f2a" — safe to return.
+  maskedPreview  String
+  /// Which model kinds the save-time probe confirmed: ["text","transcription","speech"].
+  verifiedKinds  String[]  @default([])
+  /// Stamped by the save-time probe. null means the key was never validated.
+  validatedAt    DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastUsedAt     DateTime?
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy      User?     @relation("CredentialCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, providerId])
+  @@index([workspaceId])
+  @@map("workspace_ai_credential")
+}
+
+/// The workspace's chosen provider and model for an AI feature. Drives which
+/// credential and model a request in that workspace uses.
+model WorkspaceAiPreference {
+  id          String    @id @default(cuid())
+  workspaceId String
+  feature     AiFeature
+  providerId  String
+  modelId     String
+  /// registry | catalog | custom. Voice features are always registry.
+  modelSource String    @default("registry")
+  /// Capabilities stored for catalogue and custom models (from the catalogue or
+  /// the probe). Never taken from the client.
+  modelCapabilities String[] @default([])
+  /// Text-to-speech voice name, only meaningful for SPEECH.
+  voice       String?
+  updatedById String?
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  updatedBy   User?     @relation("PreferenceUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, feature])
+  @@index([workspaceId])
+  @@map("workspace_ai_preference")
+}
+
+/// Per-workspace AI switches that are independent of keys and models.
+model WorkspaceAiSettings {
+  workspaceId        String    @id
+  /// Month-to-date spend ceiling in USD. Null means no cap.
+  monthlySpendCapUsd Decimal?  @db.Decimal(10, 2)
+  /// Admin switch for the in-call assistant, independent of keys.
+  assistantEnabled   Boolean   @default(true)
+  /// Whether the assistant may speak, or answers in chat only.
+  assistantSpeaks    Boolean   @default(true)
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_ai_settings")
+}
+
+/// One model call, successful or not. The per-workspace usage log.
+model AiCall {
+  id              String       @id @default(cuid())
+  workspaceId     String?
+  userId          String?
+  feature         AiFeature
+  providerId      String
+  modelId         String
+  source          AiCallSource
+  status          AiCallStatus
+  /// Curated reason (`invalid-key`, `provider-error`, `timeout`, `parse-failed`).
+  /// Never provider text.
+  errorReason     String?
+  inputTokens     Int?
+  outputTokens    Int?
+  reasoningTokens Int?
+  audioSeconds    Float?
+  characters      Int?
+  latencyMs       Int
+  /// Estimated from the registry price table; null when the model has no price.
+  costUsd         Decimal?     @db.Decimal(12, 6)
+  createdAt       DateTime     @default(now())
+  workspace       Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@map("ai_call")
+}
+
 /// Role-based access control levels for workspace membership.
 enum MemberRole {
   /// Creator of the workspace; full control including deletion.
@@ -241,7 +358,7 @@ enum DocumentType {
   MARKDOWN
 }
 
-/// The three AI call sites that can be configured per user. Mirrors the
+/// The AI call sites that can be configured per workspace. Mirrors the
 /// `AiFeature` type in `packages/types/src/ai/providers.ts`; kept here as an
 /// enum so the database can enforce it.
 enum AiFeature {
@@ -251,4 +368,32 @@ enum AiFeature {
   MARKDOWN
   /// AI-generated canvas (Excalidraw) documents.
   CANVAS
+  /// Reading an image (a photographed diagram).
+  VISION
+  /// Speech to text.
+  TRANSCRIPTION
+  /// Text to speech.
+  SPEECH
+  /// Text work done on a meeting transcript (summaries, translation, answers).
+  MEETING
+}
+
+/// Whose key paid for a model call.
+enum AiCallSource {
+  /// The workspace's own stored key.
+  BYOK
+  /// The operator's free tier.
+  FREE
+}
+
+/// How a model call ended.
+enum AiCallStatus {
+  /// The call completed.
+  OK
+  /// The provider or the pipeline failed.
+  ERROR
+  /// The resolver refused before any provider was called.
+  REFUSED
+  /// The caller aborted the call.
+  CANCELLED
 }

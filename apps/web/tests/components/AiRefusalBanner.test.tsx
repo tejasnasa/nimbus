@@ -4,13 +4,14 @@
  * the label its CTA takes for each of the two CTAs, and that the CTA is
  * disabled while an action is already in flight.
  *
- * The `manage-ai` CTA has no producer today — nothing emits that reason yet —
- * but it is part of the component's contract, so it is pinned here rather than
- * left to be discovered the first time a refusal needs it.
+ * The `manage-ai` CTA is used for a spent monthly cap, which a new key does not
+ * fix. Members cannot act on any refusal, so for them the button is replaced
+ * by a line telling them to ask a workspace admin.
  */
 import "./testUtils";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import AiRefusalBanner from "../../components/AiRefusalBanner";
 
 describe("AiRefusalBanner", () => {
@@ -68,5 +69,56 @@ describe("AiRefusalBanner", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Add your API key to chat with @NimbusBot.",
     );
+  });
+
+  it("labels the manage CTA for a spent monthly cap", () => {
+    render(
+      <AiRefusalBanner
+        message="This workspace has reached its monthly AI spend cap."
+        cta="manage-ai"
+        reason="spend-cap-reached"
+        onCtaClickAction={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("ai-refusal-cta")).toHaveTextContent(
+      "Raise the cap",
+    );
+  });
+
+  it("calls the handler when the CTA is used", async () => {
+    const onCta = vi.fn();
+    render(
+      <AiRefusalBanner message="m" cta="add-key" onCtaClickAction={onCta} />,
+    );
+
+    await userEvent.setup().click(screen.getByTestId("ai-refusal-cta"));
+    expect(onCta).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a member to ask an admin and offers no button", () => {
+    render(
+      <AiRefusalBanner
+        message="This workspace has no AI key yet."
+        cta="add-key"
+        canManage={false}
+        onCtaClickAction={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId("ai-refusal-cta")).not.toBeInTheDocument();
+    expect(screen.getByTestId("ai-refusal-ask-admin")).toHaveTextContent(
+      "Ask a workspace admin",
+    );
+  });
+
+  it("does not show the ask-an-admin line to someone who can manage", () => {
+    render(
+      <AiRefusalBanner message="m" cta="add-key" onCtaClickAction={() => {}} />,
+    );
+
+    expect(
+      screen.queryByTestId("ai-refusal-ask-admin"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -34,7 +34,7 @@ export default async function Workspace({
   const workspaceData = await getWorkspace(id);
   const messages = await getMessages(workspaceData.id);
   const documents = await getDocuments(workspaceData.id);
-  const initialAiStatus = await getAiStatus();
+  const initialAiStatus = await getAiStatus(workspaceData.id);
   const { data: session } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
@@ -77,7 +77,7 @@ export default async function Workspace({
                 wsid={workspaceData.id}
                 documents={documents}
                 workspaceData={workspaceData}
-                initialChatStatus={initialAiStatus.chat}
+                initialAiStatus={initialAiStatus}
               />
             </div>
           </section>

@@ -41,6 +41,21 @@ export default function VoiceControls({
     toggleDeafen,
   } = useVoice();
 
+  const settingsTrigger = (
+    <AlertDialog
+      trigger={
+        <button
+          title="Workspace settings"
+          className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0"
+        >
+          <Settings />
+        </button>
+      }
+    >
+      <WorkspaceSettings workspace={workspaceData} documents={documents} />
+    </AlertDialog>
+  );
+
   if (!isConnected) {
     return (
       <div className="flex items-center justify-between p-4 py-6 bg-(--card) backdrop-blur-sm border-b border-(--border) mb-3">
@@ -50,6 +65,9 @@ export default function VoiceControls({
             Voice Connecting...
           </span>
         </div>
+        {/* Settings stay reachable while voice is connecting or unavailable:
+            workspace admins fix AI keys there, independent of the call. */}
+        {settingsTrigger}
       </div>
     );
   }
@@ -104,21 +122,7 @@ export default function VoiceControls({
             )}
           </button>
 
-          <AlertDialog
-            trigger={
-              <button
-                title="Workspace settings"
-                className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0"
-              >
-                <Settings />
-              </button>
-            }
-          >
-            <WorkspaceSettings
-              workspace={workspaceData}
-              documents={documents}
-            />
-          </AlertDialog>
+          {settingsTrigger}
         </div>
       </div>
     </div>

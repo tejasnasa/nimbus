@@ -202,7 +202,7 @@ test.describe("journey", () => {
     // Waits for the socket to be in the room, so a send cannot race the join.
     await expect(
       page.getByText("Ask anything from @NimbusBot"),
-      "the chat composer is disabled — check /api/ai/status and the operator AI_API_KEY",
+      "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
 
     await page.getByPlaceholder("Type a message...").fill(content);
@@ -266,11 +266,11 @@ test.describe("journey", () => {
     // nobody to reach and this would flake rather than fail.
     await expect(
       page.getByText("Ask anything from @NimbusBot"),
-      "the chat composer is disabled — check /api/ai/status and the operator AI_API_KEY",
+      "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
     await expect(
       memberPage.getByText("Ask anything from @NimbusBot"),
-      "the member's chat composer is disabled — check /api/ai/status",
+      "the member's chat composer is disabled — check the workspace AI status route",
     ).toBeVisible();
 
     await page.getByPlaceholder("Type a message...").fill(content);
@@ -294,7 +294,7 @@ test.describe("journey", () => {
     await page.goto(`/workspace/${workspace.slugId}`);
     await expect(
       page.getByText("Ask anything from @NimbusBot"),
-      "the chat composer is disabled — check /api/ai/status and the operator AI_API_KEY",
+      "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
 
     // A prompt the only sensible answer to is text, so the bot has no reason to

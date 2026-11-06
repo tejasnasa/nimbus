@@ -2,23 +2,30 @@
 
 /**
  * @module web/components/AiModelPicker
- * @description Per-feature provider + model selector.
+ * @description Per-feature provider + model selector for a workspace.
  *
- * A provider {@link Select}, then a searchable model {@link Combobox}. The model
- * list has three sources, each marked on the saved preference:
+ * A provider {@link Select}, then a searchable model {@link Combobox}. For the
+ * text features the model list has three sources, each marked on the saved
+ * preference:
  *
  *   - `registry`: the curated models in `@nimbus/types`;
  *   - `catalog`: for OpenRouter, the live catalogue filtered server-side to
  *     models that meet the feature's hard requirements;
  *   - `custom`: the last row, **Use a custom model id...**, swaps the combobox
  *     for a text input and a **Check model** button. The check runs the server's
- *     capability probe with the user's own key, shows what was measured, and
+ *     capability probe with the workspace's key, shows what was measured, and
  *     saves only when the measured set can serve the feature.
  *
- * Each row shows the label, the id in muted text, capability chips and, when
- * known, the input and output price per million tokens.
+ * The voice features (transcription, speech) are registry-only: the list is the
+ * curated audio models of the provider, with no catalogue and no custom id, and
+ * speech adds a voice select.
  *
- * Only providers the user has a credential for are listed. Models missing a
+ * Each row shows the label, the id in muted text, capability chips and, when
+ * known, the price: per million tokens for text models, per audio minute or per
+ * million characters for audio.
+ *
+ * Only providers the workspace has a key verified for the feature's kind of
+ * model are listed. Models missing a
  * hard requirement for the feature are omitted (registry, catalogue) or refused
  * with the missing capability named (custom). Models missing a *recommended*
  * capability are still offered, with a note once one is selected.
@@ -28,6 +35,8 @@
  * add one).
  */
 import {
+  AI_DEFAULT_VOICE,
+  AI_FEATURE_KIND,
   AI_FEATURE_RECOMMENDED,
   AI_FEATURE_REQUIREMENTS,
   AI_PROVIDERS,
@@ -40,6 +49,7 @@ import {
   type AiProviderId,
   type AiProviderSpec,
   capabilitiesMeetRequirements,
+  defaultModelFor,
   modelsFor,
 } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
@@ -51,9 +61,11 @@ import { useAiCatalog } from "../hooks/useAiCatalog";
 import { useAiModelProbe } from "../hooks/useAiModelProbe";
 
 type Props = {
+  /** The workspace whose key the catalogue and the custom-id check use. */
+  workspaceId: string;
   /** Which feature this picker drives (drives capability requirements). */
   feature: AiFeature;
-  /** The user's saved credentials. Used to filter the provider list. */
+  /** The workspace's saved credentials. Used to filter the provider list. */
   credentials: readonly AiCredentialDTO[];
   /** The currently-saved preference, or `null` when none. */
   preference: AiPreferenceDTO | null;
@@ -71,6 +83,8 @@ type Props = {
    * the existing providerId, the model id and where it came from.
    */
   onChangeModelAction: (modelId: string, source: AiModelSource) => void;
+  /** Called when the user picks a speech voice. Only the speech picker shows it. */
+  onChangeVoiceAction?: (voice: string) => void;
 };
 
 /** One row of the model list, whatever its source. */
@@ -79,8 +93,12 @@ type ModelEntry = {
   label: string;
   source: AiModelSource;
   capabilities: readonly AiCapability[];
-  /** Per-million prices, when known. */
+  /** Per-million token prices, when known. */
   prices: { input: number; output: number } | null;
+  /** Audio price text ("$0.0045 per minute"), for transcription and speech. */
+  audioPrice: string | null;
+  /** Voices a speech model accepts. */
+  voices: readonly string[];
 };
 
 /** The chips shown on a row, in this order. */
@@ -101,6 +119,19 @@ function registryPrices(
   return { input: pricing.inputPerMTok, output: pricing.outputPerMTok };
 }
 
+/** The price line of an audio model, or null when none is recorded. */
+function audioPriceLabel(pricing: AiModelPricing | undefined): string | null {
+  if (pricing?.perAudioMinute !== undefined) {
+    return `${formatPrice(pricing.perAudioMinute)} per minute`;
+  }
+  if (pricing?.perMChars !== undefined) {
+    return pricing.perMChars === 0
+      ? "Free"
+      : `${formatPrice(pricing.perMChars)} per 1M characters`;
+  }
+  return null;
+}
+
 /** `0.15` becomes `$0.15` and `2` becomes `$2`; up to three decimals are kept. */
 const formatPrice = (usd: number): string =>
   usd === 0 ? "$0" : `$${Number(usd.toFixed(usd < 0.01 ? 4 : 3))}`;
@@ -109,15 +140,19 @@ const formatPrice = (usd: number): string =>
  * Renders a provider select followed by a searchable, capability-filtered model
  * combobox. Selections save immediately via the parent's callbacks.
  *
+ * @param props.workspaceId - The workspace the picker belongs to.
  * @param props.feature - The feature this picker drives.
- * @param props.credentials - User's saved credentials; providers without one are omitted.
+ * @param props.credentials - The workspace's credentials; providers without one
+ *                            verified for the feature's kind are omitted.
  * @param props.preference - The currently-saved preference, or null.
  * @param props.pending - Disables both pickers while a save is in flight.
  * @param props.error - The latest error to surface inline.
  * @param props.onChangeProviderAction - Selection handler for the provider dropdown.
  * @param props.onChangeModelAction - Selection handler for the model combobox.
+ * @param props.onChangeVoiceAction - Selection handler for the speech voice.
  */
 export default function AiModelPicker({
+  workspaceId,
   feature,
   credentials,
   preference,
@@ -125,10 +160,17 @@ export default function AiModelPicker({
   error = null,
   onChangeProviderAction,
   onChangeModelAction,
+  onChangeVoiceAction,
 }: Props) {
+  const kind = AI_FEATURE_KIND[feature];
+  const isText = kind === "text";
   const credentialedProviders = credentials
+    .filter((c) => c.verifiedKinds.includes(kind))
     .map((c) => AI_PROVIDERS[c.providerId as AiProviderId])
-    .filter((p): p is AiProviderSpec => p !== undefined);
+    .filter(
+      (p): p is AiProviderSpec =>
+        p !== undefined && defaultModelFor(p, kind) !== undefined,
+    );
 
   const currentProviderId = preference?.providerId as
     | AiProviderId
@@ -143,9 +185,13 @@ export default function AiModelPicker({
 
   const [customOpen, setCustomOpen] = useState(false);
   const [customId, setCustomId] = useState("");
-  const probe = useAiModelProbe();
+  const probe = useAiModelProbe(workspaceId);
 
-  const catalog = useAiCatalog(feature, provider?.id === "openrouter");
+  const catalog = useAiCatalog(
+    workspaceId,
+    feature,
+    isText && provider?.id === "openrouter",
+  );
 
   const entries = useMemo<ModelEntry[]>(() => {
     if (!provider) return [];
@@ -155,10 +201,12 @@ export default function AiModelPicker({
       source: "registry",
       capabilities: m.capabilities,
       prices: registryPrices(m.pricing),
+      audioPrice: audioPriceLabel(m.pricing),
+      voices: m.voices ?? [],
     }));
     const seen = new Set(list.map((e) => e.id));
 
-    if (provider.id === "openrouter") {
+    if (isText && provider.id === "openrouter") {
       for (const m of catalog.models) {
         if (seen.has(m.id)) continue;
         seen.add(m.id);
@@ -170,6 +218,8 @@ export default function AiModelPicker({
           prices: m.pricing
             ? { input: m.pricing.inputPerMTok, output: m.pricing.outputPerMTok }
             : null,
+          audioPrice: null,
+          voices: [],
         });
       }
     }
@@ -189,10 +239,20 @@ export default function AiModelPicker({
         source: preference?.modelSource ?? "registry",
         capabilities: preference?.modelCapabilities ?? [],
         prices: null,
+        audioPrice: null,
+        voices: [],
       });
     }
     return list;
-  }, [provider, feature, catalog.models, currentModelId, currentProviderId, preference]);
+  }, [
+    provider,
+    feature,
+    isText,
+    catalog.models,
+    currentModelId,
+    currentProviderId,
+    preference,
+  ]);
 
   const byId = useMemo(() => new Map(entries.map((e) => [e.id, e])), [entries]);
 
@@ -207,8 +267,15 @@ export default function AiModelPicker({
     description: e.id,
   }));
 
-  const selectedId = currentModelId ?? provider?.defaultModel ?? "";
+  const selectedId =
+    currentModelId ??
+    (provider ? (defaultModelFor(provider, kind)?.id ?? "") : "");
   const selectedEntry = byId.get(selectedId);
+
+  const voiceOptions: SelectOption[] = (selectedEntry?.voices ?? []).map(
+    (v) => ({ value: v, label: v === AI_DEFAULT_VOICE ? "Default voice" : v }),
+  );
+  const currentVoice = preference?.voice ?? selectedEntry?.voices[0] ?? "";
 
   const handleCheck = async () => {
     const id = customId.trim();
@@ -304,7 +371,7 @@ export default function AiModelPicker({
             }
             emptyText="No model matches"
             footerAction={
-              provider
+              provider && isText
                 ? {
                     label: "Use a custom model id…",
                     onSelect: () => setCustomOpen(true),
@@ -318,6 +385,19 @@ export default function AiModelPicker({
           />
         )}
       </div>
+
+      {feature === "speech" && voiceOptions.length > 0 && (
+        <Select
+          id={`${feature}-voice-select`}
+          className="w-full"
+          label="Voice"
+          value={currentVoice}
+          onChange={(next) => onChangeVoiceAction?.(next)}
+          options={voiceOptions}
+          placeholder="Choose a voice"
+          disabled={pending || !onChangeVoiceAction || voiceOptions.length < 2}
+        />
+      )}
 
       {customOpen && (probe.result || probe.error) && (
         <div
@@ -416,6 +496,14 @@ function ModelRow({
             out per 1M
           </span>
         )}
+        {entry.audioPrice && (
+          <span
+            data-testid={`price-${entry.id}`}
+            className="text-[10px] text-(--muted-foreground)"
+          >
+            {entry.audioPrice}
+          </span>
+        )}
       </span>
     </span>
   );
@@ -463,6 +551,18 @@ function MissingRequiredNote({
 }) {
   if (!provider) return null;
   if (modelsFor(provider, feature).length > 0) return null;
+  if (AI_FEATURE_KIND[feature] !== "text") {
+    return (
+      <p
+        role="note"
+        data-testid={`${feature}-picker-missing`}
+        className="text-[11px] text-(--muted-foreground) leading-relaxed"
+      >
+        {provider.label} has no {AI_FEATURE_KIND[feature]} model. Add a key for
+        another provider or pick a different one.
+      </p>
+    );
+  }
   // OpenRouter's catalogue may still supply models; do not complain while it
   // loads or when it has some.
   if (provider.id === "openrouter" && (catalogLoading || catalogCount > 0)) {

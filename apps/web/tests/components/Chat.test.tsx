@@ -2,12 +2,13 @@
  * @module web/tests/components/Chat
  * @description Composer state and AI refusal behaviour for the chat panel.
  *
- * Phase 8 wired the composer to {@link useAiStatus}: when `chat.enabled`
- * is false the textarea and Send button are disabled, the placeholder flips
- * to "Add an API key to chat with @NimbusBot", and an {@link AiRefusalBanner}
- * sits above the composer with an "Add API key" CTA that opens
- * {@link ApiKeyDialog}. When `chat.enabled` is true the composer is fully
- * interactive and the banner is absent.
+ * The composer follows the workspace's AI status: when `features.chat.enabled`
+ * is false the textarea and Send button are disabled and an
+ * {@link AiRefusalBanner} sits above the composer. An admin gets an "Add API
+ * key" button that opens {@link ApiKeyDialog} (or, for a spent monthly cap,
+ * a button that opens the workspace's AI settings); a member is told to ask a
+ * workspace admin and gets no button. When chat is enabled the composer is
+ * fully interactive and the banner is absent.
  *
  * The chat panel is a `use client` component but a few of its dependencies
  * are heavy (`@nimbus/ui/icons/Chat`, the `VoiceControls` WebRTC header).
@@ -19,7 +20,11 @@
  * disable the composer, because the free tier's chat path is unlimited.
  */
 import "./testUtils";
-import type { AiFeatureStatus, Message, Workspace } from "@nimbus/types";
+import type {
+  AiWorkspaceStatusDTO,
+  Message,
+  Workspace,
+} from "@nimbus/types";
 import { http } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -28,6 +33,8 @@ import Chat from "../../components/Chat";
 import type { ClientDocument } from "../../api/document";
 import { BACKEND_URL, ok } from "../msw/handlers";
 import { server } from "../msw/server";
+import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
+import { aiStatus, aiStatusChatOff } from "../msw/aiFixtures";
 
 vi.mock("@nimbus/ui/icons/Chat", () => ({
   default: () => <div data-testid="icon-chat" />,
@@ -79,6 +86,13 @@ const { socketMock } = vi.hoisted(() => {
 
 vi.mock("../../lib/socket", () => ({ socket: socketMock }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/workspace/1",
+  useParams: () => ({ slugId: "1" }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const WORKSPACE: Workspace = {
   id: "cm_workspace_0000000000000",
   name: "Design Guild",
@@ -94,19 +108,11 @@ const DOCUMENTS: ClientDocument[] = [];
 
 const BASE_MESSAGES: Message[] = [];
 
-const ENABLED_CHAT_STATUS: AiFeatureStatus = {
-  enabled: true,
-  providerId: null,
-  modelId: null,
-  substituted: false,
-};
+const ENABLED_CHAT_STATUS: AiWorkspaceStatusDTO = aiStatus();
 
-const DISABLED_CHAT_STATUS: AiFeatureStatus = {
-  enabled: false,
-  providerId: null,
-  modelId: null,
-  substituted: false,
-};
+const DISABLED_CHAT_STATUS: AiWorkspaceStatusDTO = aiStatusChatOff();
+
+const STATUS_URL = `${BACKEND_URL}/api/ai/workspaces/ws-1/status`;
 
 beforeEach(() => {
   voice.current.isConnected = true;
@@ -121,60 +127,41 @@ beforeEach(() => {
 });
 
 /**
- * Builds a `/api/ai/status` response payload from the desired chat status.
- * The defaults from MSW return `enabled: true`, which would mask the
- * disabled branch unless overridden here.
+ * Passes a status payload through to the workspace status route. The MSW
+ * default returns everything enabled, which would mask the disabled branch
+ * unless overridden here.
  */
-function statusFor(chat: AiFeatureStatus) {
-  return {
-    chat,
-    documents: {
-      markdown: {
-        enabled: true,
-        providerId: null,
-        modelId: null,
-        substituted: false,
-      },
-      canvas: {
-        enabled: true,
-        providerId: null,
-        modelId: null,
-        substituted: false,
-      },
-      freeRemaining: 5,
-      freeLimit: 5,
-      freeTierState: "available" as const,
-    },
-    credentials: [],
-    preferences: { chat: null, markdown: null, canvas: null },
-  };
+function statusFor(status: AiWorkspaceStatusDTO) {
+  return status;
 }
 
 function renderChat(props: {
-  initialChatStatus: AiFeatureStatus;
+  initialAiStatus: AiWorkspaceStatusDTO;
   messages?: Message[];
 }) {
   return render(
-    <Chat
-      userId="user-1"
-      messages={props.messages ?? BASE_MESSAGES}
-      wsid="ws-1"
-      documents={DOCUMENTS}
-      workspaceData={WORKSPACE}
-      initialChatStatus={props.initialChatStatus}
-    />,
+    <DocEditorRefProvider>
+      <Chat
+        userId="user-1"
+        messages={props.messages ?? BASE_MESSAGES}
+        wsid="ws-1"
+        documents={DOCUMENTS}
+        workspaceData={WORKSPACE}
+        initialAiStatus={props.initialAiStatus}
+      />
+    </DocEditorRefProvider>,
   );
 }
 
 describe("Chat composer", () => {
   it("is fully interactive when chat is enabled", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(ENABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: ENABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
     await waitFor(() =>
       expect(screen.getByTestId("chat-composer")).not.toBeDisabled(),
@@ -197,12 +184,12 @@ describe("Chat composer", () => {
 
   it("is disabled with a CTA when chat is unavailable", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(DISABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: DISABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
     await waitFor(() =>
       expect(screen.getByTestId("chat-composer")).toBeDisabled(),
@@ -232,12 +219,12 @@ describe("Chat composer", () => {
     // server sends a targeted `ai:refused` for documents; the chat panel
     // only listens for chat-feature refusals.
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(ENABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: ENABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
     const textarea = screen.getByTestId("chat-composer");
     await waitFor(() => expect(textarea).not.toBeDisabled());
@@ -257,12 +244,12 @@ describe("Chat composer", () => {
 
   it("surfaces a chat-feature refusal as an inline error", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(ENABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: ENABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
     socketMock.__fire("ai:refused", {
       feature: "chat",
@@ -280,12 +267,12 @@ describe("Chat composer", () => {
 
   it("dismisses the workspace error when the user clicks the X button", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(ENABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: ENABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
     socketMock.__fire("workspace:error", "Forbidden");
 
@@ -304,7 +291,7 @@ describe("Chat composer", () => {
 
   it("renders message bubbles for the history", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(ENABLED_CHAT_STATUS)),
       ),
     );
@@ -326,7 +313,7 @@ describe("Chat composer", () => {
         wsid="ws-1"
         documents={DOCUMENTS}
         workspaceData={WORKSPACE}
-        initialChatStatus={ENABLED_CHAT_STATUS}
+        initialAiStatus={ENABLED_CHAT_STATUS}
       />,
     );
 
@@ -339,13 +326,13 @@ describe("Chat composer", () => {
 
   it("opens the Add API key dialog when the refusal CTA is used", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(DISABLED_CHAT_STATUS)),
       ),
     );
 
     const user = userEvent.setup();
-    renderChat({ initialChatStatus: DISABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
     await waitFor(() =>
       expect(screen.getByTestId("ai-refusal-cta")).toBeInTheDocument(),
@@ -358,12 +345,12 @@ describe("Chat composer", () => {
 
   it("still sends human messages even while the AI is disabled", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(DISABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: DISABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
     await waitFor(() =>
       expect(screen.getByTestId("chat-composer")).toBeDisabled(),
@@ -378,12 +365,12 @@ describe("Chat composer", () => {
 
   it("refetches AI status when the socket reconnects", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/status`, () =>
+      http.get(STATUS_URL, () =>
         ok(statusFor(DISABLED_CHAT_STATUS)),
       ),
     );
 
-    renderChat({ initialChatStatus: DISABLED_CHAT_STATUS });
+    renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
     await waitFor(() =>
       expect(screen.getByTestId("chat-composer")).toBeDisabled(),
@@ -395,5 +382,106 @@ describe("Chat composer", () => {
       .map(([event]) => event)
       .filter((e) => e === "connect");
     expect(connectHandlers.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Chat composer: roles and the spend cap", () => {
+  it("tells a member to ask an admin instead of offering a key button", async () => {
+    const status = aiStatusChatOff("no-key", false);
+    server.use(http.get(STATUS_URL, () => ok(status)));
+
+    renderChat({ initialAiStatus: status });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-composer")).toBeDisabled(),
+    );
+    expect(screen.getByTestId("ai-refusal-ask-admin")).toBeInTheDocument();
+    expect(screen.queryByTestId("ai-refusal-cta")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chat-composer")).toHaveAttribute(
+      "placeholder",
+      "@NimbusBot is unavailable in this workspace",
+    );
+  });
+
+  it("names the spent cap and offers an admin a way to raise it", async () => {
+    const status = aiStatusChatOff("spend-cap-reached", true);
+    server.use(http.get(STATUS_URL, () => ok(status)));
+
+    renderChat({ initialAiStatus: status });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("ai-refusal-cta")).toHaveTextContent(
+        "Raise the cap",
+      ),
+    );
+    expect(screen.getByTestId("ai-refusal-banner")).toHaveTextContent(
+      "monthly AI spend cap",
+    );
+  });
+
+  it("opens the workspace AI settings from the cap button", async () => {
+    const status = aiStatusChatOff("spend-cap-reached", true);
+    server.use(http.get(STATUS_URL, () => ok(status)));
+
+    renderChat({ initialAiStatus: status });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("ai-refusal-cta"));
+
+    expect(await screen.findByTestId("workspace-ai-panel")).toBeInTheDocument();
+  });
+
+  it("does not render the key dialog for a member", async () => {
+    const status = aiStatusChatOff("no-key", false);
+    server.use(http.get(STATUS_URL, () => ok(status)));
+
+    renderChat({ initialAiStatus: status });
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-composer")).toBeDisabled(),
+    );
+
+    expect(screen.queryByLabelText("add-api-key-form")).not.toBeInTheDocument();
+  });
+
+  it("re-enables the composer after a key is saved to the workspace", async () => {
+    let saved = false;
+    server.use(
+      http.get(STATUS_URL, () =>
+        ok(saved ? ENABLED_CHAT_STATUS : DISABLED_CHAT_STATUS),
+      ),
+      http.post(
+        `${BACKEND_URL}/api/ai/workspaces/ws-1/credentials`,
+        async () => {
+          saved = true;
+          return ok(
+            {
+              providerId: "openai",
+              label: null,
+              maskedPreview: "sk-…4f2a",
+              validatedAt: null,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              lastUsedAt: null,
+              verifiedKinds: ["text"],
+              warnings: [],
+            },
+            "Credential saved.",
+          );
+        },
+      ),
+    );
+
+    renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("ai-refusal-cta"));
+    await user.type(
+      screen.getByLabelText(/API key/i),
+      "sk-test-fake-key-1234",
+    );
+    await user.click(screen.getByRole("button", { name: /^save/i }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("chat-composer")).not.toBeDisabled(),
+    );
   });
 });

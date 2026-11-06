@@ -12,6 +12,13 @@ import { resolve } from "node:path";
  * @important The API is started with `DOTENV_CONFIG_PATH` pointed at `.env.test`.
  *            Because `dotenv` reads that file *instead of* `apps/api/.env`, the
  *            suite can never reach a production database. Keep it that way.
+ *
+ * @important The API is also started with `AI_TEST_BASE_URL` pointing at a local
+ *            fake provider (`fake-provider.mjs`). The API honours that only when
+ *            `NODE_ENV` is `test`, which `.env.test` sets, so adding a key in the
+ *            AI settings spec never reaches a real provider. If you reuse an API
+ *            that was started without it, that spec will fail rather than call
+ *            out, because the fake key is rejected by the real provider.
  */
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const testEnvPath = resolve(repoRoot, ".env.test");
@@ -63,6 +70,14 @@ export default defineConfig({
 
   webServer: [
     {
+      command: "node fake-provider.mjs",
+      cwd: import.meta.dirname,
+      url: "http://127.0.0.1:4010/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+      stdout: "pipe",
+    },
+    {
       command: "npx tsx src/index.ts",
       cwd: resolve(repoRoot, "apps/api"),
       url: "http://localhost:3001/",
@@ -74,6 +89,8 @@ export default defineConfig({
         // `.env.test` points Redis at the plaintext test container; the client
         // defaults to TLS otherwise and hangs without ever emitting an error.
         REDIS_TLS: "false",
+        // Every provider call the API makes goes to the local fake.
+        AI_TEST_BASE_URL: "http://127.0.0.1:4010",
       },
     },
     {

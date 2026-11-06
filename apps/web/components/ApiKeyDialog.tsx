@@ -2,8 +2,8 @@
 
 /**
  * @module web/components/ApiKeyDialog
- * @description Add-or-replace-key modal. Controlled — opened by the parent
- * (the disabled composer, the AI settings panel, etc.) and rendered via the
+ * @description Add-or-replace-key modal for a workspace. Controlled — opened by
+ * the parent (the disabled composer, the workspace AI tab) and rendered via the
  * portal'd, a11y-aware {@link AlertDialog} in controlled mode.
  *
  * The plaintext key is held only in RHF state. The dialog clears it on
@@ -30,14 +30,18 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /**
    * The actual save call. The dialog does not own network code; the parent
-   * (typically the AI settings panel) wires `useAiCredentials.save` here so
-   * tests can swap a stub.
+   * (typically the workspace AI tab) wires `useWorkspaceAiCredentials.save`
+   * here so tests can swap a stub. A success may carry `warnings` about kinds
+   * of model the key could not be verified for; the parent decides how to show
+   * them.
    */
   onSave: (values: {
     providerId: AiProviderId;
     apiKey: string;
     label?: string;
-  }) => Promise<{ ok: true } | { ok: false; message: string }>;
+  }) => Promise<
+    { ok: true; warnings?: string[] } | { ok: false; message: string }
+  >;
   /**
    * Optional hint to pre-select a provider. Useful when the dialog was
    * opened from a credentialed provider's row in the panel — but the user
@@ -112,7 +116,8 @@ export default function ApiKeyDialog({
           <div>
             <h3 className="font-semibold">Add API key</h3>
             <p className="text-xs text-(--muted-foreground)">
-              Your key is encrypted at rest.
+              Every member of this workspace will spend this key. It is
+              encrypted at rest.
             </p>
           </div>
         </div>

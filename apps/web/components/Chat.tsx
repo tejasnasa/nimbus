@@ -1,6 +1,11 @@
 "use client";
 
-import { AiFeatureStatus, Message, Workspace } from "@nimbus/types";
+import {
+  AiWorkspaceStatusDTO,
+  Message,
+  Workspace,
+} from "@nimbus/types";
+import AlertDialog from "@nimbus/ui/AlertDialog";
 import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
@@ -21,8 +26,11 @@ import { ClientDocument } from "../api/document";
  * `typing:start`/`typing:stop` events and renders peers' status as a
  * reserved-height line below the message list.
  *
- * The composer **disables** when `chat.enabled === false` and renders an
- * {@link AiRefusalBanner} + an Add API key CTA. The disabled composer is a
+ * The composer **disables** when `features.chat.enabled === false` and renders
+ * an {@link AiRefusalBanner}. Keys belong to the workspace, so an admin gets an
+ * Add API key button (or, for a spent monthly cap, a button that opens the
+ * workspace's AI settings) and a member is told to ask a workspace admin. The
+ * disabled composer is a
  * UX gate, not an authorization rule — `message:send` still accepts a human
  * message from this user, because disabling it would lock a user without an
  * AI entitlement out of a collaborative room where everyone else can talk.
@@ -33,12 +41,14 @@ import { ClientDocument } from "../api/document";
  *            lives here so a future reader does not mistake it for a bug.
  */
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
-import { useAiStatus } from "../hooks/useAiStatus";
+import { useWorkspaceAiStatus } from "../hooks/useWorkspaceAiStatus";
+import { aiApi, workspaceAiPath } from "../lib/aiApi";
 import { socket } from "../lib/socket";
 import AiRefusalBanner from "./AiRefusalBanner";
 import ApiKeyDialog from "./ApiKeyDialog";
 import TypingIndicator from "./TypingIndicator";
 import VoiceControls from "./VoiceControls";
+import WorkspaceSettings from "./WorkspaceSettings";
 
 /**
  * @param props.userId - Current user (determines bubble side).
@@ -46,9 +56,9 @@ import VoiceControls from "./VoiceControls";
  * @param props.wsid - Workspace cuid (socket room).
  * @param props.documents - Passed to to VoiceControls for context.
  * @param props.workspaceData - Membership/voice context for VoiceControls.
- * @param props.initialChatStatus - Server-fetched chat feature status so the
- *                                  composer renders in the right state before
- *                                  `useAiStatus` lands.
+ * @param props.initialAiStatus - Server-fetched workspace AI status so the
+ *                                composer renders in the right state before
+ *                                `useWorkspaceAiStatus` lands.
  */
 export default function Chat({
   userId,
@@ -56,28 +66,33 @@ export default function Chat({
   wsid,
   documents,
   workspaceData,
-  initialChatStatus,
+  initialAiStatus,
 }: {
   userId: string;
   messages: Message[];
   wsid: string;
   documents: ClientDocument[];
   workspaceData: Workspace;
-  initialChatStatus: AiFeatureStatus;
+  initialAiStatus: AiWorkspaceStatusDTO;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [content, setContent] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { state: aiState, refresh: refreshAiStatus } = useAiStatus();
+  const { state: aiState, refresh: refreshAiStatus } =
+    useWorkspaceAiStatus(wsid);
   // Seed with the server-rendered status; switch to the live payload once the
   // hook's fetch lands.
-  const chatStatus: AiFeatureStatus =
-    aiState.kind === "ready" ? aiState.status.chat : initialChatStatus;
+  const aiStatus: AiWorkspaceStatusDTO =
+    aiState.kind === "ready" ? aiState.status : initialAiStatus;
+  const chatStatus = aiStatus.features.chat;
   const chatEnabled = chatStatus.enabled;
+  const canManageAi = aiStatus.canManage;
+  const capReached = chatStatus.reason === "spend-cap-reached";
 
   // Throttled outbound + debounced inbound typing. The hook owns every timer
   // and clears them on unmount, so the composer never has to.
@@ -221,49 +236,29 @@ export default function Chat({
   }, []);
 
   // The save handler for the Add API key dialog. Saving succeeds → refresh
-  // AI status so the composer re-enables without a hard reload. Failures
-  // surface inline in the dialog itself.
+  // AI status so the composer re-enables without a hard reload, and close the
+  // dialog. Failures surface inline in the dialog itself.
   const handleSaveApiKey = async (input: {
     providerId: string;
     apiKey: string;
     label?: string;
   }) => {
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/credentials`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(input),
-        },
-      );
-      const body = (await res.json()) as {
-        success: boolean;
-        message?: string;
-      };
-      if (!res.ok || !body.success) {
-        return {
-          ok: false as const,
-          message:
-            body.message ?? "Could not save the credential. Please try again.",
-        };
-      }
-      await refreshAiStatus();
-      return { ok: true as const };
-    } catch (err) {
-      return {
-        ok: false as const,
-        message:
-          (err as { message?: string }).message ??
-          "Could not save the credential. Please try again.",
-      };
-    }
+    const result = await aiApi(
+      workspaceAiPath(wsid, "/credentials"),
+      { method: "POST", body: input },
+      "Could not save the credential. Please try again.",
+    );
+    if (!result.ok) return { ok: false as const, message: result.message };
+    await refreshAiStatus();
+    setAiDialogOpen(false);
+    return { ok: true as const };
   };
 
   const placeholder = chatEnabled
     ? "Type a message..."
-    : "Add an API key to chat with @NimbusBot";
+    : canManageAi
+      ? "Add an API key to chat with @NimbusBot"
+      : "@NimbusBot is unavailable in this workspace";
 
   return (
     <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
@@ -325,10 +320,18 @@ export default function Chat({
       <div className="p-2 pt-0">
         {!chatEnabled && (
           <AiRefusalBanner
-            message="Add your API key to chat with @NimbusBot."
-            cta="add-key"
-            onCtaClickAction={() => setAiDialogOpen(true)}
-            ctaDisabled={aiDialogOpen}
+            message={
+              capReached
+                ? "This workspace has reached its monthly AI spend cap."
+                : "This workspace has no AI key yet, so @NimbusBot cannot reply."
+            }
+            cta={capReached ? "manage-ai" : "add-key"}
+            reason={chatStatus.reason}
+            canManage={canManageAi}
+            onCtaClickAction={() =>
+              capReached ? setSettingsOpen(true) : setAiDialogOpen(true)
+            }
+            ctaDisabled={aiDialogOpen || settingsOpen}
           />
         )}
         <TypingIndicator names={typingNames} />
@@ -357,15 +360,29 @@ export default function Chat({
         <p className="text-[10px] text-(--muted-foreground)/60 mt-1 text-right px-1">
           {chatEnabled
             ? "Ask anything from @NimbusBot"
-            : "Add an API key to enable AI replies"}
+            : canManageAi
+              ? "Add an API key to enable AI replies"
+              : "AI replies are unavailable here"}
         </p>
       </div>
 
-      <ApiKeyDialog
-        open={aiDialogOpen}
-        onOpenChange={setAiDialogOpen}
-        onSave={handleSaveApiKey}
-      />
+      {canManageAi && (
+        <ApiKeyDialog
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          onSave={handleSaveApiKey}
+        />
+      )}
+
+      {canManageAi && (
+        <AlertDialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <WorkspaceSettings
+            workspace={workspaceData}
+            documents={documents}
+            initialTab="AI"
+          />
+        </AlertDialog>
+      )}
     </div>
   );
 }

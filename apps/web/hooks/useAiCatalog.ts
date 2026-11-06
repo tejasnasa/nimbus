@@ -1,10 +1,10 @@
 /**
  * @module web/hooks/useAiCatalog
  * @description OpenRouter's live model catalogue for one feature, read from
- * `GET /api/ai/catalog/openrouter?feature=`.
+ * `GET /api/ai/workspaces/:workspaceId/catalog/openrouter?feature=`.
  *
- * The fetch runs only while `enabled` is true, so a user without an OpenRouter
- * key never triggers it. A failure is returned as a message and leaves the list
+ * The fetch runs only while `enabled` is true, so a workspace without an
+ * OpenRouter key never triggers it. A failure is returned as a message and leaves the list
  * empty: the picker still offers the registry's own models, so an unreachable
  * catalogue degrades the dropdown rather than emptying it.
  */
@@ -20,11 +20,16 @@ type CatalogState = {
 };
 
 /**
+ * @param workspaceId - The workspace whose picker is open.
  * @param feature - The feature whose hard requirements filter the list.
  * @param enabled - Whether to fetch at all.
  * @returns The catalogue models and the fetch status.
  */
-export function useAiCatalog(feature: AiFeature, enabled: boolean): CatalogState {
+export function useAiCatalog(
+  workspaceId: string,
+  feature: AiFeature,
+  enabled: boolean,
+): CatalogState {
   const [state, setState] = useState<CatalogState>({
     models: [],
     loading: false,
@@ -40,7 +45,7 @@ export function useAiCatalog(feature: AiFeature, enabled: boolean): CatalogState
     (async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/catalog/openrouter?feature=${feature}`,
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/workspaces/${encodeURIComponent(workspaceId)}/catalog/openrouter?feature=${feature}`,
           { credentials: "include" },
         );
         const body = (await res.json()) as {
@@ -78,7 +83,7 @@ export function useAiCatalog(feature: AiFeature, enabled: boolean): CatalogState
     return () => {
       cancelled = true;
     };
-  }, [feature, enabled]);
+  }, [workspaceId, feature, enabled]);
 
   return state;
 }

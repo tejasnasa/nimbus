@@ -5,16 +5,21 @@
  * @description Composer-adjacent banner that surfaces an AI refusal reason and
  * a CTA. Two CTAs are possible:
  *
- * - `add-key` opens the {@link ApiKeyDialog} — wired by the parent so the dialog
- *   state lives at the panel/account-settings level rather than inside the
- *   chat, which would die on tab switch.
- * - `manage-ai` is reserved for cases that don't have a key fix (e.g. provider
- *   outage). Today nothing produces it; the type is there so a future failure
- *   can use it without refactoring this component.
+ * - `add-key` opens the {@link ApiKeyDialog}, wired by the parent so the dialog
+ *   state lives with the surface that owns the credentials rather than inside
+ *   the chat, which would die on tab switch.
+ * - `manage-ai` covers refusals a new key does not fix, such as a workspace that
+ *   has reached its monthly spend cap (`spend-cap-reached`). The parent opens the
+ *   workspace's AI settings.
  *
- * The banner is intentionally narrow and copy-only: no icons, no close button —
- * the underlying refusal is permanent until the user acts, and a dismissable
- * banner would let them forget why the composer is disabled.
+ * Keys, models and the spend cap belong to the workspace's admins. A member who
+ * sees a refusal can do nothing about it, so for them the banner drops the
+ * button and says to ask a workspace admin instead of offering a control the
+ * server would refuse.
+ *
+ * The banner is intentionally narrow and copy-only: no icons beyond the alert
+ * glyph, no close button. The underlying refusal is permanent until someone acts,
+ * and a dismissable banner would let people forget why the composer is disabled.
  */
 import Button from "@nimbus/ui/Button";
 import Error from "@nimbus/ui/icons/Error";
@@ -28,6 +33,13 @@ type Props = {
   onCtaClickAction: () => void;
   /** True while the CTA action would block — disables the button. */
   ctaDisabled?: boolean;
+  /**
+   * The server's refusal code (for example `spend-cap-reached`). Only used to
+   * pick the button label; the message is already curated.
+   */
+  reason?: string | null;
+  /** Whether the viewer may change the workspace's AI setup. Defaults to true. */
+  canManage?: boolean;
 };
 
 /**
@@ -35,17 +47,27 @@ type Props = {
  *
  * @param props.message - Server-curated refusal copy.
  * @param props.cta - Drives the button label and the parent's open-dialog call.
- * @param props.onCtaClick - The parent's handler (opens `ApiKeyDialog` etc.).
+ * @param props.onCtaClickAction - The parent's handler.
  * @param props.ctaDisabled - Disables the CTA while another open dialog or an
  *                            in-flight request blocks the action.
+ * @param props.reason - The refusal code, to label the manage button.
+ * @param props.canManage - False for members, who get "ask a workspace admin"
+ *                          instead of a button.
  */
 export default function AiRefusalBanner({
   message,
   cta,
   onCtaClickAction,
   ctaDisabled = false,
+  reason = null,
+  canManage = true,
 }: Props) {
-  const ctaLabel = cta === "add-key" ? "Add API key" : "Manage AI";
+  const ctaLabel =
+    cta === "add-key"
+      ? "Add API key"
+      : reason === "spend-cap-reached"
+        ? "Raise the cap"
+        : "Manage AI";
 
   return (
     <div
@@ -56,16 +78,23 @@ export default function AiRefusalBanner({
       <Error className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
       <div className="flex-1 min-w-0">
         <p>{message}</p>
+        {!canManage && (
+          <p data-testid="ai-refusal-ask-admin" className="mt-0.5">
+            Ask a workspace admin to sort this out.
+          </p>
+        )}
       </div>
-      <Button
-        size="xs"
-        onClick={onCtaClickAction}
-        disabled={ctaDisabled}
-        data-testid="ai-refusal-cta"
-        className="rounded-lg hover:cursor-pointer"
-      >
-        {ctaLabel}
-      </Button>
+      {canManage && (
+        <Button
+          size="xs"
+          onClick={onCtaClickAction}
+          disabled={ctaDisabled}
+          data-testid="ai-refusal-cta"
+          className="rounded-lg hover:cursor-pointer"
+        >
+          {ctaLabel}
+        </Button>
+      )}
     </div>
   );
 }

@@ -9,6 +9,13 @@
  * `success: false`.
  */
 import { http, HttpResponse } from "msw";
+import {
+  aiSettings,
+  aiStatus,
+  credential,
+  freeUsage,
+  usagePage,
+} from "./aiFixtures";
 
 export const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3001";
@@ -214,66 +221,37 @@ export const handlers = [
     }),
   ),
 
-  // ── AI / BYOK ──
+  // ── Workspace AI ──
   // The status payload drives the disabled composer. Tests can layer a
   // more specific response on top via `server.use(...)` to exercise the
   // disabled branch.
-  http.get(url("/api/ai/status"), () =>
-    ok({
-      chat: {
-        enabled: true,
-        providerId: null,
-        modelId: null,
-        substituted: false,
-      },
-      documents: {
-        markdown: {
-          enabled: true,
-          providerId: null,
-          modelId: null,
-          substituted: false,
-        },
-        canvas: {
-          enabled: true,
-          providerId: null,
-          modelId: null,
-          substituted: false,
-        },
-        freeRemaining: 5,
-        freeLimit: 5,
-        freeTierState: "available",
-      },
-      credentials: [],
-      preferences: { chat: null, markdown: null, canvas: null },
-    }),
+  http.get(url("/api/ai/me/free-usage"), () => ok(freeUsage())),
+  http.get(url("/api/ai/workspaces/:workspaceId/status"), () => ok(aiStatus())),
+  http.get(url("/api/ai/workspaces/:workspaceId/credentials"), () => ok([])),
+  http.post(url("/api/ai/workspaces/:workspaceId/credentials"), () =>
+    ok({ ...credential(), warnings: [] }, "Credential saved."),
   ),
-  http.get(url("/api/ai/credentials"), () => ok([])),
-  http.post(url("/api/ai/credentials"), () =>
-    ok(
-      {
-        providerId: "openai",
-        label: null,
-        maskedPreview: "sk-…4f2a",
-        validatedAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
-        createdAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
-        lastUsedAt: null,
-      },
-      "Credential saved",
-    ),
-  ),
-  http.delete(url("/api/ai/credentials/:providerId"), () =>
+  http.delete(url("/api/ai/workspaces/:workspaceId/credentials/:providerId"), () =>
     ok({ clearedPreferences: 0 }, "Credential removed"),
   ),
-  http.get(url("/api/ai/catalog/openrouter"), () =>
+  http.get(url("/api/ai/workspaces/:workspaceId/catalog/openrouter"), () =>
     ok({ providerId: "openrouter", models: [], stale: false }),
   ),
-  http.post(url("/api/ai/models/probe"), () =>
+  http.post(url("/api/ai/workspaces/:workspaceId/models/probe"), () =>
     ok({ capabilities: [], servesFeatures: [] }, "Model checked"),
   ),
-  http.get(url("/api/ai/preferences"), () =>
-    ok({ chat: null, markdown: null, canvas: null }),
+  http.get(url("/api/ai/workspaces/:workspaceId/preferences"), () =>
+    ok({
+      chat: null,
+      markdown: null,
+      canvas: null,
+      vision: null,
+      transcription: null,
+      speech: null,
+      meeting: null,
+    }),
   ),
-  http.put(url("/api/ai/preferences"), () =>
+  http.put(url("/api/ai/workspaces/:workspaceId/preferences"), () =>
     ok(
       {
         feature: "chat",
@@ -283,4 +261,11 @@ export const handlers = [
       "Preference saved",
     ),
   ),
+  http.get(url("/api/ai/workspaces/:workspaceId/settings"), () =>
+    ok(aiSettings()),
+  ),
+  http.put(url("/api/ai/workspaces/:workspaceId/settings"), () =>
+    ok(aiSettings(), "Settings saved"),
+  ),
+  http.get(url("/api/ai/workspaces/:workspaceId/usage"), () => ok(usagePage())),
 ];

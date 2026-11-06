@@ -16,23 +16,44 @@ import { apiUrl } from "./env";
  */
 
 test.describe("dependency wiring", () => {
-  test("the AI status endpoint reports chat enabled", async ({ context }) => {
-    const response = await context.request.get(`${apiUrl}/api/ai/status`);
+  test("the free-usage endpoint reports the operator free tier configured", async ({
+    context,
+  }) => {
+    const response = await context.request.get(`${apiUrl}/api/ai/me/free-usage`);
 
     expect(
       response.status(),
-      `GET ${apiUrl}/api/ai/status returned ${response.status()}. A 404 means ` +
-        "the deployed API predates the route, which leaves the chat panel " +
-        "disabled for every user.",
+      `GET ${apiUrl}/api/ai/me/free-usage returned ${response.status()}. A 404 ` +
+        "means the deployed API predates the workspace AI routes, which leaves " +
+        "the chat panel disabled for every user.",
     ).toBe(200);
 
     const body = await response.json();
 
-    // Enabled means the caller has a BYOK credential *or* the deployment has an
-    // operator key. The smoke user holds no credential of its own by design, so
-    // this passing is what proves the operator key reached the droplet — the
-    // failure mode recorded when a deploy ships without its env.
-    expect(body.responseObject?.chat?.enabled).toBe(true);
+    // `unconfigured` means the deployment has no operator key. The smoke user's
+    // workspaces hold no key of their own by design, so a configured state is
+    // what proves the operator key reached the droplet — the failure mode
+    // recorded when a deploy ships without its env.
+    expect(body.responseObject?.docsState).not.toBe("unconfigured");
+  });
+
+  test("a workspace's AI status reports chat enabled", async ({ context }) => {
+    const listed = await context.request.get(`${apiUrl}/api/workspace/`);
+    expect(listed.status()).toBe(200);
+    const workspaces: Array<{ id: string }> =
+      (await listed.json()).responseObject ?? [];
+
+    // Read-only: this uses a workspace the smoke user already belongs to and
+    // creates none. With none present the free-usage test above is the check.
+    test.skip(workspaces.length === 0, "the smoke user has no workspace to read");
+
+    const response = await context.request.get(
+      `${apiUrl}/api/ai/workspaces/${workspaces[0]!.id}/status`,
+    );
+    expect(response.status()).toBe(200);
+
+    const body = await response.json();
+    expect(body.responseObject?.features?.chat?.enabled).toBe(true);
   });
 
   test("the TURN endpoint mints credentials (env wired, not relay proven)", async ({

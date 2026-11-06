@@ -1,9 +1,9 @@
 /**
  * @module web/hooks/useAiModelProbe
- * @description Runs `POST /api/ai/models/probe` for a custom model id and keeps
+ * @description Runs `POST /api/ai/workspaces/:workspaceId/models/probe` for a custom model id and keeps
  * the measured result, or the reason it was rejected, as inline state.
  *
- * The server measures with the caller's own stored key; nothing secret passes
+ * The server measures with the workspace's stored key; nothing secret passes
  * through the browser. A refusal (wrong key, unknown id) comes back as a curated
  * message and is returned, never thrown.
  */
@@ -25,8 +25,11 @@ export type UseAiModelProbe = {
   reset: () => void;
 };
 
-/** @returns The probe state and its `check` / `reset` handlers. */
-export function useAiModelProbe(): UseAiModelProbe {
+/**
+ * @param workspaceId - The workspace whose key is used to measure.
+ * @returns The probe state and its `check` / `reset` handlers.
+ */
+export function useAiModelProbe(workspaceId: string): UseAiModelProbe {
   const [result, setResult] = useState<AiProbeResultDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -38,7 +41,7 @@ export function useAiModelProbe(): UseAiModelProbe {
       setResult(null);
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/models/probe`,
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai/workspaces/${encodeURIComponent(workspaceId)}/models/probe`,
           {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -64,7 +67,7 @@ export function useAiModelProbe(): UseAiModelProbe {
         setChecking(false);
       }
     },
-    [],
+    [workspaceId],
   );
 
   const reset = useCallback(() => {

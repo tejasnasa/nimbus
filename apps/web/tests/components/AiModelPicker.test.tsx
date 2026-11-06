@@ -1,8 +1,9 @@
 /**
  * @module web/tests/components/AiModelPicker
  * @description The per-feature model picker: a non-empty model list for every
- * text feature, capability chips and prices, the OpenRouter catalogue, and the
- * custom-id flow (check, chips, save, refusal).
+ * text feature, capability chips and prices, the OpenRouter catalogue, the
+ * custom-id flow (check, chips, save, refusal), and the voice features
+ * (providers filtered by verified kind, registry-only models, a voice select).
  *
  * The regression cases at the top pin the empty-looking dropdown: a saved model
  * that is not among the options used to fall back to the placeholder, so the
@@ -22,13 +23,19 @@ import { BACKEND_URL, ok } from "../msw/handlers";
 import { server } from "../msw/server";
 import AiModelPicker from "../../components/AiModelPicker";
 
-const cred = (providerId: string): AiCredentialDTO => ({
+const WORKSPACE_ID = "ws-1";
+
+const cred = (
+  providerId: string,
+  verifiedKinds: AiCredentialDTO["verifiedKinds"] = ["text"],
+): AiCredentialDTO => ({
   providerId,
   label: null,
   maskedPreview: "sk-…4f2a",
   validatedAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   lastUsedAt: null,
+  verifiedKinds,
 });
 
 const FEATURES: AiFeature[] = ["chat", "markdown", "canvas"];
@@ -40,6 +47,7 @@ function renderPicker(feature: AiFeature, props: PickerProps = {}) {
   const onProvider = vi.fn();
   render(
     <AiModelPicker
+      workspaceId={WORKSPACE_ID}
       feature={feature}
       credentials={[cred("openai")]}
       preference={null}
@@ -204,7 +212,7 @@ describe("AiModelPicker: rows", () => {
 describe("AiModelPicker: OpenRouter catalogue", () => {
   const withCatalog = () =>
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/catalog/openrouter`, ({ request }) => {
+      http.get(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/catalog/openrouter`, ({ request }) => {
         expect(new URL(request.url).searchParams.get("feature")).toBe("chat");
         return ok({ providerId: "openrouter", models: CATALOG, stale: false });
       }),
@@ -241,7 +249,7 @@ describe("AiModelPicker: OpenRouter catalogue", () => {
   it("does not fetch the catalogue for another provider", async () => {
     const fetched = vi.fn();
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/catalog/openrouter`, () => {
+      http.get(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/catalog/openrouter`, () => {
         fetched();
         return ok({ providerId: "openrouter", models: [], stale: false });
       }),
@@ -255,7 +263,7 @@ describe("AiModelPicker: OpenRouter catalogue", () => {
 
   it("keeps the registry models and says so when the catalogue fails", async () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/catalog/openrouter`, () =>
+      http.get(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/catalog/openrouter`, () =>
         new Response(
           JSON.stringify({ success: false, message: "Model list unavailable." }),
           { status: 503, headers: { "content-type": "application/json" } },
@@ -295,7 +303,7 @@ describe("AiModelPicker: custom model id", () => {
   it("checks the id, shows the measured chips and saves it as custom", async () => {
     let body: unknown;
     server.use(
-      http.post(`${BACKEND_URL}/api/ai/models/probe`, async ({ request }) => {
+      http.post(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/models/probe`, async ({ request }) => {
         body = await request.json();
         return ok({
           capabilities: ["tools", "streaming", "vision"],
@@ -319,7 +327,7 @@ describe("AiModelPicker: custom model id", () => {
 
   it("names the missing capability and does not save when the model cannot serve the feature", async () => {
     server.use(
-      http.post(`${BACKEND_URL}/api/ai/models/probe`, () =>
+      http.post(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/models/probe`, () =>
         ok({ capabilities: ["streaming"], servesFeatures: ["markdown"] }),
       ),
     );
@@ -336,7 +344,7 @@ describe("AiModelPicker: custom model id", () => {
 
   it("shows the curated reason when the id is rejected", async () => {
     server.use(
-      http.post(`${BACKEND_URL}/api/ai/models/probe`, () =>
+      http.post(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/models/probe`, () =>
         new Response(
           JSON.stringify({
             success: false,
@@ -359,7 +367,7 @@ describe("AiModelPicker: custom model id", () => {
 
   it("clears a previous result when the id is edited", async () => {
     server.use(
-      http.post(`${BACKEND_URL}/api/ai/models/probe`, () =>
+      http.post(`${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/models/probe`, () =>
         ok({ capabilities: ["streaming"], servesFeatures: ["markdown"] }),
       ),
     );
@@ -398,5 +406,92 @@ describe("AiModelPicker: custom model id", () => {
     expect(
       (screen.getByTestId("chat-model-select") as HTMLInputElement).value,
     ).toBe("vendor/typed");
+  });
+});
+
+describe("AiModelPicker: voice features", () => {
+  it("lists a provider for transcription only when the key is verified for it", () => {
+    renderPicker("transcription", {
+      credentials: [cred("openai", ["text"]), cred("openrouter", ["text", "transcription"])],
+    });
+    const provider = screen.getByTestId("transcription-provider-select");
+    expect(provider).toBeInTheDocument();
+    // The one verified provider is preselected: its default model is shown.
+    expect(
+      (screen.getByTestId("transcription-model-select") as HTMLInputElement).value,
+    ).toMatch(/transcribe/i);
+  });
+
+  it("offers only audio models of the right kind, with no custom-id row", async () => {
+    const user = userEvent.setup();
+    renderPicker("transcription", {
+      credentials: [cred("openai", ["text", "transcription"])],
+    });
+    await user.click(screen.getByTestId("transcription-model-select"));
+    const options = await screen.findAllByRole("option");
+    const names = options.map((o) => o.textContent ?? "");
+    expect(names.some((n) => /transcribe/i.test(n))).toBe(true);
+    expect(names.some((n) => /gpt-5|tts/i.test(n))).toBe(false);
+    expect(names.some((n) => /custom model id/i.test(n))).toBe(false);
+  });
+
+  it("shows an audio price in place of token prices", async () => {
+    const user = userEvent.setup();
+    renderPicker("transcription", {
+      credentials: [cred("openai", ["text", "transcription"])],
+    });
+    await user.click(screen.getByTestId("transcription-model-select"));
+    const price = await screen.findByTestId("price-gpt-4o-mini-transcribe");
+    expect(price.textContent).toMatch(/per minute/);
+  });
+
+  it("does not fetch the OpenRouter catalogue for a voice feature", async () => {
+    const hit = vi.fn();
+    server.use(
+      http.get(
+        `${BACKEND_URL}/api/ai/workspaces/${WORKSPACE_ID}/catalog/openrouter`,
+        () => {
+          hit();
+          return ok({ providerId: "openrouter", models: [], stale: false });
+        },
+      ),
+    );
+    renderPicker("speech", {
+      credentials: [cred("openrouter", ["text", "speech"])],
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(hit).not.toHaveBeenCalled();
+  });
+
+  it("shows a voice select for speech and reports a change", async () => {
+    const user = userEvent.setup();
+    const onVoice = vi.fn();
+    renderPicker("speech", {
+      credentials: [cred("openai", ["text", "speech"])],
+      preference: {
+        feature: "speech",
+        providerId: "openai",
+        modelId: "gpt-4o-mini-tts",
+        voice: "alloy",
+      },
+      onChangeVoiceAction: onVoice,
+    });
+    const voice = await screen.findByTestId("speech-voice-select");
+    await user.click(voice);
+    await user.click(await screen.findByRole("option", { name: "coral" }));
+    expect(onVoice).toHaveBeenCalledWith("coral");
+  });
+
+  it("does not show a voice select for transcription", () => {
+    renderPicker("transcription", {
+      credentials: [cred("openai", ["text", "transcription"])],
+    });
+    expect(screen.queryByTestId("transcription-voice-select")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("speech-voice-select")).not.toBeInTheDocument();
+  });
+
+  it("offers no provider when no key is verified for the kind", () => {
+    renderPicker("speech", { credentials: [cred("openai", ["text"])] });
+    expect(screen.getByTestId("speech-model-select")).toBeDisabled();
   });
 });

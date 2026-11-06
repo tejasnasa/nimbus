@@ -3,8 +3,9 @@
  * @description Account-level settings (server component): resolves the
  * session, `redirect("/login")` defensively (the proxy is the UX guard,
  * the API is the real one), then renders `UserNavbar` and the client
- * `<AccountSettings />`. The AI status is fetched on the server and passed
- * down so the AI tab is answerable before its own `useAiStatus` lands.
+ * `<AccountSettings />`. The caller's free AI allowances are fetched on the
+ * server and passed down so the Free usage tab is answerable before its own
+ * fetch lands.
  * Guarded by `proxy.ts`.
  */
 import { redirect } from "next/navigation";
@@ -12,7 +13,7 @@ import { headers } from "next/headers";
 import AccountSettings from "../../components/AccountSettings";
 import UserNavbar from "../../components/UserNavbar";
 import { authClient } from "../../lib/auth-client";
-import { getAiStatus } from "../../api/ai";
+import { getFreeUsage } from "../../api/ai";
 
 export default async function SettingsPage() {
   const { data: session } = await authClient.getSession({
@@ -25,10 +26,10 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  // Fetched alongside session so the AI tab has a payload to render before
-  // its own hook fires. Failure falls back to a "BYOK unavailable" shape
-  // inside `getAiStatus`; the page itself never sees an error.
-  const initialAiStatus = await getAiStatus();
+  // Fetched alongside session so the Free usage tab has a payload to render
+  // before its own hook fires. Failure falls back to an "unconfigured" shape
+  // inside `getFreeUsage`; the page itself never sees an error.
+  const initialFreeUsage = await getFreeUsage();
 
   return (
     <main className="min-h-dvh bg-(--background) text-(--foreground) relative">
@@ -61,7 +62,7 @@ export default async function SettingsPage() {
                 email: session.user.email,
                 image: session.user.image,
               }}
-              initialAiStatus={initialAiStatus}
+              initialFreeUsage={initialFreeUsage}
             />
           </div>
         </div>

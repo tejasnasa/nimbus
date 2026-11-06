@@ -36,7 +36,9 @@ import type { z } from "zod";
 export type AddApiKeyValues = z.infer<typeof aiCredentialCreateSchema>;
 
 /** The discriminated outcome of a submit. */
-export type SubmitResult = { ok: true } | { ok: false; message: string };
+export type SubmitResult =
+  | { ok: true; warnings?: string[] }
+  | { ok: false; message: string };
 
 export type UseAddApiKeyForm = {
   register: UseFormRegister<AddApiKeyValues>;

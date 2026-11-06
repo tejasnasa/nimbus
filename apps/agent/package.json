@@ -1,0 +1,29 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts dev",
+    "build": "tsup",
+    "start": "node dist/index.cjs start",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.9.5",
+    "@livekit/agents-plugin-silero": "^1.9.5",
+    "@livekit/rtc-node": "^1.2.1",
+    "livekit-server-sdk": "^2.19.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@nimbus/eslint-config": "*",
+    "@nimbus/typescript-config": "*",
+    "@types/node": "^22.0.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.21.0",
+    "vitest": "^5.0.0"
+  }
+}

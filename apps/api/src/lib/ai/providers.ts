@@ -71,6 +71,36 @@ export function freeTier(): FreeTierConfig {
 }
 
 /**
+ * The operator's free voice tier: a key, an endpoint and the models the
+ * assistant uses when a workspace has no key of its own for voice.
+ */
+export type FreeVoiceConfig = {
+  readonly apiKey: string;
+  readonly baseUrl: string;
+  readonly transcribeModel: string;
+  readonly speechModel: string;
+  readonly speechVoice: string;
+};
+
+/**
+ * Reads the free voice tier from env.
+ *
+ * @returns The config, or `null` when `AI_VOICE_API_KEY` is empty, which
+ *          disables free voice rather than crashing.
+ */
+export function freeVoiceTier(): FreeVoiceConfig | null {
+  const apiKey = process.env.AI_VOICE_API_KEY;
+  if (!apiKey) return null;
+  return {
+    apiKey,
+    baseUrl: process.env.AI_VOICE_BASE_URL || "https://openrouter.ai/api/v1",
+    transcribeModel: process.env.AI_TRANSCRIBE_MODEL || "openai/gpt-transcribe",
+    speechModel: process.env.AI_SPEECH_MODEL || "fish-audio/drama-3",
+    speechVoice: process.env.AI_SPEECH_VOICE || "default",
+  };
+}
+
+/**
  * Parses `AI_PROVIDER` from env into a registry id, ignoring unknown values.
  *
  * The env var is a string with a zod default of `"deepseek"`, so an
@@ -84,6 +114,24 @@ function parseProviderId(raw: string | undefined): AiProviderId | undefined {
   return (AI_PROVIDER_IDS as readonly string[]).includes(raw)
     ? (raw as AiProviderId)
     : undefined;
+}
+
+/**
+ * The base URL requests to a provider are sent to.
+ *
+ * It is the registry's, except under `NODE_ENV=test`, where `AI_TEST_BASE_URL`
+ * may redirect every provider to a local fake so a browser test can add a key
+ * without a real provider being called.
+ *
+ * @important The redirect is gated on `NODE_ENV === "test"` and not on the
+ *            variable alone, so a stray value in a production environment is
+ *            inert. Every place that opens a connection to a provider resolves
+ *            its URL here.
+ */
+export function resolveBaseUrl(provider: AiProviderSpec): string {
+  const override = process.env.AI_TEST_BASE_URL;
+  if (process.env.NODE_ENV === "test" && override) return override;
+  return provider.baseUrl;
 }
 
 /** A typed lookup of a provider by id. Returns `undefined` for unknown ids. */

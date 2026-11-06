@@ -45,19 +45,33 @@ afterAll(closeTestResources);
 /** Placeholder ids — `authCheck` runs before anything reads them. */
 const R = "cm_dummy_id";
 const ROUTES = [
-  { method: "get", path: "/api/ai/status" },
-  { method: "get", path: "/api/ai/credentials" },
+  { method: "get", path: "/api/ai/me/free-usage" },
+  { method: "get", path: `/api/ai/workspaces/${R}/status` },
+  { method: "get", path: `/api/ai/workspaces/${R}/credentials` },
   {
     method: "post",
-    path: "/api/ai/credentials",
+    path: `/api/ai/workspaces/${R}/credentials`,
     body: { providerId: "openai", apiKey: "sk-test" },
   },
-  { method: "delete", path: `/api/ai/credentials/openai` },
-  { method: "get", path: "/api/ai/preferences" },
+  { method: "delete", path: `/api/ai/workspaces/${R}/credentials/openai` },
+  { method: "get", path: `/api/ai/workspaces/${R}/preferences` },
   {
     method: "put",
-    path: "/api/ai/preferences",
+    path: `/api/ai/workspaces/${R}/preferences`,
     body: { feature: "chat", providerId: "openai", modelId: "gpt-5-nano" },
+  },
+  { method: "get", path: `/api/ai/workspaces/${R}/settings` },
+  {
+    method: "put",
+    path: `/api/ai/workspaces/${R}/settings`,
+    body: { assistantEnabled: false },
+  },
+  { method: "get", path: `/api/ai/workspaces/${R}/usage` },
+  { method: "get", path: `/api/ai/workspaces/${R}/catalog/openrouter` },
+  {
+    method: "post",
+    path: `/api/ai/workspaces/${R}/models/probe`,
+    body: { providerId: "openrouter", modelId: "vendor/x" },
   },
   { method: "get", path: "/api/workspace" },
   { method: "post", path: "/api/workspace/create", body: { name: "Abc" } },

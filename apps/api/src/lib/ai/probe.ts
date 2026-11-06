@@ -1,7 +1,8 @@
 /**
  * @module api/lib/ai/probe
  * @description The save-time probe: verifies a candidate provider API key
- * with a real 1-token `responses.create` before it is stored.
+ * with a real 1-token `responses.create` before it is stored, and probes the
+ * transcription and speech models of providers that have them.
  *
  * Adopted from Illume, where it proved out the value of catching the wrong
  * key at the form rather than as a silently empty artifact later. The
@@ -28,11 +29,16 @@
  */
 import OpenAI from "openai";
 import {
+  AI_DEFAULT_VOICE,
+  defaultModelFor,
+  modelsOfKind,
   type AiEffort,
+  type AiModelKind,
   type AiModelSpec,
   type AiProviderSpec,
 } from "@nimbus/types";
 import { reasoningKwargs, createAiClient } from "./clientFactory";
+import { resolveBaseUrl } from "./providers";
 
 /** The user-visible failure reasons a probe can produce. */
 export type ProbeRefusalReason =
@@ -81,7 +87,7 @@ export async function probeApiKey(
   // to fail loudly if the SDK constructor rejects the inputs.
   const client = new OpenAI({
     apiKey,
-    baseURL: provider.baseUrl,
+    baseURL: resolveBaseUrl(provider),
     timeout: 15_000,
     maxRetries: 0,
   });
@@ -174,4 +180,253 @@ function errorStatus(err: unknown): number | undefined {
   const status = (err as { status?: unknown }).status;
   if (typeof status === "number") return status;
   return undefined;
+}
+
+/** Per-request timeout for the audio probes. */
+export const AUDIO_PROBE_TIMEOUT_MS = 15_000;
+
+/** The sample rate of the generated probe clip. */
+const PROBE_SAMPLE_RATE = 16_000;
+
+/**
+ * Builds a mono 16-bit PCM WAV of a sine tone, entirely in memory.
+ *
+ * The transcription probe needs real audio: a provider validates the container,
+ * so an empty or garbage upload would be refused for the wrong reason.
+ *
+ * @param seconds - Clip length.
+ * @param frequencyHz - Tone frequency.
+ * @returns A complete WAV file, header included.
+ */
+export function buildToneWav(seconds = 1, frequencyHz = 440): Buffer {
+  const samples = Math.round(PROBE_SAMPLE_RATE * seconds);
+  const dataBytes = samples * 2;
+  const buf = Buffer.alloc(44 + dataBytes);
+  buf.write("RIFF", 0, "ascii");
+  buf.writeUInt32LE(36 + dataBytes, 4);
+  buf.write("WAVE", 8, "ascii");
+  buf.write("fmt ", 12, "ascii");
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20); // PCM
+  buf.writeUInt16LE(1, 22); // mono
+  buf.writeUInt32LE(PROBE_SAMPLE_RATE, 24);
+  buf.writeUInt32LE(PROBE_SAMPLE_RATE * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36, "ascii");
+  buf.writeUInt32LE(dataBytes, 40);
+  for (let i = 0; i < samples; i += 1) {
+    const sample = Math.sin((2 * Math.PI * frequencyHz * i) / PROBE_SAMPLE_RATE);
+    buf.writeInt16LE(Math.round(sample * 0.3 * 32767), 44 + i * 2);
+  }
+  return buf;
+}
+
+/** Options shared by the audio probes. */
+export type AudioProbeOptions = {
+  /** Replaces the global `fetch`. Tests only. */
+  fetchImpl?: typeof fetch;
+};
+
+/**
+ * Maps an audio probe outcome to a {@link ProbeRefusal} through the same status
+ * mapping the text probe uses. A thrown fetch (DNS, refused, timeout) carries
+ * no status and reads as unreachable.
+ */
+function audioRefusal(
+  provider: AiProviderSpec,
+  status: number | undefined,
+): ProbeRefusal {
+  return classifyProbeError(
+    status === undefined ? new Error("transport") : { status },
+    provider,
+  );
+}
+
+/**
+ * Probes a transcription model with a one-second tone sent as multipart.
+ *
+ * Success is any 200 whose JSON body has a `text` field (the tone transcribes
+ * to nothing, so the field may be empty). Nothing the provider returns is
+ * passed on: only the curated refusal is.
+ *
+ * @param provider - Provider, for the refusal wording.
+ * @param baseUrl - The URL the request goes to (see `resolveBaseUrl`).
+ * @param apiKey - The candidate key. Never logged or returned.
+ * @param model - The transcription model id.
+ * @param options - Test seam for the request.
+ */
+export async function probeTranscription(
+  provider: AiProviderSpec,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  options: AudioProbeOptions = {},
+): Promise<ProbeResult> {
+  const doFetch = options.fetchImpl ?? fetch;
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([new Uint8Array(buildToneWav())], { type: "audio/wav" }),
+    "probe.wav",
+  );
+  form.append("model", model);
+
+  try {
+    const res = await doFetch(`${baseUrl}/audio/transcriptions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(AUDIO_PROBE_TIMEOUT_MS),
+    });
+    if (res.status !== 200) return audioRefusal(provider, res.status);
+    const body = (await res.json().catch(() => null)) as {
+      text?: unknown;
+    } | null;
+    if (!body || typeof body.text !== "string") {
+      return audioRefusal(provider, 0);
+    }
+    return { ok: true };
+  } catch {
+    return audioRefusal(provider, undefined);
+  }
+}
+
+/**
+ * Probes a speech model by synthesising the word "ok".
+ *
+ * Success is a 200 with a non-empty body. The voice is omitted for a model that
+ * takes none (`AI_DEFAULT_VOICE`).
+ *
+ * @param provider - Provider, for the refusal wording.
+ * @param baseUrl - The URL the request goes to (see `resolveBaseUrl`).
+ * @param apiKey - The candidate key. Never logged or returned.
+ * @param model - The speech model id.
+ * @param voice - The voice to request, or `default` for none.
+ * @param options - Test seam for the request.
+ */
+export async function probeSpeech(
+  provider: AiProviderSpec,
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  voice: string,
+  options: AudioProbeOptions = {},
+): Promise<ProbeResult> {
+  const doFetch = options.fetchImpl ?? fetch;
+  const payload: Record<string, unknown> = {
+    model,
+    input: "ok",
+    response_format: "pcm",
+  };
+  if (voice !== AI_DEFAULT_VOICE) payload.voice = voice;
+
+  try {
+    const res = await doFetch(`${baseUrl}/audio/speech`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(AUDIO_PROBE_TIMEOUT_MS),
+    });
+    if (res.status !== 200) return audioRefusal(provider, res.status);
+    const bytes = await res.arrayBuffer();
+    if (bytes.byteLength === 0) return audioRefusal(provider, 0);
+    return { ok: true };
+  } catch {
+    return audioRefusal(provider, undefined);
+  }
+}
+
+/** What a credential probe returns on success. */
+export type CredentialProbeSuccess = {
+  readonly ok: true;
+  /** The kinds whose probe passed. */
+  readonly verifiedKinds: AiModelKind[];
+  /** Curated notes for secondary kinds that did not pass. */
+  readonly warnings: string[];
+};
+
+/**
+ * Probes every kind of model a provider has, in parallel.
+ *
+ * The primary probe decides whether the key is stored: text when the provider
+ * has text models, otherwise transcription. A secondary probe that fails does
+ * not block the save; it comes back as a warning and the kind is left out of
+ * `verifiedKinds`, so the resolver never relies on it.
+ *
+ * @param provider - The provider the key is for.
+ * @param apiKey - The candidate key. Never logged or returned.
+ * @param options - Test seam for the audio requests.
+ * @returns The verified kinds and warnings, or the primary probe's refusal.
+ */
+export async function probeCredential(
+  provider: AiProviderSpec,
+  apiKey: string,
+  options: AudioProbeOptions = {},
+): Promise<CredentialProbeSuccess | ProbeRefusal> {
+  const baseUrl = resolveBaseUrl(provider);
+  const textModel =
+    defaultModelFor(provider, "text") ?? modelsOfKind(provider, "text")[0];
+  const transcriptionModel = defaultModelFor(provider, "transcription");
+  const speechModel = defaultModelFor(provider, "speech");
+
+  const probes: Array<[AiModelKind, Promise<ProbeResult>]> = [];
+  if (textModel) {
+    probes.push([
+      "text",
+      probeApiKey(provider, apiKey, textModel).catch(() =>
+        audioRefusal(provider, undefined),
+      ),
+    ]);
+  }
+  if (transcriptionModel) {
+    probes.push([
+      "transcription",
+      probeTranscription(provider, baseUrl, apiKey, transcriptionModel.id, options),
+    ]);
+  }
+  if (speechModel) {
+    probes.push([
+      "speech",
+      probeSpeech(
+        provider,
+        baseUrl,
+        apiKey,
+        speechModel.id,
+        speechModel.voices?.[0] ?? AI_DEFAULT_VOICE,
+        options,
+      ),
+    ]);
+  }
+
+  const settled = await Promise.all(
+    probes.map(async ([kind, promise]) => [kind, await promise] as const),
+  );
+
+  const primary: AiModelKind = textModel ? "text" : "transcription";
+  const primaryResult = settled.find(([kind]) => kind === primary)?.[1];
+  if (!primaryResult) {
+    return {
+      ok: false,
+      reason: "unknown-error",
+      message: `${provider.label} has no models Nimbus can verify a key with.`,
+    };
+  }
+  if (!primaryResult.ok) return primaryResult;
+
+  const verifiedKinds: AiModelKind[] = [];
+  const warnings: string[] = [];
+  for (const [kind, result] of settled) {
+    if (result.ok) {
+      verifiedKinds.push(kind);
+    } else if (kind !== primary) {
+      warnings.push(
+        `${kind[0]!.toUpperCase()}${kind.slice(1)} models could not be verified: ${result.message}`,
+      );
+    }
+  }
+  return { ok: true, verifiedKinds, warnings };
 }

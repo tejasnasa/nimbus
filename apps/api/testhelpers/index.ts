@@ -9,6 +9,9 @@ export {
   createMessage,
   createUser,
   createWorkspace,
+  createWorkspaceAiCredential,
+  createWorkspaceAiPreference,
+  TEST_AI_KEY,
   type TestRole,
 } from "./factories";
 export { TEST_PASSWORD, as, mintUser, type TestUser } from "./session";

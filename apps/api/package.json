@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nodemon --watch src --exec tsx src/index.ts",
     "build": "tsc",
-    "lint": "eslint . --max-warnings 210",
+    "lint": "eslint . --max-warnings 174",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

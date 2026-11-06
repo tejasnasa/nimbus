@@ -2,7 +2,7 @@
  * @module api/lib/bot
  * @description NimbusBot chat pipeline: loads the last 20 workspace messages
  * as LLM history (bot rows → assistant, others prefixed `Name:`), calls the
- * model the resolver chose (the user's key or the free tier) with a strict
+ * model the resolver chose (the workspace's key or the free tier) with a strict
  * `create_document` tool (MARKDOWN for text, CANVAS for
  * diagrams), and returns a discriminated `BotResult` (`reply` | `create_document`
  * | `refused`). Plain-text replies only — no Markdown formatting.
@@ -20,6 +20,7 @@
  */
 import { prisma } from "@nimbus/db";
 import { BotResult } from "@nimbus/types";
+import { withAiCall, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 
 /** Options for {@link generateBotResponse}. */
@@ -36,6 +37,8 @@ export type GenerateBotResponseOptions = {
    * get a bot reply announcing a document that never arrives.
    */
   allowDocument: boolean;
+  /** When given, the model call is written to the workspace call log. */
+  callMeta?: AiCallMeta;
 };
 
 /**
@@ -54,7 +57,7 @@ export type GenerateBotResponseOptions = {
 export async function generateBotResponse(
   options: GenerateBotResponseOptions,
 ): Promise<BotResult> {
-  const { workspaceId, handle, allowDocument } = options;
+  const { workspaceId, handle, allowDocument, callMeta } = options;
 
   try {
     const messages = await prisma.message.findMany({
@@ -158,14 +161,18 @@ STRICT RULES:
     // second reason: reasoning tokens count against `max_output_tokens`, so a
     // higher level can spend most of this reply's budget before the answer
     // starts. `reasoningKwargs` returns `{}` for a model without `reasoning`.
-    const response = await handle.client.responses.create({
-      model: handle.modelId,
-      tools,
-      input: history,
-      instructions: instructions,
-      max_output_tokens: 1000,
-      ...reasoningKwargs(handle, "low"),
-    });
+    const createResponse = () =>
+      handle.client.responses.create({
+        model: handle.modelId,
+        tools,
+        input: history,
+        instructions: instructions,
+        max_output_tokens: 1000,
+        ...reasoningKwargs(handle, "low"),
+      });
+    const response = callMeta
+      ? await withAiCall(callMeta, createResponse)
+      : await createResponse();
 
     const toolCall = response.output?.find(
       (item) => item.type === "function_call",

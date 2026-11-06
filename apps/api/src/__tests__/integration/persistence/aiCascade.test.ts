@@ -19,6 +19,10 @@ import {
 } from "vitest";
 import {
   closeTestResources,
+  createUser,
+  createWorkspace,
+  createWorkspaceAiCredential,
+  createWorkspaceAiPreference,
   resetDatabase,
   testPrisma,
 } from "@testhelpers";
@@ -176,3 +180,75 @@ describe("deleting a user", () => {
     ).rejects.toMatchObject({ code: "P2002" });
   });
 });
+
+describe("workspace-scoped AI tables", () => {
+  it("deleting a workspace removes its credentials, preferences, settings and call log", async () => {
+    const owner = await createUser();
+    const ws = await createWorkspace(owner.id);
+    await createWorkspaceAiCredential(ws.id, "openai");
+    await createWorkspaceAiPreference(ws.id, "CHAT", "openai", "gpt-5-nano");
+    await testPrisma.workspaceAiSettings.create({
+      data: { workspaceId: ws.id, monthlySpendCapUsd: 5 },
+    });
+    await testPrisma.aiCall.create({
+      data: {
+        workspaceId: ws.id,
+        userId: owner.id,
+        feature: "CHAT",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+        source: "BYOK",
+        status: "OK",
+        latencyMs: 10,
+      },
+    });
+
+    await testPrisma.workspace.delete({ where: { id: ws.id } });
+
+    expect(await testPrisma.workspaceAiCredential.count()).toBe(0);
+    expect(await testPrisma.workspaceAiPreference.count()).toBe(0);
+    expect(await testPrisma.workspaceAiSettings.count()).toBe(0);
+    expect(await testPrisma.aiCall.count()).toBe(0);
+  });
+
+  it("deleting a user keeps the workspace key and the call rows, detaching the member", async () => {
+    const owner = await createUser();
+    const member = await createUser();
+    const ws = await createWorkspace(owner.id);
+    await createWorkspaceAiCredential(ws.id, "openai", {
+      createdById: member.id,
+    });
+    await testPrisma.aiCall.create({
+      data: {
+        workspaceId: ws.id,
+        userId: member.id,
+        feature: "CHAT",
+        providerId: "openai",
+        modelId: "gpt-5-nano",
+        source: "BYOK",
+        status: "OK",
+        latencyMs: 10,
+      },
+    });
+
+    await testPrisma.user.delete({ where: { id: member.id } });
+
+    expect(await testPrisma.workspaceAiCredential.count()).toBe(1);
+    const call = await testPrisma.aiCall.findFirstOrThrow();
+    expect(call.userId).toBeNull();
+  });
+
+  it("enforces one credential per (workspace, provider) and one preference per (workspace, feature)", async () => {
+    const owner = await createUser();
+    const ws = await createWorkspace(owner.id);
+    await createWorkspaceAiCredential(ws.id, "openai");
+    await expect(
+      createWorkspaceAiCredential(ws.id, "openai"),
+    ).rejects.toMatchObject({ code: "P2002" });
+    await createWorkspaceAiPreference(ws.id, "CHAT", "openai", "gpt-5-nano");
+    await expect(
+      createWorkspaceAiPreference(ws.id, "CHAT", "openai", "gpt-5-nano"),
+    ).rejects.toMatchObject({ code: "P2002" });
+  });
+});
+

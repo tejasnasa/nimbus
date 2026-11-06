@@ -11,6 +11,12 @@
  * @important Assumes handshake auth (`socket.data.user`). Bot generation runs
  *            detached so slow LLM calls never block chat delivery.
  *
+ * @important The workspace's key pays for bot replies and generated documents,
+ *            whoever mentions the bot; the mentioning user is only the one the
+ *            free-tier allowance is charged to and the call log names. Every
+ *            model call is written to the workspace call log, and every refusal
+ *            shown to a user is recorded as a refused call.
+ *
  * @important The bot's `chatMessage` ("Sure! I am creating the document…") is
  *            posted ONLY after a successful quota claim, so a quota-exhausted
  *            user never sees a bot promise a document that will not arrive.
@@ -25,6 +31,7 @@ import { generateBotResponse } from "../lib/bot";
 import { generateCanvasDocument } from "../lib/canvasGeneration";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
+import { recordAiRefusal } from "../lib/ai/callLog";
 import { resolveAi, type AiResolution } from "../lib/ai/entitlements";
 import {
   claimFreeDocGeneration,
@@ -225,14 +232,14 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
 
   // 1. Resolve chat. A failure here means the user has no chat path at all
   //    (no key, no operator key, encryption unconfigured).
-  const chatResolution = await resolveAi(userId, "chat");
+  const chatResolution = await resolveAi({ workspaceId, userId, feature: "chat" });
   if (!chatResolution.ok) {
-    return emitRefusal(socket, "chat", chatResolution);
+    return emitRefusal(socket, "chat", chatResolution, { workspaceId, userId });
   }
 
   // 2. Resolve documents. A failure here means the user has chat but not
   //    documents — quota exhausted, no capable model, or no encryption key.
-  const documentResolution = await resolveDocumentForUser(userId);
+  const documentResolution = await resolveDocumentForUser(userId, workspaceId);
   const allowDocument = documentResolution.kind === "available";
 
   // 3. Generate the bot's reply with the chosen chat handle and the
@@ -241,6 +248,7 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
     workspaceId,
     handle: chatResolution.handle,
     allowDocument,
+    callMeta: chatResolution.meta,
   });
 
   if (botResult.kind === "refused") {
@@ -256,12 +264,17 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
       // Defence in depth — `allowDocument: false` removed the tool, so the
       // bot should not have called it. If it did, refuse rather than
       // generate.
-      return emitRefusal(socket, "chat", {
-        ok: false,
-        reason: documentResolution.reason,
-        message: documentResolution.message,
-        cta: documentResolution.cta,
-      });
+      return emitRefusal(
+        socket,
+        "chat",
+        {
+          ok: false,
+          reason: documentResolution.reason,
+          message: documentResolution.message,
+          cta: documentResolution.cta,
+        },
+        { workspaceId, userId },
+      );
     }
     // Claim ONLY when the operator's free tier is paying. A user generating
     // on their own key has already paid for it; charging them the operator's
@@ -271,12 +284,17 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
     if (documentResolution.source === "free") {
       const claim = await claimFreeDocGeneration(userId);
       if (!claim.granted) {
-        return emitRefusal(socket, "chat", {
-          ok: false,
-          reason: "free-tier-exhausted",
-          message: FREE_TIER_EXHAUSTED_MESSAGE,
-          cta: "add-key",
-        });
+        return emitRefusal(
+          socket,
+          "chat",
+          {
+            ok: false,
+            reason: "free-tier-exhausted",
+            message: FREE_TIER_EXHAUSTED_MESSAGE,
+            cta: "add-key",
+          },
+          { workspaceId, userId },
+        );
       }
       claimed = true;
     }
@@ -310,7 +328,11 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
         // Re-resolve markdown specifically — the chat resolution may have
         // used a different provider/model than the user's saved markdown
         // preference.
-        const mdResolution = await resolveAi(userId, "markdown");
+        const mdResolution = await resolveAi({
+          workspaceId,
+          userId,
+          feature: "markdown",
+        });
         if (!mdResolution.ok) {
           throw new Error(mdResolution.message);
         }
@@ -322,6 +344,7 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
             io.to(workspaceId).emit("doc:ai:thinking", { token });
           },
           handle: mdResolution.handle,
+          callMeta: mdResolution.meta,
         });
 
         const doc = await prisma.document.create({
@@ -339,7 +362,11 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
           type: doc.type,
         });
       } else {
-        const canvasResolution = await resolveAi(userId, "canvas");
+        const canvasResolution = await resolveAi({
+          workspaceId,
+          userId,
+          feature: "canvas",
+        });
         if (!canvasResolution.ok) {
           throw new Error(canvasResolution.message);
         }
@@ -351,6 +378,7 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
           },
           onStatus: () => {},
           handle: canvasResolution.handle,
+          callMeta: canvasResolution.meta,
         });
 
         const doc = await prisma.document.create({
@@ -437,15 +465,17 @@ type DocumentResolution =
         | "no-key"
         | "free-tier-exhausted"
         | "no-operator-key"
-        | "no-capable-model";
+        | "no-capable-model"
+        | "spend-cap-reached";
       message: string;
       cta: "add-key" | "manage-ai" | null;
     };
 
 async function resolveDocumentForUser(
   userId: string,
+  workspaceId: string,
 ): Promise<DocumentResolution> {
-  const resolution = await resolveAi(userId, "markdown");
+  const resolution = await resolveAi({ workspaceId, userId, feature: "markdown" });
   if (!resolution.ok) {
     return {
       kind: "refused",
@@ -473,13 +503,22 @@ async function resolveDocumentForUser(
 
 /**
  * Emits `ai:refused` to the asking socket only. Never broadcast — the reason
- * is a personal state and a phantom GENERATING tab would be a worse leak.
+ * is a personal state and a phantom GENERATING tab would be a worse leak. The
+ * refusal is also written to the workspace call log.
  */
 function emitRefusal(
   socket: Socket,
   feature: "chat" | "markdown" | "canvas",
   refusal: Extract<AiResolution, { ok: false }>,
+  context: { workspaceId: string; userId: string },
 ) {
+  void recordAiRefusal({
+    workspaceId: context.workspaceId,
+    userId: context.userId,
+    feature,
+    reason: refusal.reason,
+    attempted: refusal.attempted,
+  });
   socket.emit("ai:refused", {
     feature,
     reason: refusal.reason,

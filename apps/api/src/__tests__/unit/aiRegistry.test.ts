@@ -16,6 +16,14 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  AI_DEFAULT_VOICE,
+  AI_FEATURES,
+  AI_FEATURE_KIND,
+  AI_MODEL_KINDS,
+  defaultModelFor,
+  modelKind,
+  modelsOfKind,
+  providerHasKind,
   AI_FEATURE_RECOMMENDED,
   AI_FEATURE_REQUIREMENTS,
   AI_PROVIDERS,
@@ -170,7 +178,7 @@ describe("every model in a verified provider meets the chat hard requirement", (
     it(`${id}`, () => {
       const provider = AI_PROVIDERS[id];
       if (provider.verifiedAt === null) return;
-      for (const model of provider.models) {
+      for (const model of modelsOfKind(provider, "text")) {
         expect(meetsRequirements(model, "chat")).toBe(true);
       }
     });
@@ -218,7 +226,7 @@ describe("registry surface — exports the data the picker actually consumes", (
     // requirement is impossible by construction.
     for (const id of AI_PROVIDER_IDS) {
       const provider = AI_PROVIDERS[id];
-      for (const model of provider.models) {
+      for (const model of modelsOfKind(provider, "text")) {
         expect(model.capabilities.length).toBeGreaterThan(0);
       }
     }
@@ -330,8 +338,8 @@ describe("registry shape — the contract Phase 3's resolver will rely on", () =
     for (const id of AI_PROVIDER_IDS) {
       const provider = AI_PROVIDERS[id];
       if (provider.verifiedAt === null) continue;
-      const allCapable = provider.models.every((m: AiModelSpec) =>
-        meetsRequirements(m, "chat"),
+      const allCapable = modelsOfKind(provider, "text").every(
+        (m: AiModelSpec) => meetsRequirements(m, "chat"),
       );
       expect(allCapable).toBe(true);
     }
@@ -373,9 +381,135 @@ describe("pricing", () => {
   }
 
   it("lists a text price pair for every priced token model", () => {
-    for (const { model } of priced) {
+    for (const { model } of priced.filter((p) => modelKind(p.model) === "text")) {
       expect(model.pricing!.inputPerMTok).toBeDefined();
       expect(model.pricing!.outputPerMTok).toBeDefined();
+    }
+  });
+});
+
+// ── Model kinds and voice ───────────────────────────────────────────────────
+
+describe("model kinds", () => {
+  it("maps every feature to exactly one kind", () => {
+    for (const feature of AI_FEATURES) {
+      expect(AI_MODEL_KINDS).toContain(AI_FEATURE_KIND[feature]);
+    }
+    expect(AI_FEATURE_KIND.transcription).toBe("transcription");
+    expect(AI_FEATURE_KIND.speech).toBe("speech");
+    expect(AI_FEATURE_KIND.chat).toBe("text");
+    expect(AI_FEATURE_KIND.meeting).toBe("text");
+  });
+
+  it("treats a model without a kind as text", () => {
+    for (const id of AI_PROVIDER_IDS) {
+      for (const model of AI_PROVIDERS[id].models) {
+        if (model.kind === undefined) expect(modelKind(model)).toBe("text");
+      }
+    }
+  });
+
+  it("never offers a speech or transcription model to a text feature", () => {
+    for (const id of AI_PROVIDER_IDS) {
+      const provider = AI_PROVIDERS[id];
+      for (const feature of ["chat", "markdown", "canvas", "vision", "meeting"] as const) {
+        for (const model of modelsFor(provider, feature)) {
+          expect(modelKind(model)).toBe("text");
+        }
+      }
+    }
+  });
+
+  it("serves voice only from the providers measured for it", () => {
+    expect(providerHasKind(AI_PROVIDERS.openai, "transcription")).toBe(true);
+    expect(providerHasKind(AI_PROVIDERS.openai, "speech")).toBe(true);
+    expect(providerHasKind(AI_PROVIDERS.openrouter, "transcription")).toBe(true);
+    expect(providerHasKind(AI_PROVIDERS.openrouter, "speech")).toBe(true);
+    expect(providerHasKind(AI_PROVIDERS.groq, "transcription")).toBe(false);
+    expect(providerHasKind(AI_PROVIDERS.groq, "speech")).toBe(false);
+    expect(providerHasKind(AI_PROVIDERS.deepseek, "speech")).toBe(false);
+  });
+
+  it("uses the measured defaults", () => {
+    expect(defaultModelFor(AI_PROVIDERS.openai, "transcription")?.id).toBe(
+      "gpt-4o-mini-transcribe",
+    );
+    expect(defaultModelFor(AI_PROVIDERS.openai, "speech")?.id).toBe(
+      "gpt-4o-mini-tts",
+    );
+    expect(defaultModelFor(AI_PROVIDERS.openrouter, "transcription")?.id).toBe(
+      "openai/gpt-transcribe",
+    );
+    expect(defaultModelFor(AI_PROVIDERS.openrouter, "speech")?.id).toBe(
+      "fish-audio/drama-3",
+    );
+  });
+
+  it("requires vision and jsonMode for the vision feature", () => {
+    expect([...AI_FEATURE_REQUIREMENTS.vision].sort()).toEqual(["jsonMode", "vision"]);
+    const flash = AI_PROVIDERS.deepseek.models.find((m) => m.id === "deepseek-flash")!;
+    expect(flash.capabilities).toContain("vision");
+    expect(meetsRequirements(flash, "vision")).toBe(true);
+  });
+
+  it("never lets a speech model meet a chat requirement", () => {
+    const tts = AI_PROVIDERS.openai.models.find((m) => m.id === "gpt-4o-mini-tts")!;
+    expect(meetsRequirements(tts, "chat")).toBe(false);
+    expect(meetsRequirements(tts, "speech")).toBe(true);
+    expect(meetsRequirements(tts, "transcription")).toBe(false);
+  });
+});
+
+describe("voices and audio formats", () => {
+  const speechModels = AI_PROVIDER_IDS.flatMap((id) =>
+    modelsOfKind(AI_PROVIDERS[id], "speech").map((model) => ({ id, model })),
+  );
+
+  it("has at least one speech model", () => {
+    expect(speechModels.length).toBeGreaterThan(0);
+  });
+
+  for (const { id, model } of speechModels) {
+    it(`${id}/${model.id} lists voices`, () => {
+      expect(model.voices?.length ?? 0).toBeGreaterThan(0);
+    });
+  }
+
+  it("models a voiceless provider model with the single default voice", () => {
+    const fish = AI_PROVIDERS.openrouter.models.find((m) => m.id === "fish-audio/drama-3")!;
+    expect(fish.voices).toEqual([AI_DEFAULT_VOICE]);
+  });
+
+  it("lists the measured heygen voices and pcm only", () => {
+    const heygen = AI_PROVIDERS.openrouter.models.find(
+      (m) => m.id === "heygen/heygen-voice-1-turbo:free",
+    )!;
+    expect(heygen.voices).toEqual([
+      "nadine", "tabitha", "bram", "gareth", "noelle",
+      "meredith", "sabrina", "lucian", "weston", "vincent",
+    ]);
+    expect(heygen.audioFormats).toEqual(["pcm"]);
+    expect(heygen.pricing?.perMChars).toBe(0);
+  });
+
+  it("restricts OpenRouter speech to pcm and mp3", () => {
+    for (const model of modelsOfKind(AI_PROVIDERS.openrouter, "speech")) {
+      for (const format of model.audioFormats ?? []) {
+        expect(["pcm", "mp3"]).toContain(format);
+      }
+    }
+  });
+
+  it("prices audio per minute and per character", () => {
+    for (const id of AI_PROVIDER_IDS) {
+      for (const model of modelsOfKind(AI_PROVIDERS[id], "transcription")) {
+        expect(model.pricing?.perAudioMinute).toBeGreaterThan(0);
+      }
+      for (const model of modelsOfKind(AI_PROVIDERS[id], "speech")) {
+        // A token-billed speech model (OpenAI's) has no per-character price;
+        // when a price exists it must be a character price.
+        if (model.pricing) expect(model.pricing.perMChars).toBeDefined();
+      }
     }
   });
 });

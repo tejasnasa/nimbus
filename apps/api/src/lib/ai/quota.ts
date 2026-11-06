@@ -151,3 +151,46 @@ export async function refundFreeDocGeneration(userId: string): Promise<boolean> 
   });
   return result.count === 1;
 }
+
+/** The per-user free assistant allowance, in seconds. */
+export type VoiceQuotaState = {
+  /** Seconds spent so far. */
+  readonly used: number;
+  /** Seconds allowed in total. */
+  readonly limit: number;
+  /** `limit - used`, clamped at zero. */
+  readonly remaining: number;
+  /** Whether the allowance is spent. */
+  readonly exhausted: boolean;
+};
+
+/** Reads `AI_FREE_VOICE_SECONDS` as a non-negative integer, defaulting to 300. */
+export function readVoiceQuotaLimit(): number {
+  const raw = process.env.AI_FREE_VOICE_SECONDS;
+  if (!raw) return 300;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return 300;
+  return parsed;
+}
+
+/**
+ * Reads the user's free assistant time.
+ *
+ * Cheap and lock-free, like {@link readQuotaState}: an estimate for display and
+ * for the entitlement check. The meeting's budget is enforced by the server
+ * from timestamps, not from this read.
+ *
+ * @param userId - The user whose allowance is inspected.
+ */
+export async function readVoiceQuotaState(
+  userId: string,
+): Promise<VoiceQuotaState> {
+  const limit = readVoiceQuotaLimit();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { freeVoiceSecondsUsed: true },
+  });
+  const used = user?.freeVoiceSecondsUsed ?? 0;
+  const remaining = Math.max(0, limit - used);
+  return { used, limit, remaining, exhausted: remaining === 0 };
+}

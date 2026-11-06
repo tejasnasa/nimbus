@@ -43,6 +43,7 @@ import {
   closeTestResources,
   connectClient,
   createWorkspace,
+  createWorkspaceAiCredential,
   mintUser,
   resetDatabase,
   startTestServer,
@@ -52,7 +53,6 @@ import {
   type TestUser,
 } from "@testhelpers";
 import type { AiClientHandle } from "../../../lib/ai/clientFactory";
-import { buildAad, encryptSecret } from "../../../lib/ai/credentialCrypto";
 
 /** Stub SDK client type — only `responses.create` is exercised by the bot pipeline. */
 type OpenAIClientStub = {
@@ -324,18 +324,9 @@ describe("socket: nimbusbot", () => {
     //
     // The counter is deliberately parked at the limit first: if the claim
     // still runs, this test fails at the refusal rather than at the counter.
-    await testPrisma.aiCredential.create({
-      data: {
-        userId: alice.id,
-        providerId: "deepseek",
-        keyEnvelope: encryptSecret(
-          "sk-byok-user-key",
-          buildAad(alice.id, "deepseek"),
-        ),
-        keyId: "testkeyid",
-        keyFingerprint: "fp0123456789abcd",
-        maskedPreview: "sk-…key",
-      },
+    await createWorkspaceAiCredential(wsId, "deepseek", {
+      apiKey: "sk-byok-workspace-key",
+      createdById: alice.id,
     });
     await testPrisma.user.update({
       where: { id: alice.id },
@@ -372,6 +363,16 @@ describe("socket: nimbusbot", () => {
     await expect(
       testPrisma.document.count({ where: { workspaceId: wsId } }),
     ).resolves.toBe(1);
+    // The call log attributes the workspace key's calls to the workspace and
+    // the member who asked, and never charges the free allowance.
+    const calls = await testPrisma.aiCall.findMany({
+      where: { workspaceId: wsId },
+    });
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call.userId).toBe(alice.id);
+      expect(call.source).toBe("BYOK");
+    }
   });
 
   it("emits ai:refused targeted to the asking socket when the resolver refuses", async () => {

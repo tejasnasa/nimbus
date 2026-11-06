@@ -17,6 +17,7 @@
  */
 import type { AiClientHandle } from "./ai/clientFactory";
 import { reasoningKwargs } from "./ai/clientFactory";
+import { startAiCall, usageFromResponse, type AiCallMeta } from "./ai/callLog";
 
 /** Hard cap for the diagram JSON response. */
 const CANVAS_MAX_OUTPUT_TOKENS = 16_384;
@@ -948,6 +949,8 @@ export type GenerateCanvasDocumentOptions = {
    * module never reads `process.env` for keys, models, or base URLs.
    */
   handle: AiClientHandle;
+  /** When given, the model call is written to the workspace call log. */
+  callMeta?: AiCallMeta;
 };
 
 /**
@@ -972,6 +975,7 @@ export async function generateCanvasDocument(
     onReasoning = () => {},
     onStatus = () => {},
     handle,
+    callMeta,
   } = options;
   // The cheapest effort the canvas path needs. `low` is the cheapest level
   // every verified provider accepts — `minimal` is not one of them.
@@ -989,84 +993,95 @@ export async function generateCanvasDocument(
   // (Groq's gpt-oss) gets `{ reasoning: { effort } }` only, and a model
   // without `reasoning` at all gets `{}`. This is the seam that keeps the
   // canvas path from 400ing on providers that reject `summary`.
-  const stream = await handle.client.responses.create({
-    model: handle.modelId,
-    stream: true,
-    instructions: buildCanvasSystemPrompt(label),
-    input: `Create a professional diagram as a JSON object for:\n${prompt}`,
-    ...reasoningKwargs(handle, reasoningEffort),
-    text: { format: { type: "json_object" } },
-    max_output_tokens: CANVAS_MAX_OUTPUT_TOKENS,
-  });
+  const call = callMeta ? startAiCall(callMeta) : null;
 
   let content = "";
   let completedOutput: Parameters<typeof extractResponseText>[0] | undefined;
   /** Why the structured fast path was abandoned, if it was. */
   let fastPathError: string | null = null;
 
-  for await (const event of stream) {
-    if (event.type === "response.reasoning_text.delta") {
-      appendReasoning(event.delta);
-      continue;
-    }
-    if (event.type === "response.reasoning_summary_text.delta") {
-      appendReasoning(event.delta);
-      continue;
-    }
-    if (event.type === "response.output_text.delta") {
-      content += event.delta;
-      continue;
-    }
-    // `done` carries the authoritative full text — adopt it only when it
-    // extends what the deltas accumulated (guards out-of-order delivery).
-    if (event.type === "response.output_text.done" && event.text) {
-      if (event.text.length >= content.length) {
-        content = event.text;
+  try {
+    const stream = await handle.client.responses.create({
+      model: handle.modelId,
+      stream: true,
+      instructions: buildCanvasSystemPrompt(label),
+      input: `Create a professional diagram as a JSON object for:
+${prompt}`,
+      ...reasoningKwargs(handle, reasoningEffort),
+      text: { format: { type: "json_object" } },
+      max_output_tokens: CANVAS_MAX_OUTPUT_TOKENS,
+    });
+
+    for await (const event of stream) {
+      if (event.type === "response.reasoning_text.delta") {
+        appendReasoning(event.delta);
+        continue;
       }
-      continue;
-    }
-    if (event.type === "response.completed") {
-      completedOutput = event.response.output;
-      // Reconcile streamed deltas against the final snapshot (same guard).
-      const fromResponse = extractResponseText(event.response.output);
-      if (fromResponse.length >= content.length) {
-        content = fromResponse;
+      if (event.type === "response.reasoning_summary_text.delta") {
+        appendReasoning(event.delta);
+        continue;
       }
-      const parsed = (event.response as { output_parsed?: unknown })
-        .output_parsed;
-      if (
-        parsed &&
-        typeof parsed === "object" &&
-        Array.isArray((parsed as { nodes?: unknown }).nodes)
-      ) {
-        // An optimisation, never the only route to an answer. The streamed text
-        // and the structured payload are two deliveries of the same reply, so a
-        // payload that fails validation must fall through to `content` rather
-        // than discarding a diagram that is already sitting there. The reason is
-        // kept so a failure of both can name both.
-        try {
-          onStatus("Parsing diagram structure…");
-          const diagram = parseDiagramRecord(
-            parsed as { nodes?: unknown; edges?: unknown },
-          );
-          onStatus(
-            `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
-          );
-          layoutDiagram(diagram);
-          onStatus("Drawing shapes and connectors…");
-          const canvasData = buildExcalidrawFromDiagram(diagram);
-          if (canvasData.length === 0) {
-            throw new Error("Canvas builder produced no elements");
+      if (event.type === "response.output_text.delta") {
+        content += event.delta;
+        continue;
+      }
+      // `done` carries the authoritative full text — adopt it only when it
+      // extends what the deltas accumulated (guards out-of-order delivery).
+      if (event.type === "response.output_text.done" && event.text) {
+        if (event.text.length >= content.length) {
+          content = event.text;
+        }
+        continue;
+      }
+      if (event.type === "response.completed") {
+        await call?.finish(usageFromResponse(event.response));
+        completedOutput = event.response.output;
+        // Reconcile streamed deltas against the final snapshot (same guard).
+        const fromResponse = extractResponseText(event.response.output);
+        if (fromResponse.length >= content.length) {
+          content = fromResponse;
+        }
+        const parsed = (event.response as { output_parsed?: unknown })
+          .output_parsed;
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          Array.isArray((parsed as { nodes?: unknown }).nodes)
+        ) {
+          // An optimisation, never the only route to an answer. The streamed text
+          // and the structured payload are two deliveries of the same reply, so a
+          // payload that fails validation must fall through to `content` rather
+          // than discarding a diagram that is already sitting there. The reason is
+          // kept so a failure of both can name both.
+          try {
+            onStatus("Parsing diagram structure…");
+            const diagram = parseDiagramRecord(
+              parsed as { nodes?: unknown; edges?: unknown },
+            );
+            onStatus(
+              `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
+            );
+            layoutDiagram(diagram);
+            onStatus("Drawing shapes and connectors…");
+            const canvasData = buildExcalidrawFromDiagram(diagram);
+            if (canvasData.length === 0) {
+              throw new Error("Canvas builder produced no elements");
+            }
+            onStatus(`Done — ${canvasData.length} canvas elements`);
+            return { canvasData, thinking: thinkingLog };
+          } catch (err) {
+            fastPathError = err instanceof Error ? err.message : String(err);
+            console.error("[canvas] structured payload rejected:", fastPathError);
           }
-          onStatus(`Done — ${canvasData.length} canvas elements`);
-          return { canvasData, thinking: thinkingLog };
-        } catch (err) {
-          fastPathError = err instanceof Error ? err.message : String(err);
-          console.error("[canvas] structured payload rejected:", fastPathError);
         }
       }
     }
+  } catch (err) {
+    await call?.fail(err);
+    throw err;
   }
+  // A stream that ended without a completion event still cost a request.
+  await call?.finish();
 
   /**
    * Names the structured payload's rejection alongside a fallback failure, so

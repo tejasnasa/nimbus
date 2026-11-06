@@ -10,6 +10,7 @@
  * per-deployment (free tier) keys actually reach the call site without env
  * reads at import time.
  */
+import { startAiCall, usageFromResponse, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 
 /** Options for {@link generateMarkdownDocument}. */
@@ -24,6 +25,8 @@ export type GenerateMarkdownDocumentOptions = {
   onThinking?: (token: string) => void;
   /** The pre-resolved SDK client handle. The caller owns entitlement. */
   handle: AiClientHandle;
+  /** When given, the model call is written to the workspace call log. */
+  callMeta?: AiCallMeta;
 };
 
 /**
@@ -37,7 +40,7 @@ export type GenerateMarkdownDocumentOptions = {
 export async function generateMarkdownDocument(
   options: GenerateMarkdownDocumentOptions,
 ): Promise<{ fullContent: string }> {
-  const { prompt, label, onToken, onThinking, handle } = options;
+  const { prompt, label, onToken, onThinking, handle, callMeta } = options;
   const appendThinking = onThinking ?? (() => {});
 
   const systemPrompt = `You are an expert technical writer and document generator.
@@ -53,25 +56,37 @@ Document Title: ${label}`;
   // capability-aware: it returns `{}` for a model with no `reasoning`, and
   // omits `summary` where the model rejects it. `low` is the cheapest level
   // every verified provider accepts.
-  const stream = await handle.client.responses.create({
-    model: handle.modelId,
-    stream: true,
-    instructions: systemPrompt,
-    input: prompt,
-    ...reasoningKwargs(handle, "low"),
-  });
-
+  const call = callMeta ? startAiCall(callMeta) : null;
   let fullContent = "";
-  for await (const event of stream) {
-    if (event.type === "response.output_text.delta" && event.delta) {
-      fullContent += event.delta;
-      onToken(event.delta);
-    }
+  try {
+    const stream = await handle.client.responses.create({
+      model: handle.modelId,
+      stream: true,
+      instructions: systemPrompt,
+      input: prompt,
+      ...reasoningKwargs(handle, "low"),
+    });
 
-    if (event.type === "response.reasoning_text.delta" && event.delta) {
-      appendThinking(event.delta);
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta" && event.delta) {
+        fullContent += event.delta;
+        onToken(event.delta);
+      }
+
+      if (event.type === "response.reasoning_text.delta" && event.delta) {
+        appendThinking(event.delta);
+      }
+
+      if (event.type === "response.completed") {
+        await call?.finish(usageFromResponse(event.response));
+      }
     }
+  } catch (err) {
+    await call?.fail(err);
+    throw err;
   }
+  // A stream that ended without a completion event still cost a request.
+  await call?.finish();
 
   return { fullContent };
 }

@@ -57,7 +57,7 @@ afterEach(() => {
 
 describe("encryptSecret + decryptSecret — round-trip", () => {
   it("returns the original plaintext", () => {
-    const aad = buildAad("user-1", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-1" }, "openai");
     const envelope = encryptSecret("sk-live-abcdefghijklmnop", aad);
 
     expect(decryptSecret(envelope, aad)).toBe("sk-live-abcdefghijklmnop");
@@ -67,7 +67,7 @@ describe("encryptSecret + decryptSecret — round-trip", () => {
     // The encryption is UTF-8 in, UTF-8 out; a multibyte string must come back
     // byte-identical. A failure here would mean the cipher is treating the
     // input as latin1 or losing characters at the buffer boundary.
-    const aad = buildAad("user-2", "deepseek");
+    const aad = buildAad({ kind: "user", userId: "user-2" }, "deepseek");
     const plaintext = "sk-秘密-🚀-κόσμος";
 
     const envelope = encryptSecret(plaintext, aad);
@@ -79,7 +79,7 @@ describe("encryptSecret + decryptSecret — round-trip", () => {
     // Two encryptions of the same plaintext with the same AAD must yield
     // different ciphertext, because the IV is randomly generated. A static
     // IV would let an attacker tell when two users supplied the same key.
-    const aad = buildAad("user-3", "groq");
+    const aad = buildAad({ kind: "user", userId: "user-3" }, "groq");
     const first = encryptSecret("sk-same", aad);
     const second = encryptSecret("sk-same", aad);
 
@@ -90,7 +90,7 @@ describe("encryptSecret + decryptSecret — round-trip", () => {
   });
 
   it("emits the nimbus1 envelope prefix", () => {
-    const aad = buildAad("user-4", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-4" }, "openai");
     const envelope = encryptSecret("sk-x", aad);
 
     expect(envelope.startsWith("nimbus1.")).toBe(true);
@@ -101,7 +101,7 @@ describe("encryptSecret + decryptSecret — round-trip", () => {
 
 describe("decryptSecret — tamper detection", () => {
   it("rejects tampered ciphertext", () => {
-    const aad = buildAad("user-5", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-5" }, "openai");
     const envelope = encryptSecret("sk-supersecret-1234567890", aad);
 
     // Flip a byte deep in the ciphertext segment. Doing this at the byte
@@ -118,7 +118,7 @@ describe("decryptSecret — tamper detection", () => {
   });
 
   it("rejects tampered auth tag", () => {
-    const aad = buildAad("user-6", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-6" }, "openai");
     const envelope = encryptSecret("sk-supersecret-1234567890", aad);
 
     // Flip a base64 char in the tag (the second-to-last segment).
@@ -136,16 +136,16 @@ describe("decryptSecret — tamper detection", () => {
     // user-A's AAD fails to decrypt when read with user-B's AAD, even though
     // the master key is identical. Without the AAD bind, swapping `userId`
     // on a stolen row would yield a usable key.
-    const alice = buildAad("alice", "openai");
-    const bob = buildAad("bob", "openai");
+    const alice = buildAad({ kind: "user", userId: "alice" }, "openai");
+    const bob = buildAad({ kind: "user", userId: "bob" }, "openai");
     const envelope = encryptSecret("sk-alice-only", alice);
 
     expect(() => decryptSecret(envelope, bob)).toThrow();
   });
 
   it("rejects a row swap to another provider (AAD mismatch)", () => {
-    const openai = buildAad("user-7", "openai");
-    const groq = buildAad("user-7", "groq");
+    const openai = buildAad({ kind: "user", userId: "user-7" }, "openai");
+    const groq = buildAad({ kind: "user", userId: "user-7" }, "groq");
     const envelope = encryptSecret("sk-stored-as-openai", openai);
 
     expect(() => decryptSecret(envelope, groq)).toThrow();
@@ -157,7 +157,7 @@ describe("decryptSecret — tamper detection", () => {
     // matters because a buggy implementation that forgot to call
     // `setAuthTag` would still throw on a tampered ciphertext, but might
     // happily accept a tampered IV.
-    const aad = buildAad("user-8", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-8" }, "openai");
     const envelope = encryptSecret("sk-stored", aad);
     const parts = envelope.split(".");
 
@@ -174,7 +174,7 @@ describe("decryptSecret — tamper detection", () => {
 
 describe("decryptSecret — envelope validation", () => {
   it("rejects an envelope without the nimbus1 prefix", () => {
-    const aad = buildAad("user-9", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-9" }, "openai");
 
     expect(() => decryptSecret("v2.deadbeef.AAAA.BBBB.CCCC", aad)).toThrow(
       /nimbus1/,
@@ -182,13 +182,13 @@ describe("decryptSecret — envelope validation", () => {
   });
 
   it("rejects a malformed envelope with too few parts", () => {
-    const aad = buildAad("user-10", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-10" }, "openai");
 
     expect(() => decryptSecret("nimbus1.deadbeef.AAAA.BBBB", aad)).toThrow();
   });
 
   it("rejects a malformed envelope with an empty segment", () => {
-    const aad = buildAad("user-11", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-11" }, "openai");
 
     expect(() => decryptSecret("nimbus1..AAAA.BBBB.CCCC", aad)).toThrow();
   });
@@ -197,7 +197,7 @@ describe("decryptSecret — envelope validation", () => {
     // A 12-byte AES-GCM IV base64-encodes to 16 chars (no padding). Forge
     // one with a different length to confirm the parse path catches it
     // rather than feeding GCM a non-standard IV.
-    const aad = buildAad("user-12", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-12" }, "openai");
 
     // 8 zero bytes base64-encoded is "AAAAAAAAAA==" — wrong length for AES-GCM.
     expect(() =>
@@ -209,7 +209,7 @@ describe("decryptSecret — envelope validation", () => {
     // The encrypted envelope was produced earlier in the test, so the
     // ciphertext itself is fine; the failure is on the decrypt side, where
     // the absence of any candidate key throws.
-    const aad = buildAad("user-13", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-13" }, "openai");
     const envelope = encryptSecret("sk-orphan", aad);
 
     delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
@@ -225,7 +225,7 @@ describe("decryptSecret — envelope validation", () => {
     delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY;
     delete process.env.AI_CREDENTIAL_ENCRYPTION_KEY_PREVIOUS;
 
-    const aad = buildAad("user-13b", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-13b" }, "openai");
     expect(() => encryptSecret("sk-needs-key", aad)).toThrow(
       /AI_CREDENTIAL_ENCRYPTION_KEY/,
     );
@@ -239,7 +239,7 @@ describe("decryptSecret — envelope validation", () => {
     // a misconfigured deployment that bypassed env.ts (e.g. by setting the
     // variable after boot via process.env assignment) still fails here.
     process.env.AI_CREDENTIAL_ENCRYPTION_KEY = "too-short";
-    const aad = buildAad("user-13c", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-13c" }, "openai");
     expect(() => encryptSecret("sk-needs-key", aad)).toThrow();
   });
 
@@ -247,7 +247,7 @@ describe("decryptSecret — envelope validation", () => {
     // A 16-byte GCM tag base64-encodes to 24 chars (with `==` padding).
     // Forge one with a different length to confirm the parse path catches
     // it before GCM is asked to use it.
-    const aad = buildAad("user-13d", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-13d" }, "openai");
     // IV (12 bytes) base64 is 16 chars; tag of 8 bytes base64 is "AAAAAAAAAA==" — wrong length.
     expect(() =>
       decryptSecret("nimbus1.deadbeef.AAAAAAAAAAAAAAAA.AAAAAAAAAA==.BBBB", aad),
@@ -262,7 +262,7 @@ describe("key rotation — previous keys still decrypt", () => {
     const previous = "previous-master-key-32-chars-or-more-long-aaaaaaaa";
     const current = MASTER_KEY;
 
-    const aad = buildAad("user-14", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-14" }, "openai");
 
     // Encrypt under the previous key.
     process.env.AI_CREDENTIAL_ENCRYPTION_KEY = previous;
@@ -291,7 +291,7 @@ describe("key rotation — previous keys still decrypt", () => {
   it("an envelope whose previous key is no longer listed throws", () => {
     const previous = "previous-master-key-32-chars-or-more-long-aaaaaaaa";
 
-    const aad = buildAad("user-15", "openai");
+    const aad = buildAad({ kind: "user", userId: "user-15" }, "openai");
 
     process.env.AI_CREDENTIAL_ENCRYPTION_KEY = previous;
     const envelope = encryptSecret("sk-orphan-after-rotation", aad);
@@ -360,7 +360,7 @@ describe("decryptSecret — thrown messages do not leak secrets", () => {
   /** Any 8-character run taken from the secret. */
   const eightCharRun = (s: string) => s.slice(0, 8);
 
-  const aad = buildAad("user-16", "openai");
+  const aad = buildAad({ kind: "user", userId: "user-16" }, "openai");
   const envelope = encryptSecret(SECRET, aad);
 
   it("does not echo the plaintext in its error message", () => {
@@ -415,5 +415,44 @@ describe("decryptSecret — thrown messages do not leak secrets", () => {
       expect(causeStr).not.toContain(SECRET);
       expect(causeStr).not.toContain(eightCharRun(SECRET));
     }
+  });
+});
+
+// ── Workspace scope ──────────────────────────────────────────────────────────
+
+describe("buildAad: workspace scope", () => {
+  it("round-trips under a workspace AAD", () => {
+    const aad = buildAad({ kind: "workspace", workspaceId: "ws-1" }, "openai");
+    expect(decryptSecret(encryptSecret("sk-test-fake-1234567890", aad), aad)).toBe(
+      "sk-test-fake-1234567890",
+    );
+  });
+
+  it("refuses an envelope moved to another workspace", () => {
+    const a = buildAad({ kind: "workspace", workspaceId: "ws-a" }, "openai");
+    const b = buildAad({ kind: "workspace", workspaceId: "ws-b" }, "openai");
+    const envelope = encryptSecret("sk-test-fake-1234567890", a);
+    expect(() => decryptSecret(envelope, b)).toThrow();
+  });
+
+  it("refuses an envelope moved to another provider in the same workspace", () => {
+    const a = buildAad({ kind: "workspace", workspaceId: "ws-a" }, "openai");
+    const b = buildAad({ kind: "workspace", workspaceId: "ws-a" }, "groq");
+    expect(() =>
+      decryptSecret(encryptSecret("sk-test-fake-1234567890", a), b),
+    ).toThrow();
+  });
+
+  it("keeps user-scoped and workspace-scoped envelopes apart", () => {
+    const user = buildAad({ kind: "user", userId: "same-id" }, "openai");
+    const ws = buildAad({ kind: "workspace", workspaceId: "same-id" }, "openai");
+    expect(user).not.toBe(ws);
+    expect(() =>
+      decryptSecret(encryptSecret("sk-test-fake-1234567890", user), ws),
+    ).toThrow();
+    // The user-scoped form still decrypts only with its own AAD.
+    expect(
+      decryptSecret(encryptSecret("sk-test-fake-1234567890", user), user),
+    ).toBe("sk-test-fake-1234567890");
   });
 });

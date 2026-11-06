@@ -39,6 +39,7 @@ import {
   type AiModelSpec,
   type AiProviderSpec,
 } from "@nimbus/types";
+import { resolveBaseUrl } from "./providers";
 
 /** The handle the resolver hands to the call sites. */
 export type AiClientHandle = {
@@ -146,7 +147,7 @@ export function createAiClient(options: CreateAiClientOptions): AiClientHandle {
 function buildHandle(options: CreateAiClientOptions): AiClientHandle {
   const client = new OpenAI({
     apiKey: options.apiKey,
-    baseURL: options.provider.baseUrl,
+    baseURL: resolveBaseUrl(options.provider),
   });
 
   return {

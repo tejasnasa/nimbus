@@ -1,10 +1,10 @@
 /**
  * @module api/lib/ai/entitlements
- * @description Resolves which AI credential/model serves a given feature for a
- * given user, and returns an {@link AiClientHandle} ready for a call site to
- * use, or a curated refusal.
+ * @description Resolves which AI credential/model serves a text feature in a
+ * given workspace for a given user, and returns an {@link AiClientHandle} ready
+ * for a call site to use, or a curated refusal.
  *
- * This module composes four things and adds no logic of its own:
+ * This module composes five things and adds no logic of its own:
  *
  *   1. `packages/utils`'s `selectModelForFeature` — the pure precedence
  *      chain (preference → credential → free tier).
@@ -12,10 +12,16 @@
  *      view.
  *   3. `lib/ai/credentialCrypto` — envelope decryption.
  *   4. `lib/ai/clientFactory` — the SDK client construction.
+ *   5. `lib/ai/spendCap` — the workspace's monthly ceiling.
  *
  * The resolver is the only module that combines these — splitting the work
- * keeps every other piece unit-testable without spinning up a DB or an SDK
- * mock, and makes the resolver itself a thin, audited wrapper.
+ * keeps every other piece unit-testable without spinning up an SDK mock, and
+ * makes the resolver itself a thin, audited wrapper.
+ *
+ * @important Credentials and preferences belong to the **workspace**: whoever
+ *            triggers a request spends the workspace's key. The `userId` is
+ *            carried for the call log and for the free tier, whose allowance is
+ *            charged to the person asking, never to the workspace.
  *
  * @important Two asymmetries that must not be "fixed" without reading this
  *            header again:
@@ -26,10 +32,15 @@
  *   - `invalid-key` and `provider-error` are produced at *call* time by
  *     `clientFactory.classifyClientError`. This module produces no network
  *     call, so its refusals are limited to the rest of the union.
+ *
+ * @important Audio features (transcription, speech) are not resolved here. They
+ *            go through `voiceEntitlements`, which returns a plaintext key and
+ *            is deliberately a separate, lint-restricted entry point.
  */
 import {
   type AiCapability,
   type AiFeature,
+  type AiModelKind,
   type AiModelSource,
   type AiModelSpec,
   type AiProviderId,
@@ -45,21 +56,30 @@ import {
 import { prisma } from "@nimbus/db";
 import { buildAad, decryptSecret } from "./credentialCrypto";
 import { createAiClient, type AiClientHandle } from "./clientFactory";
+import type { AiCallMeta } from "./callLog";
 import { freeTier as readFreeTierEnv, getProvider } from "./providers";
+import { isOverCap } from "./spendCap";
+
+/** The features this resolver serves: the ones a text model answers. */
+export type ResolvableFeature = Extract<
+  AiFeature,
+  "chat" | "markdown" | "canvas" | "vision" | "meeting"
+>;
 
 /**
  * The user-visible failure reasons the resolver can produce.
  *
  * `invalid-key` and `provider-error` are excluded on purpose — they are
  * produced at call time by `clientFactory.classifyClientError`. The resolver
- * sees no network, so it cannot know whether the user's key is bad or the
- * provider is down.
+ * sees no network, so it cannot know whether the key is bad or the provider is
+ * down.
  */
 export type AiRefusalReason =
   | "no-key"
   | "free-tier-exhausted"
   | "no-operator-key"
-  | "no-capable-model";
+  | "no-capable-model"
+  | "spend-cap-reached";
 
 /** A curated, non-secret-bearing refusal safe to send to the client. */
 export type AiRefusal = {
@@ -69,6 +89,12 @@ export type AiRefusal = {
   readonly cta: "add-key" | "manage-ai" | null;
   /** Optional operator-facing detail, scrubbed of any secret material. */
   readonly detail?: string;
+  /** The selection that would have run, for the call log. */
+  readonly attempted?: {
+    readonly providerId: AiProviderId;
+    readonly modelId: string;
+    readonly source: "byok" | "free";
+  };
 };
 
 /** A successful resolution, with the SDK handle and the ledger identity. */
@@ -82,12 +108,23 @@ export type AiSuccess = {
   readonly credentialId?: string;
   /** `sha256(apiKey).slice(0,16)` — safe to log, never returned over HTTP. */
   readonly keyFingerprint?: string;
-  /** True when the user's preference could not be honoured. UI explains. */
+  /** True when the workspace's preference could not be honoured. UI explains. */
   readonly substituted: boolean;
+  /** What the call log needs to describe a call made through this handle. */
+  readonly meta: AiCallMeta;
 };
 
 /** The discriminated union the call sites consume. */
 export type AiResolution = AiSuccess | AiRefusal;
+
+/** Who is asking, and for what. */
+export type ResolveAiInput = {
+  /** The workspace whose key and preferences apply. */
+  readonly workspaceId: string;
+  /** The triggering user: charged for the free tier, named in the call log. */
+  readonly userId: string;
+  readonly feature: ResolvableFeature;
+};
 
 /** Dependencies the resolver reads. Defaults to the live ones for production. */
 export type ResolveDeps = {
@@ -95,44 +132,40 @@ export type ResolveDeps = {
   readonly prisma?: typeof prisma;
   /** Override for the operator's free-tier view. Test-only. */
   readonly freeTier?: FreeTierView;
+  /** Override for the spend cap check. Test-only. */
+  readonly isOverCap?: (workspaceId: string) => Promise<boolean>;
+};
+
+/** The workspace's stored credentials and preferences, as selection sees them. */
+export type WorkspaceAiViews = {
+  readonly credentialViews: CredentialView[];
+  readonly preferenceViews: PreferenceView[];
 };
 
 /**
- * Resolves which AI client serves `feature` for `userId`.
+ * Loads a workspace's credentials and preferences and maps them to the views
+ * `selectModelForFeature` takes. Shared by the resolver and the status route so
+ * the two can never disagree about what is selectable.
  *
- * The resolver does no network call. Every refusal it produces is a
- * configuration state, not a runtime failure.
- *
- * @param userId - The triggering user. A credential that is not theirs is
- *                 scoped out before selection runs, so the cache and the
- *                 substitution logic only see their own rows.
- * @param feature - Which call site is asking (chat / markdown / canvas).
- * @param deps - Optional test overrides. Production passes nothing.
- * @returns Either a {@link AiSuccess} carrying an {@link AiClientHandle}
- *          ready for `responses.create`, or an {@link AiRefusal} with a
- *          curated message and the right call-to-action.
+ * @param workspaceId - The workspace.
+ * @param db - Prisma handle; defaults to the singleton.
  */
-export async function resolveAi(
-  userId: string,
-  feature: AiFeature,
-  deps: ResolveDeps = {},
-): Promise<AiResolution> {
-  const db = deps.prisma ?? prisma;
-  const freeTier = deps.freeTier ?? readFreeTierEnv();
-
-  // Fetch the user's credentials and preferences in parallel — both are
-  // indexed by userId and cheap, and the resolver needs them to feed
-  // `selectModelForFeature`. A missing user row is treated as "no
-  // credentials, no preferences" rather than a refusal: the call site
-  // already authenticated the request, and the failure mode here is the
-  // user's first request.
+export async function loadWorkspaceAiViews(
+  workspaceId: string,
+  db: Pick<typeof prisma, "workspaceAiCredential" | "workspaceAiPreference"> = prisma,
+): Promise<WorkspaceAiViews> {
   const [credentials, preferences] = await Promise.all([
-    db.aiCredential.findMany({
-      where: { userId },
-      select: { id: true, providerId: true, createdAt: true },
+    db.workspaceAiCredential.findMany({
+      where: { workspaceId },
+      select: {
+        id: true,
+        providerId: true,
+        createdAt: true,
+        verifiedKinds: true,
+      },
     }),
-    db.aiFeaturePreference.findMany({
-      where: { userId },
+    db.workspaceAiPreference.findMany({
+      where: { workspaceId },
       select: {
         feature: true,
         providerId: true,
@@ -143,20 +176,49 @@ export async function resolveAi(
     }),
   ]);
 
-  const credentialViews: CredentialView[] = credentials.map((c) => ({
-    id: c.id,
-    providerId: c.providerId as AiProviderId,
-    createdAt: c.createdAt,
-  }));
-  const preferenceViews: PreferenceView[] = preferences.map((p) => ({
-    // The DB enum uses uppercase; the selection helper uses lowercase. Map
-    // once here so the rest of the module does not see the difference.
-    feature: p.feature.toLowerCase() as AiFeature,
-    providerId: p.providerId as AiProviderId,
-    modelId: p.modelId,
-    source: p.modelSource as AiModelSource,
-    capabilities: p.modelCapabilities as AiCapability[],
-  }));
+  return {
+    credentialViews: credentials.map((c) => ({
+      id: c.id,
+      providerId: c.providerId as AiProviderId,
+      createdAt: c.createdAt,
+      verifiedKinds: c.verifiedKinds as AiModelKind[],
+    })),
+    preferenceViews: preferences.map((p) => ({
+      // The DB enum uses uppercase; the selection helper uses lowercase. Map
+      // once here so the rest of the module does not see the difference.
+      feature: p.feature.toLowerCase() as AiFeature,
+      providerId: p.providerId as AiProviderId,
+      modelId: p.modelId,
+      source: p.modelSource as AiModelSource,
+      capabilities: p.modelCapabilities as AiCapability[],
+    })),
+  };
+}
+
+/**
+ * Resolves which AI client serves `feature` in a workspace.
+ *
+ * The resolver does no provider call. Every refusal it produces is a
+ * configuration state, not a runtime failure.
+ *
+ * @param input - The workspace, the triggering user and the feature.
+ * @param deps - Optional test overrides. Production passes nothing.
+ * @returns Either a {@link AiSuccess} carrying an {@link AiClientHandle}
+ *          ready for `responses.create`, or an {@link AiRefusal} with a
+ *          curated message and the right call-to-action.
+ */
+export async function resolveAi(
+  input: ResolveAiInput,
+  deps: ResolveDeps = {},
+): Promise<AiResolution> {
+  const { workspaceId, userId, feature } = input;
+  const db = deps.prisma ?? prisma;
+  const freeTier = deps.freeTier ?? readFreeTierEnv();
+
+  const { credentialViews, preferenceViews } = await loadWorkspaceAiViews(
+    workspaceId,
+    db,
+  );
 
   const selection = selectModelForFeature(
     feature,
@@ -169,9 +231,30 @@ export async function resolveAi(
     return refusalFor(selection.reason, freeTier !== null);
   }
 
+  // The cap guards the workspace's own keys. A free-tier call spends the
+  // operator's money, bounded by the caller's quota, not the workspace's.
+  if (selection.source === "byok") {
+    const overCap = await (deps.isOverCap ?? isOverCap)(workspaceId);
+    if (overCap) {
+      return {
+        ok: false,
+        reason: "spend-cap-reached",
+        message:
+          "This workspace has reached its monthly AI spend cap. An admin can raise it in AI settings.",
+        cta: "manage-ai",
+        attempted: {
+          providerId: selection.providerId,
+          modelId: selection.modelId,
+          source: "byok",
+        },
+      };
+    }
+  }
+
   return buildResolution({
     feature,
     selection,
+    workspaceId,
     userId,
     db,
     preference: preferenceViews.find((p) => p.feature === feature),
@@ -197,39 +280,39 @@ function refusalFor(
         ok: false,
         reason: "no-operator-key",
         message:
-          "The free tier is not configured on this deployment. Add your provider credentials to use AI features.",
+          "The free tier is not configured on this deployment. A workspace admin can add a provider key in AI settings.",
         cta: "add-key",
       };
     }
     return {
       ok: false,
       reason: "no-key",
-      message: "Add your provider credentials to use this feature.",
+      message: "A workspace admin needs to add a provider key to use this feature.",
       cta: "add-key",
     };
   }
 
   // reason === "no-capable-model" — every available provider's default
-  // model lacks the feature's required capability. The user can fix this
-  // by adding a key for a provider whose models meet the requirement, or
-  // by picking a different feature model in the picker. The CTA points at
-  // the manage-AI panel rather than add-key, because the row already
-  // exists.
+  // model lacks the feature's required capability. The fix is a key for a
+  // provider whose models meet the requirement, or a different model in the
+  // picker. The CTA points at the manage-AI panel rather than add-key,
+  // because the row already exists.
   return {
     ok: false,
     reason: "no-capable-model",
     message:
-      "No available model supports this feature. Add a credential for a different provider or pick a different model.",
+      "No available model supports this feature. Add a key for a different provider or pick a different model.",
     cta: "manage-ai",
   };
 }
 
 type BuildResolutionDeps = {
-  readonly feature: AiFeature;
+  readonly feature: ResolvableFeature;
   readonly selection: SelectedModel;
+  readonly workspaceId: string;
   readonly userId: string;
   readonly db: ResolveDeps["prisma"];
-  /** The user's saved preference for the feature, when there is one. */
+  /** The workspace's saved preference for the feature, when there is one. */
   readonly preference?: PreferenceView;
 };
 
@@ -272,10 +355,10 @@ function storedModelSpec(
 async function buildResolution(
   input: BuildResolutionDeps,
 ): Promise<AiResolution> {
-  const { feature, selection, userId, db, preference } = input;
+  const { feature, selection, workspaceId, userId, db, preference } = input;
 
   if (selection.source === "byok") {
-    const credential = await db!.aiCredential.findUnique({
+    const credential = await db!.workspaceAiCredential.findUnique({
       where: { id: selection.credentialId! },
       select: { keyEnvelope: true, keyFingerprint: true, providerId: true },
     });
@@ -287,7 +370,7 @@ async function buildResolution(
       return {
         ok: false,
         reason: "no-key",
-        message: "Add an API key to use this feature.",
+        message: "A workspace admin needs to add a provider key to use this feature.",
         cta: "add-key",
       };
     }
@@ -298,47 +381,33 @@ async function buildResolution(
       // filters these out, so reaching here means a registry change
       // happened between the select call and the lookup. Surface as
       // `no-capable-model` so the user is told something concrete.
-      return {
-        ok: false,
-        reason: "no-capable-model",
-        message:
-          "No available model supports this feature. Add a key for a different provider or pick a different model.",
-        cta: "manage-ai",
-      };
+      return noCapableModel();
     }
 
     const model =
       provider.models.find((m) => m.id === selection.modelId) ??
       storedModelSpec(preference, selection);
-    if (!model) {
-      return {
-        ok: false,
-        reason: "no-capable-model",
-        message:
-          "No available model supports this feature. Add a key for a different provider or pick a different model.",
-        cta: "manage-ai",
-      };
-    }
+    if (!model) return noCapableModel();
 
     let apiKey: string;
     try {
       apiKey = decryptSecret(
         credential.keyEnvelope,
-        buildAad(userId, credential.providerId),
+        buildAad({ kind: "workspace", workspaceId }, credential.providerId),
       );
     } catch {
       // The envelope is unreadable — wrong key (rotation?), tampered row, or
       // AAD mismatch. Surfacing as `invalid-key` would be a lie (the key
-      // itself is fine), so ask the user to re-add it and log operator-side.
+      // itself is fine), so ask for it to be added again and log operator-side.
       console.error(
-        `[ai] Failed to decrypt credential ${credential.keyFingerprint} for user ${userId}. ` +
+        `[ai] Failed to decrypt credential ${credential.keyFingerprint} for workspace ${workspaceId}. ` +
           "Likely cause: rotation or tampering.",
       );
       return {
         ok: false,
         reason: "no-key",
         message:
-          "Your stored credential could not be read. Please add it again.",
+          "The workspace's stored credential could not be read. An admin needs to add it again.",
         cta: "add-key",
       };
     }
@@ -359,6 +428,16 @@ async function buildResolution(
       credentialId: selection.credentialId ?? undefined,
       keyFingerprint: credential.keyFingerprint,
       substituted: selection.substituted,
+      meta: {
+        workspaceId,
+        userId,
+        feature,
+        providerId: selection.providerId,
+        modelId: selection.modelId,
+        source: "byok",
+        pricing: model.pricing,
+        credentialId: selection.credentialId ?? undefined,
+      },
     };
   }
 
@@ -369,32 +448,16 @@ async function buildResolution(
       ok: false,
       reason: "no-operator-key",
       message:
-        "The free tier is not configured on this deployment. Add an API key to use AI features.",
+        "The free tier is not configured on this deployment. A workspace admin can add a provider key in AI settings.",
       cta: "add-key",
     };
   }
 
   const provider = getProvider(selection.providerId);
-  if (!provider) {
-    return {
-      ok: false,
-      reason: "no-capable-model",
-      message:
-        "No available model supports this feature. Add a key for a different provider or pick a different model.",
-      cta: "manage-ai",
-    };
-  }
+  if (!provider) return noCapableModel();
 
   const model = provider.models.find((m) => m.id === selection.modelId);
-  if (!model) {
-    return {
-      ok: false,
-      reason: "no-capable-model",
-      message:
-        "No available model supports this feature. Add a key for a different provider or pick a different model.",
-      cta: "manage-ai",
-    };
-  }
+  if (!model) return noCapableModel();
 
   // Free-tier capability assumption — once per process. The plan calls for
   // exactly one `warn`, because a deployment that has not opted into the
@@ -416,6 +479,26 @@ async function buildResolution(
     modelId: selection.modelId,
     handle,
     substituted: selection.substituted,
+    meta: {
+      workspaceId,
+      userId,
+      feature,
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+      source: "free",
+      pricing: model.pricing,
+    },
+  };
+}
+
+/** The refusal for a registry that no longer matches the stored selection. */
+function noCapableModel(): AiRefusal {
+  return {
+    ok: false,
+    reason: "no-capable-model",
+    message:
+      "No available model supports this feature. Add a key for a different provider or pick a different model.",
+    cta: "manage-ai",
   };
 }
 

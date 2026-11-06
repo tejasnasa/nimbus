@@ -33,6 +33,7 @@ import {
   type AiProviderSpec,
 } from "@nimbus/types";
 import { classifyProbeError, type ProbeRefusal } from "./probe";
+import { resolveBaseUrl } from "./providers";
 
 /** Per-call timeout for every probe request. */
 export const MODEL_PROBE_TIMEOUT_MS = 15_000;
@@ -108,7 +109,7 @@ export async function probeModel(
     options.client ??
     (new OpenAI({
       apiKey,
-      baseURL: provider.baseUrl,
+      baseURL: resolveBaseUrl(provider),
       timeout: MODEL_PROBE_TIMEOUT_MS,
       maxRetries: 0,
     }) as unknown as ProbeClient);
@@ -223,9 +224,9 @@ export async function probeModel(
 /** How long a measured result is reused by the save that follows it. */
 export const PROBE_CACHE_TTL_SECONDS = 10 * 60;
 
-/** Redis key for one user's probe result for one model. Holds no key material. */
+/** Redis key for one workspace's probe result for one model. Holds no key material. */
 export const probeCacheKey = (
-  userId: string,
+  workspaceId: string,
   providerId: string,
   modelId: string,
-): string => `ai:probe:${userId}:${providerId}:${modelId}`;
+): string => `ai:probe:${workspaceId}:${providerId}:${modelId}`;

@@ -1,6 +1,15 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "AI_FREE_VOICE_SECONDS",
+    "AI_SPEECH_MODEL",
+    "AI_SPEECH_VOICE",
+    "AI_TEST_BASE_URL",
+    "AI_TRANSCRIBE_MODEL",
+    "AI_VOICE_API_KEY",
+    "AI_VOICE_BASE_URL"
+  ],
   "tasks": {
     "build": {
       "env": ["DATABASE_URL", "NEXT_PUBLIC_BACKEND_URL"],

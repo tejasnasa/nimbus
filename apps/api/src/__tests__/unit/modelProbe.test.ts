@@ -107,7 +107,7 @@ describe("probeModel: capability detection", () => {
         "vision",
       ].sort(),
     );
-    expect(measured.servesFeatures).toEqual(["chat", "markdown", "canvas"]);
+    expect(measured.servesFeatures).toEqual(["chat", "markdown", "canvas", "vision", "meeting"]);
   });
 
   it("reports nothing extra for a model that only answers the basic call", async () => {

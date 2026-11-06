@@ -69,6 +69,16 @@ const envSchema = z.object({
   AI_MODEL: z.string().min(1).default("deepseek-flash"),
   AI_FREE_DOC_LIMIT: z.coerce.number().int().min(0).default(5),
 
+  // ── The free voice tier. The in-call assistant uses this key and these
+  //    models for a member whose workspace has no key of its own for voice.
+  //    An unset or empty `AI_VOICE_API_KEY` disables free voice. ──
+  AI_VOICE_API_KEY: z.string().optional(),
+  AI_VOICE_BASE_URL: z.string().min(1).default("https://openrouter.ai/api/v1"),
+  AI_TRANSCRIBE_MODEL: z.string().min(1).default("openai/gpt-transcribe"),
+  AI_SPEECH_MODEL: z.string().min(1).default("fish-audio/drama-3"),
+  AI_SPEECH_VOICE: z.string().min(1).default("default"),
+  AI_FREE_VOICE_SECONDS: z.coerce.number().int().min(0).default(300),
+
   // ── BYOK encryption ──
   // Required. Stored provider keys are encrypted with this at rest, so a
   // deployment without it cannot serve BYOK at all — the credential routes

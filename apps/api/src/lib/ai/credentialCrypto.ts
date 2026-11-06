@@ -1,11 +1,11 @@
 /**
  * @module api/lib/ai/credentialCrypto
- * @description Encryption-at-rest for user-supplied AI provider API keys.
+ * @description Encryption-at-rest for AI provider API keys.
  *
- * A user that pastes their own key into Nimbus trusts us with a credential that
- * can spend their money, so the at-rest representation is encrypted with
+ * A workspace admin that pastes a key into Nimbus trusts us with a credential
+ * that can spend their money, so the at-rest representation is encrypted with
  * AES-256-GCM rather than stored plaintext. The envelope is
- * `nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>`, one row per (user, provider).
+ * `nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>`, one row per (workspace, provider).
  *
  * @important These must never happen:
  *   - log the plaintext, the envelope, or the derived 32-byte master key;
@@ -18,6 +18,12 @@
  *   - export anything that returns a plaintext key to an HTTP layer. The
  *     DTO type has no field for it, so a leak would be a type error;
  *   - use a non-AEAD mode or a static IV.
+ *
+ * @important The AAD names the owner of the row. Workspace rows use
+ *   `ai-credential:v2:<workspaceId>:<providerId>`; the older user-scoped rows
+ *   used `ai-credential:v1:<userId>:<providerId>` and stay readable through
+ *   {@link buildAad}'s `user` scope for as long as they exist. Moving a v2
+ *   envelope to another workspace therefore fails to decrypt.
  *
  * @important The threat model is honest. The process holds the master key in
  *   its environment, so anyone with read access to the running container's
@@ -55,13 +61,16 @@ const HKDF_SALT = Buffer.from("nimbus/ai-credential-encryption/v1", "utf8");
  *  purpose is a deliberate change rather than a coincidence. */
 const HKDF_INFO = Buffer.from("ai-credential:v1", "utf8");
 
-/** The AAD prefix used in GCM auth. The full AAD is
- *  `ai-credential:v1:<userId>:<providerId>`. A row swapped to another user
- *  or provider therefore fails to decrypt rather than yielding a usable
- *  key — closing the row-swap attack an unbound ciphertext allows. */
-const AAD_PREFIX = "ai-credential:v1:";
+/** The AAD prefix for workspace-scoped rows. The full AAD is
+ *  `ai-credential:v2:<workspaceId>:<providerId>`. A row swapped to another
+ *  workspace or provider therefore fails to decrypt rather than yielding a
+ *  usable key — closing the row-swap attack an unbound ciphertext allows. */
+const AAD_PREFIX_WORKSPACE = "ai-credential:v2:";
 
-/** AAD separator. The userId / providerId cannot themselves contain `:` in
+/** The AAD prefix of the older user-scoped rows: `ai-credential:v1:<userId>:<providerId>`. */
+const AAD_PREFIX_USER = "ai-credential:v1:";
+
+/** AAD separator. The owner id / providerId cannot themselves contain `:` in
  *  this codebase (cuid and an enum), but the separator is fixed here so the
  *  format cannot be subverted by an unanticipated input shape. */
 const AAD_SEPARATOR = ":";
@@ -100,10 +109,18 @@ const PREVIEW_HEAD_LENGTH = 3;
 /** How many characters of the suffix are visible in the masked preview. */
 const PREVIEW_TAIL_LENGTH = 4;
 
+/** Who owns an encrypted row, and so which AAD binds it. */
+export type AadScope =
+  | { readonly kind: "user"; readonly userId: string }
+  | { readonly kind: "workspace"; readonly workspaceId: string };
+
 /** AAD builder. Kept exported so callers (and tests) can derive the same AAD
  *  the encrypt path used, which is exactly what the decrypt path requires. */
-export function buildAad(userId: string, providerId: string): Buffer {
-  return Buffer.from(AAD_PREFIX + userId + AAD_SEPARATOR + providerId, "utf8");
+export function buildAad(scope: AadScope, providerId: string): Buffer {
+  const prefix =
+    scope.kind === "workspace" ? AAD_PREFIX_WORKSPACE : AAD_PREFIX_USER;
+  const owner = scope.kind === "workspace" ? scope.workspaceId : scope.userId;
+  return Buffer.from(prefix + owner + AAD_SEPARATOR + providerId, "utf8");
 }
 
 /**
@@ -182,8 +199,8 @@ export function maskSecret(plaintext: string): string {
  * Encrypts a plaintext API key for storage.
  *
  * @param plaintext - The user's API key. Never logged.
- * @param aad - The bind context (`userId:providerId`). A row swapped to a
- *              different user or provider fails to decrypt because the AAD
+ * @param aad - The bind context from {@link buildAad}. A row moved to a
+ *              different owner or provider fails to decrypt because the AAD
  *              check fails.
  * @returns The envelope `nimbus1.<keyId>.<ivB64>.<tagB64>.<ctB64>`.
  * @throws When the master key is unset or shorter than 32 chars.
@@ -282,7 +299,7 @@ function candidateKeys(): Buffer[] {
  * @param envelope - The stored ciphertext envelope.
  * @param aad - The bind context. MUST equal the AAD used to encrypt, or the
  *              GCM tag check fails. The caller is responsible for passing the
- *              same `userId:providerId` that was used at save time.
+ *              same scope and provider that were used at save time.
  * @returns The plaintext API key.
  * @throws When the envelope is malformed, the master key is unset, or any
  *         key fails the GCM tag check (tampering, wrong key, wrong AAD).

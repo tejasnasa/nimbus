@@ -141,6 +141,9 @@ model Message {
   userId      String
   workspaceId String
   createdAt   DateTime    @default(now())
+  /// Cloudinary delivery URL of an image attached to the message, or null.
+  /// Only ever a URL under `nimbus/chat/<workspaceId>`; the API rejects any other.
+  imageUrl    String?
 
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

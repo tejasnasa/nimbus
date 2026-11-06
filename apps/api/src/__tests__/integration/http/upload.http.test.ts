@@ -28,16 +28,20 @@ import {
 } from "vitest";
 import { createApp } from "../../../app";
 import {
+  addMember,
   as,
   closeTestResources,
+  createWorkspace,
   mintUser,
   resetDatabase,
+  testPrisma,
   type TestUser,
 } from "@testhelpers";
 
-const { apiSignRequest, uploaderDestroy } = vi.hoisted(() => ({
+const { apiSignRequest, uploaderDestroy, deleteByPrefix } = vi.hoisted(() => ({
   apiSignRequest: vi.fn(),
   uploaderDestroy: vi.fn(),
+  deleteByPrefix: vi.fn(),
 }));
 
 vi.mock("cloudinary", () => ({
@@ -45,6 +49,7 @@ vi.mock("cloudinary", () => ({
     config: vi.fn(),
     utils: { api_sign_request: apiSignRequest },
     uploader: { destroy: uploaderDestroy },
+    api: { delete_resources_by_prefix: deleteByPrefix },
   },
 }));
 
@@ -115,6 +120,18 @@ describe("http: upload/avatar-signature", () => {
     expect(typeof timestamp).toBe("number");
     expect(timestamp).toBeGreaterThanOrEqual(before);
     expect(signature).toMatch(/^sig\(.+\)$/);
+  });
+
+  it("answers 500 without leaking the cause when avatar signing fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    apiSignRequest.mockImplementation(() => {
+      throw new Error("signing exploded with secret-detail");
+    });
+
+    const res = await as(app, user).get("/api/upload/avatar-signature");
+
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain("secret-detail");
   });
 
   it("pins `public_id` to the deterministic per-user string", async () => {
@@ -288,5 +305,147 @@ describe("http: upload — post-delete avatar cleanup", () => {
     );
     expect(allTargets).toContain(`nimbus/avatars/${user.id}`);
     expect(allTargets).not.toContain(`nimbus/avatars/${botId}`);
+  });
+});
+
+describe("http: upload/chat-image-signature", () => {
+  let owner: TestUser;
+  let member: TestUser;
+  let outsider: TestUser;
+  let workspaceId: string;
+  const SECRET = "test-cloudinary-api-secret";
+
+  beforeEach(async () => {
+    await resetDatabase();
+    owner = await mintUser(app);
+    member = await mintUser(app);
+    outsider = await mintUser(app);
+    workspaceId = (await createWorkspace(owner.id)).id;
+    await addMember(workspaceId, member.id);
+
+    vi.stubEnv("CLOUDINARY_CLOUD_NAME", "test-cloudinary-cloud");
+    vi.stubEnv("CLOUDINARY_API_KEY", "test-cloudinary-api-key");
+    vi.stubEnv("CLOUDINARY_API_SECRET", SECRET);
+    apiSignRequest.mockReturnValue("signed");
+    deleteByPrefix.mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    apiSignRequest.mockReset();
+    deleteByPrefix.mockReset();
+  });
+
+  const sign = (user: TestUser, query = `?workspaceId=${workspaceId}`) =>
+    as(app, user).get(`/api/upload/chat-image-signature${query}`);
+
+  it("requires authentication", async () => {
+    const res = await (await import("supertest"))
+      .default(app)
+      .get(`/api/upload/chat-image-signature?workspaceId=${workspaceId}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it("signs an upload into the workspace's own folder for a member", async () => {
+    const res = await sign(member);
+
+    expect(res.status).toBe(200);
+    expect(res.body.responseObject).toMatchObject({
+      cloudName: "test-cloudinary-cloud",
+      apiKey: "test-cloudinary-api-key",
+      folder: `nimbus/chat/${workspaceId}`,
+      allowedFormats: "jpg,png,webp,heic",
+      transformation: "c_limit,w_2048,h_2048",
+      signature: "signed",
+    });
+    expect(apiSignRequest.mock.calls[0]![0]).toMatchObject({
+      folder: `nimbus/chat/${workspaceId}`,
+    });
+  });
+
+  it("also signs for the owner", async () => {
+    expect((await sign(owner)).status).toBe(200);
+  });
+
+  it("answers 404 to a user who is not a member, and signs nothing", async () => {
+    const res = await sign(outsider);
+
+    expect(res.status).toBe(404);
+    expect(apiSignRequest).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 for a workspace that does not exist", async () => {
+    expect((await sign(owner, "?workspaceId=cmnotaworkspace")).status).toBe(404);
+  });
+
+  it("rejects a missing or repeated workspaceId", async () => {
+    expect((await sign(owner, "")).status).toBe(400);
+    expect((await sign(owner, "?workspaceId=a&workspaceId=b")).status).toBe(400);
+  });
+
+  it("is never cached and never carries the API secret", async () => {
+    const res = await sign(member);
+
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(JSON.stringify(res.body)).not.toContain(SECRET);
+  });
+
+  it("answers 500 without leaking the cause when signing fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    apiSignRequest.mockImplementation(() => {
+      throw new Error("signing exploded with secret-detail");
+    });
+
+    const res = await sign(member);
+
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain("secret-detail");
+  });
+
+  it("deletes the workspace's chat images when it is deleted, if it had any", async () => {
+    await testPrisma.message.create({
+      data: {
+        content: "",
+        userId: owner.id,
+        workspaceId,
+        imageUrl: `https://res.cloudinary.com/test-cloudinary-cloud/image/upload/v1/nimbus/chat/${workspaceId}/a.jpg`,
+      },
+    });
+
+    const res = await as(app, owner).delete(`/api/workspace/delete/${workspaceId}`);
+
+    expect(res.status).toBe(200);
+    expect(deleteByPrefix).toHaveBeenCalledWith(
+      `nimbus/chat/${workspaceId}/`,
+      { invalidate: true },
+    );
+  });
+
+  it("does not call Cloudinary when deleting a workspace that never had an image", async () => {
+    const res = await as(app, owner).delete(`/api/workspace/delete/${workspaceId}`);
+
+    expect(res.status).toBe(200);
+    expect(deleteByPrefix).not.toHaveBeenCalled();
+  });
+
+  it("still deletes the workspace when the image cleanup fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    deleteByPrefix.mockRejectedValue(new Error("Cloudinary is down"));
+    await testPrisma.message.create({
+      data: {
+        content: "",
+        userId: owner.id,
+        workspaceId,
+        imageUrl: `https://res.cloudinary.com/test-cloudinary-cloud/image/upload/v1/nimbus/chat/${workspaceId}/a.jpg`,
+      },
+    });
+
+    const res = await as(app, owner).delete(`/api/workspace/delete/${workspaceId}`);
+
+    expect(res.status).toBe(200);
+    await expect(
+      testPrisma.workspace.count({ where: { id: workspaceId } }),
+    ).resolves.toBe(0);
   });
 });

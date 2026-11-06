@@ -45,6 +45,7 @@ export const getWorkspaceMessages = async (workspaceId: string, id: string) => {
           createdAt: msg.createdAt,
           name: msg.user.name,
           image: msg.user.image ?? undefined,
+          imageUrl: msg.imageUrl,
         }))
         .reverse(),
       "Messages retrieved",

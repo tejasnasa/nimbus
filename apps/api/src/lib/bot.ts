@@ -7,6 +7,10 @@
  * diagrams), and returns a discriminated `BotResult` (`reply` | `create_document`
  * | `refused`). Plain-text replies only — no Markdown formatting.
  *
+ * A message that carries an image sends it to the model on the latest user
+ * message only; earlier images stay in the history as a text marker, so a
+ * long conversation never re-sends (or re-pays for) old pictures.
+ *
  * @important The bot's HTTP-facing surface is `resolve → generate`, never
  *            `generate` alone. Callers that have not resolved a client handle
  *            first will not get a useful answer here — the caller must own the
@@ -39,7 +43,49 @@ export type GenerateBotResponseOptions = {
   allowDocument: boolean;
   /** When given, the model call is written to the workspace call log. */
   callMeta?: AiCallMeta;
+  /**
+   * An image attached to the triggering message. Sent as an `input_image` part
+   * on the latest user message, and the `create_document` tool gains
+   * `fromImage`. The caller must have validated it with
+   * `isOwnedChatImageUrl` and resolved a vision-capable handle.
+   */
+  imageUrl?: string;
+  /**
+   * The triggering message has an image the supplied handle cannot read. The
+   * model is told so rather than left to guess, and answers in text.
+   */
+  imageUnreadable?: boolean;
 };
+
+/** One turn of history as the Responses API takes it. */
+type HistoryItem = {
+  role: "user" | "assistant";
+  content:
+    | string
+    | Array<
+        | { type: "input_text"; text: string }
+        | { type: "input_image"; image_url: string; detail: "auto" }
+      >;
+};
+
+/**
+ * Turns the newest user turn into a text + image turn. Earlier turns are left
+ * as text, so only one image is ever sent.
+ */
+function attachImageToLatestUserMessage(
+  history: HistoryItem[],
+  imageUrl: string,
+): void {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const item = history[i]!;
+    if (item.role !== "user" || typeof item.content !== "string") continue;
+    item.content = [
+      { type: "input_text", text: item.content },
+      { type: "input_image", image_url: imageUrl, detail: "auto" },
+    ];
+    return;
+  }
+}
 
 /**
  * Generates the bot's next action for a workspace conversation.
@@ -57,7 +103,14 @@ export type GenerateBotResponseOptions = {
 export async function generateBotResponse(
   options: GenerateBotResponseOptions,
 ): Promise<BotResult> {
-  const { workspaceId, handle, allowDocument, callMeta } = options;
+  const {
+    workspaceId,
+    handle,
+    allowDocument,
+    callMeta,
+    imageUrl,
+    imageUnreadable = false,
+  } = options;
 
   try {
     const messages = await prisma.message.findMany({
@@ -71,16 +124,18 @@ export async function generateBotResponse(
 
     // Chronological order for the model: newest-first DB rows reversed, bot
     // rows as `assistant`, user rows prefixed so the model sees speaker names.
-    const history = messages.reverse().map((msg) => ({
-      role:
-        msg.userId === process.env.BOT_USERID
-          ? ("assistant" as const)
-          : ("user" as const),
-      content:
-        msg.userId === process.env.BOT_USERID
-          ? (msg.content ?? "")
-          : `${msg.user.name ?? "User"}: ${msg.content ?? ""}`,
-    }));
+    const history: HistoryItem[] = messages.reverse().map((msg) => {
+      const isBot = msg.userId === process.env.BOT_USERID;
+      const text = isBot
+        ? (msg.content ?? "")
+        : `${msg.user.name ?? "User"}: ${msg.content ?? ""}`;
+      return {
+        role: isBot ? ("assistant" as const) : ("user" as const),
+        content: msg.imageUrl ? `${text} [attached an image]` : text,
+      };
+    });
+
+    if (imageUrl) attachImageToLatestUserMessage(history, imageUrl);
 
     let instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
 
@@ -108,6 +163,7 @@ STRICT RULES:
     // exists for this user. Without this, a quota-exhausted user (or a user
     // with no key at all on a BYOK-only deployment) would still get a bot
     // reply that announces a document — and the room would then never see one.
+    const withImage = Boolean(imageUrl);
     const tools = allowDocument
       ? [
           {
@@ -138,8 +194,21 @@ STRICT RULES:
                   description:
                     "Detailed description of what the document should contain",
                 },
+                // Offered only with an image. Strict mode wants every key
+                // required, so it is nullable rather than optional.
+                ...(withImage
+                  ? {
+                      fromImage: {
+                        type: ["boolean", "null"],
+                        description:
+                          "set fromImage when the user wants the attached image turned into a diagram",
+                      },
+                    }
+                  : {}),
               },
-              required: ["type", "label", "prompt"],
+              required: withImage
+                ? ["type", "label", "prompt", "fromImage"]
+                : ["type", "label", "prompt"],
               additionalProperties: false,
             },
           },
@@ -154,6 +223,12 @@ STRICT RULES:
       instructions =
         instructions +
         "\n\nDocument creation is unavailable in this conversation; answer in text.";
+    }
+
+    if (imageUnreadable) {
+      instructions =
+        instructions +
+        "\n\nThe latest message has an image attached that you cannot see with the current setup. Say so briefly and do not guess what it shows.";
     }
 
     // Effort is requested explicitly rather than left to the provider's default,
@@ -183,8 +258,12 @@ STRICT RULES:
     if (toolCall && toolCall.name === "create_document") {
       try {
         const args = JSON.parse(toolCall.arguments);
+        // Honoured only when an image really is attached, and always a canvas:
+        // the image becomes a diagram, never a text document.
+        const fromImage = withImage && args.fromImage === true;
         // Default to MARKDOWN on unrecognized types rather than rejecting.
-        const type = args.type === "CANVAS" ? "CANVAS" : "MARKDOWN";
+        const type =
+          fromImage || args.type === "CANVAS" ? "CANVAS" : "MARKDOWN";
         const label = args.label || "Untitled Document";
         const prompt = args.prompt || "";
         const chatMessage = `Sure! I am creating the document "${label}" for you now. Please wait...`;
@@ -193,6 +272,7 @@ STRICT RULES:
           type,
           label,
           prompt,
+          ...(fromImage ? { fromImage: true } : {}),
           chatMessage,
         };
       } catch (e) {

@@ -25,6 +25,7 @@ import {
   createUser,
   createWorkspace,
   resetDatabase,
+  testPrisma,
 } from "@testhelpers";
 
 afterAll(closeTestResources);
@@ -487,6 +488,183 @@ describe("lib/bot", () => {
         workspaceId,
         handle: makeTestHandle(),
         allowDocument: true,
+      });
+
+      expect(result).toMatchObject({ kind: "reply" });
+    });
+  });
+
+  describe("images", () => {
+    const IMAGE =
+      "https://res.cloudinary.com/test/image/upload/v1/nimbus/chat/ws/new.jpg";
+
+    type InputItem = {
+      role: string;
+      content: string | Array<{ type: string; image_url?: string; detail?: string }>;
+    };
+    const inputSent = () =>
+      createMock.mock.calls.at(-1)?.[0]?.input as InputItem[];
+
+    beforeEach(() => {
+      createMock.mockResolvedValue(replyWith("ok"));
+    });
+
+    it("sends the image as an input_image part on the latest user message only", async () => {
+      const author = await createUser("Grace");
+      await createMessage(workspaceId, author.id, "first");
+      await createMessage(workspaceId, author.id, "second");
+      await createMessage(workspaceId, author.id, "@nimbusbot what is this?");
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+        imageUrl: IMAGE,
+      });
+
+      const input = inputSent();
+      const withImage = input.filter((i) => Array.isArray(i.content));
+      expect(withImage).toHaveLength(1);
+      expect(input.at(-1)).toBe(withImage[0]);
+      expect(withImage[0]!.content).toEqual([
+        { type: "input_text", text: expect.stringContaining("what is this?") },
+        { type: "input_image", image_url: IMAGE, detail: "auto" },
+      ]);
+    });
+
+    it("keeps an older message's image out of the request but marks it in the text", async () => {
+      const author = await createUser("Grace");
+      await testPrisma.message.create({
+        data: {
+          workspaceId,
+          userId: author.id,
+          content: "look",
+          imageUrl: "https://res.cloudinary.com/test/image/upload/v1/nimbus/chat/ws/old.jpg",
+        },
+      });
+      await createMessage(workspaceId, author.id, "@nimbusbot hello");
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+      });
+
+      const input = inputSent();
+      expect(input.some((i) => Array.isArray(i.content))).toBe(false);
+      expect(JSON.stringify(input)).not.toContain("old.jpg");
+      expect(input[0]!.content).toContain("[attached an image]");
+    });
+
+    it("adds fromImage to the tool only when an image is attached", async () => {
+      await createMessage(workspaceId, (await createUser("G")).id, "hi");
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+      });
+      const plain = createMock.mock.calls.at(-1)![0].tools[0].parameters;
+      expect(plain.properties).not.toHaveProperty("fromImage");
+      expect(plain.required).toEqual(["type", "label", "prompt"]);
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+        imageUrl: IMAGE,
+      });
+      const tool = createMock.mock.calls.at(-1)![0].tools[0];
+      expect(tool.parameters.properties.fromImage).toMatchObject({
+        type: ["boolean", "null"],
+        description: expect.stringContaining("attached image turned into a diagram"),
+      });
+      expect(tool.parameters.required).toContain("fromImage");
+      expect(tool.parameters.additionalProperties).toBe(false);
+    });
+
+    it("returns fromImage and forces a canvas when the model asks for it", async () => {
+      await createMessage(workspaceId, (await createUser("G")).id, "diagram it");
+      createMock.mockResolvedValue(
+        toolCallWith({
+          type: "MARKDOWN",
+          label: "Board",
+          prompt: "p",
+          fromImage: true,
+        }),
+      );
+
+      const result = await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+        imageUrl: IMAGE,
+      });
+
+      expect(result).toMatchObject({
+        kind: "create_document",
+        type: "CANVAS",
+        fromImage: true,
+      });
+    });
+
+    it("ignores fromImage when no image is attached", async () => {
+      await createMessage(workspaceId, (await createUser("G")).id, "write notes");
+      createMock.mockResolvedValue(
+        toolCallWith({ type: "MARKDOWN", label: "N", prompt: "p", fromImage: true }),
+      );
+
+      const result = await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+      });
+
+      expect(result).toMatchObject({ kind: "create_document", type: "MARKDOWN" });
+      expect(result).not.toHaveProperty("fromImage");
+    });
+
+    it("does not set fromImage when the model sends null", async () => {
+      await createMessage(workspaceId, (await createUser("G")).id, "hi");
+      createMock.mockResolvedValue(
+        toolCallWith({ type: "CANVAS", label: "N", prompt: "p", fromImage: null }),
+      );
+
+      const result = await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+        imageUrl: IMAGE,
+      });
+
+      expect(result).toMatchObject({ kind: "create_document", type: "CANVAS" });
+      expect(result).not.toHaveProperty("fromImage");
+    });
+
+    it("tells the model it cannot see an image it was not given", async () => {
+      await createMessage(workspaceId, (await createUser("G")).id, "what is this");
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: false,
+        imageUnreadable: true,
+      });
+
+      expect(createMock.mock.calls.at(-1)![0].instructions).toContain(
+        "attached that you cannot see",
+      );
+    });
+
+    it("still degrades to a reply instead of throwing when the call fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      createMock.mockRejectedValue(new Error("vision exploded"));
+
+      const result = await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: true,
+        imageUrl: IMAGE,
       });
 
       expect(result).toMatchObject({ kind: "reply" });

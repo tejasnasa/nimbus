@@ -16,6 +16,7 @@ import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
+import { destroyChatImages } from "../lib/cloudinary";
 import { evictCanvas } from "../socket/canvas";
 import { evictDocument } from "../socket/document";
 
@@ -34,6 +35,22 @@ function isForeignKeyViolation(error: unknown): boolean {
     error !== null &&
     (error as { code?: unknown }).code === "P2003"
   );
+}
+
+/**
+ * Whether any message in the workspace carries an image. A failed lookup reads
+ * as "no": the cleanup it gates is best-effort and must not block deletion.
+ */
+async function workspaceHasChatImages(workspaceId: string): Promise<boolean> {
+  try {
+    const count = await prisma.message.count({
+      where: { workspaceId, imageUrl: { not: null } },
+    });
+    return count > 0;
+  } catch (error) {
+    console.error("[workspace] could not check for chat images:", error);
+    return false;
+  }
 }
 
 /**
@@ -578,11 +595,17 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
       return ServerResponse.forbidden("Access denied");
     }
 
+    // Counted before the cascade removes the rows: a workspace that never had
+    // an image should not cost a Cloudinary round-trip.
+    const hadChatImages = await workspaceHasChatImages(wsid);
+
     await prisma.workspace.delete({
       where: {
         id: wsid,
       },
     });
+
+    if (hadChatImages) await destroyChatImages(wsid);
 
     // The rows cascade, but the process-local Yjs and canvas maps do not.
     // Evicting each document drops its cached state and cancels any pending

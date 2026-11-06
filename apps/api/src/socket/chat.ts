@@ -3,10 +3,15 @@
  * @description Workspace chat + presence + NimbusBot pipeline.
  *
  * Handles `workspace:join/leave` (membership check → room join → Redis
- * presence → `presence:*` broadcasts), `message:send` (persist → `message:new`
- * fan-out), `@nimbusbot` mentions (resolve → decide → claim → announce →
+ * presence → `presence:*` broadcasts), `message:send` (validate → persist →
+ * `message:new` fan-out; an attached image must live in the workspace's own
+ * chat folder), `@nimbusbot` mentions (resolve → decide → claim → announce →
  * generate → refund, with `ai:refused` for the targeted no-go), ephemeral
  * `typing:*` relays, and `disconnecting` presence cleanup.
+ *
+ * A mention that carries an image is answered by a vision model, and the bot
+ * may turn the image into a canvas diagram; a workspace that cannot read images
+ * falls back to a text-only chat turn and the asker is told why.
  *
  * @important Assumes handshake auth (`socket.data.user`). Bot generation runs
  *            detached so slow LLM calls never block chat delivery.
@@ -25,14 +30,23 @@
  *            a generation that never started.
  */
 import { prisma } from "@nimbus/db";
-import type { BotResult } from "@nimbus/types";
+import { messageSendSchema, type BotResult } from "@nimbus/types";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
 import { generateCanvasDocument } from "../lib/canvasGeneration";
+import { isOwnedChatImageUrl } from "../lib/cloudinary";
+import {
+  generateCanvasFromImage,
+  IMAGE_UNREADABLE_MESSAGE,
+} from "../lib/imageCanvas";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
-import { recordAiRefusal } from "../lib/ai/callLog";
-import { resolveAi, type AiResolution } from "../lib/ai/entitlements";
+import { AiCallError, recordAiRefusal } from "../lib/ai/callLog";
+import {
+  resolveAi,
+  type AiResolution,
+  type AiSuccess,
+} from "../lib/ai/entitlements";
 import {
   claimFreeDocGeneration,
   readQuotaState,
@@ -118,8 +132,16 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
 
   socket.on(
     "message:send",
-    async (data: { workspaceId: string; content: string }) => {
+    async (payload: {
+      workspaceId: string;
+      content: string;
+      imageUrl?: string;
+    }) => {
       try {
+        const parsed = messageSendSchema.safeParse(payload);
+        if (!parsed.success) return;
+        const data = parsed.data;
+
         const member = await prisma.workspaceMember.findUnique({
           where: {
             userId_workspaceId: {
@@ -131,11 +153,24 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
 
         if (!member) return;
 
+        // The only gate between a client-supplied URL and the model (and every
+        // other member's browser): it must be this workspace's own upload.
+        if (
+          data.imageUrl !== undefined &&
+          !isOwnedChatImageUrl(data.imageUrl, data.workspaceId)
+        ) {
+          return socket.emit(
+            "workspace:error",
+            "That image cannot be used in this workspace",
+          );
+        }
+
         const message = await prisma.message.create({
           data: {
             content: data.content,
             userId: user.id,
             workspaceId: data.workspaceId,
+            imageUrl: data.imageUrl ?? null,
           },
         });
 
@@ -156,6 +191,7 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
               workspaceId: data.workspaceId,
               userName: user.name,
               userImage: user.image,
+              imageUrl: data.imageUrl,
             });
           })().catch((err) => console.error("Bot Reply Error:", err));
         }
@@ -209,6 +245,8 @@ type HandleBotMentionInput = {
   readonly workspaceId: string;
   readonly userName: string | null | undefined;
   readonly userImage: string | null | undefined;
+  /** An image on the triggering message, already checked for ownership. */
+  readonly imageUrl?: string;
 };
 
 /**
@@ -228,18 +266,44 @@ type HandleBotMentionInput = {
  *            emit `ai:refused` to the asking socket only.
  */
 async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
-  const { io, socket, userId, workspaceId } = input;
+  const { io, socket, userId, workspaceId, imageUrl } = input;
+
+  // 0. A mention with an image is answered by a vision model. If the workspace
+  //    cannot read images the turn falls back to chat, and the asker is told
+  //    why (with a route to the AI settings) instead of the bot guessing.
+  let visionResolution: AiSuccess | null = null;
+  if (imageUrl) {
+    const vision = await resolveAi({ workspaceId, userId, feature: "vision" });
+    if (vision.ok) {
+      visionResolution = vision;
+    } else {
+      emitRefusal(
+        socket,
+        "vision",
+        { ...vision, message: IMAGE_UNSUPPORTED_MESSAGE, cta: "manage-ai" },
+        { workspaceId, userId },
+      );
+    }
+  }
+  const imageUnreadable = Boolean(imageUrl) && !visionResolution;
 
   // 1. Resolve chat. A failure here means the user has no chat path at all
   //    (no key, no operator key, encryption unconfigured).
-  const chatResolution = await resolveAi({ workspaceId, userId, feature: "chat" });
+  const chatResolution =
+    visionResolution ??
+    (await resolveAi({ workspaceId, userId, feature: "chat" }));
   if (!chatResolution.ok) {
     return emitRefusal(socket, "chat", chatResolution, { workspaceId, userId });
   }
 
   // 2. Resolve documents. A failure here means the user has chat but not
   //    documents — quota exhausted, no capable model, or no encryption key.
-  const documentResolution = await resolveDocumentForUser(userId, workspaceId);
+  //    An image turn is metered against the vision resolution's source.
+  const documentResolution = await resolveDocumentForUser(
+    userId,
+    workspaceId,
+    visionResolution ? "vision" : "markdown",
+  );
   const allowDocument = documentResolution.kind === "available";
 
   // 3. Generate the bot's reply with the chosen chat handle and the
@@ -249,6 +313,8 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
     handle: chatResolution.handle,
     allowDocument,
     callMeta: chatResolution.meta,
+    imageUrl: visionResolution ? imageUrl : undefined,
+    imageUnreadable,
   });
 
   if (botResult.kind === "refused") {
@@ -305,7 +371,7 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
     data: {
       content:
         botResult.kind === "reply" ? botResult.content : botResult.chatMessage,
-      userId: process.env.BOT_USERID!,
+      userId: botUserId(),
       workspaceId,
     },
     include: { user: true },
@@ -361,6 +427,47 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
           label: doc.title,
           type: doc.type,
         });
+      } else if (botResult.fromImage && imageUrl && visionResolution) {
+        const result = await generateCanvasFromImage({
+          handle: visionResolution.handle,
+          imageUrl,
+          instruction: botResult.prompt,
+          onReasoning: (token) => {
+            io.to(workspaceId).emit("doc:ai:thinking", { token });
+          },
+          callMeta: visionResolution.meta,
+        });
+
+        if (result.kind === "not-a-diagram") {
+          // Not a failure of the model or the provider: the picture simply is
+          // not a diagram. The overlay is dismissed, the allowance returned and
+          // the asker told in chat what the model saw.
+          if (claimed) {
+            await refundFreeDocGeneration(userId);
+            claimed = false;
+          }
+          const explanation = `That doesn't look like a diagram: ${result.reason}`;
+          io.to(workspaceId).emit("doc:ai:error", { message: explanation });
+          await postBotMessage(io, workspaceId, explanation);
+          return;
+        }
+
+        const { canvasData } = result;
+        const doc = await prisma.document.create({
+          data: {
+            title: botResult.label,
+            type: "CANVAS",
+            workspaceId,
+            canvasData,
+          },
+        });
+
+        io.to(workspaceId).emit("doc:ai:complete", {
+          documentId: doc.id,
+          label: doc.title,
+          type: doc.type,
+          canvasData,
+        });
       } else {
         const canvasResolution = await resolveAi({
           workspaceId,
@@ -411,14 +518,17 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
         claimed = false;
       }
       io.to(workspaceId).emit("doc:ai:error", {
-        message: "Document generation failed. Please try again.",
+        message:
+          err instanceof AiCallError && err.reason === "parse-failed"
+            ? IMAGE_UNREADABLE_MESSAGE
+            : "Document generation failed. Please try again.",
       });
 
       try {
         const errorBotMessage = await prisma.message.create({
           data: {
             content: `Sorry, I failed to create the document "${botResult.label}". Please try again.`,
-            userId: process.env.BOT_USERID!,
+            userId: botUserId(),
             workspaceId,
           },
           include: { user: true },
@@ -434,6 +544,30 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
       }
     }
   }
+}
+
+/** NimbusBot's user id, read at call time so tests can set it. */
+const botUserId = () => process.env.BOT_USERID!;
+
+/** What the asker is told when the workspace has no model that can read images. */
+const IMAGE_UNSUPPORTED_MESSAGE =
+  "NimbusBot can't read images with this workspace's current AI setup. Choose a vision-capable model in the workspace's AI settings.";
+
+/** Persists a bot chat message and broadcasts it to the room. */
+async function postBotMessage(
+  io: Server,
+  workspaceId: string,
+  content: string,
+): Promise<void> {
+  const message = await prisma.message.create({
+    data: { content, userId: botUserId(), workspaceId },
+    include: { user: true },
+  });
+  io.to(workspaceId).emit("message:new", {
+    ...message,
+    name: message.user.name,
+    image: message.user.image,
+  });
 }
 
 /** The one place the exhausted-quota refusal copy is written. */
@@ -474,8 +608,9 @@ type DocumentResolution =
 async function resolveDocumentForUser(
   userId: string,
   workspaceId: string,
+  feature: "markdown" | "vision" = "markdown",
 ): Promise<DocumentResolution> {
-  const resolution = await resolveAi({ workspaceId, userId, feature: "markdown" });
+  const resolution = await resolveAi({ workspaceId, userId, feature });
   if (!resolution.ok) {
     return {
       kind: "refused",
@@ -508,7 +643,7 @@ async function resolveDocumentForUser(
  */
 function emitRefusal(
   socket: Socket,
-  feature: "chat" | "markdown" | "canvas",
+  feature: "chat" | "markdown" | "canvas" | "vision",
   refusal: Extract<AiResolution, { ok: false }>,
   context: { workspaceId: string; userId: string },
 ) {

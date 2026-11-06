@@ -65,7 +65,7 @@ export type AiCallErrorReason =
 export class AiCallError extends Error {
   readonly reason: AiCallErrorReason;
 
-  constructor(reason: AiCallErrorReason, message = reason) {
+  constructor(reason: AiCallErrorReason, message: string = reason) {
     super(message);
     this.name = "AiCallError";
     this.reason = reason;

@@ -12,6 +12,13 @@
  *     probes answered 403, so the "saved with warnings" path can be driven;
  *   - any other token is accepted for text, transcription and speech.
  *
+ * The image-to-diagram flow has two scripted answers, recognised by the shape
+ * of the request rather than by the token: a routing call whose tool offers a
+ * `fromImage` argument is answered with a `create_document` call that sets it,
+ * and a streamed JSON-mode call is answered, after a short pause so the
+ * generation overlay is observable, with a three-node diagram. Everything else
+ * on `/responses` still gets the plain "ok".
+ *
  * Endpoints: `POST /responses`, `POST /audio/transcriptions`,
  * `POST /audio/speech`, plus `GET /health` for the readiness check.
  */
@@ -22,12 +29,79 @@ import process from "node:process";
 /** The port `playwright.config.ts` and the API's `AI_TEST_BASE_URL` both name. */
 const PORT = 4010;
 
-/** Reads and discards a request body so the socket can be reused. */
-const drain = (req) =>
+/** Reads a request body in full and parses it as JSON when it is. */
+const readBody = (req) =>
   new Promise((resolve) => {
-    req.on("data", () => {});
-    req.on("end", resolve);
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch {
+        resolve(null);
+      }
+    });
   });
+
+/** The diagram the streamed image-to-canvas call returns. */
+const DIAGRAM = JSON.stringify({
+  direction: "LR",
+  nodes: [
+    { id: "client", shape: "rectangle", label: "Client" },
+    { id: "api", shape: "rectangle", label: "API" },
+    { id: "db", shape: "ellipse", label: "Database" },
+  ],
+  edges: [
+    { from: "client", to: "api" },
+    { from: "api", to: "db" },
+  ],
+});
+
+/** How long the streamed diagram is held back, so the overlay can be seen. */
+const STREAM_DELAY_MS = 1500;
+
+/** Writes one server-sent event in the shape the OpenAI SDK parses. */
+const sse = (res, event) => {
+  res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+};
+
+const streamDiagram = async (res) => {
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+  });
+  await new Promise((resolve) => setTimeout(resolve, STREAM_DELAY_MS));
+  sse(res, {
+    type: "response.output_text.delta",
+    sequence_number: 1,
+    item_id: "msg_fake",
+    output_index: 0,
+    content_index: 0,
+    delta: DIAGRAM,
+  });
+  sse(res, {
+    type: "response.completed",
+    sequence_number: 2,
+    response: {
+      id: "resp_fake",
+      object: "response",
+      created_at: 0,
+      status: "completed",
+      model: "fake",
+      output: [
+        {
+          type: "message",
+          id: "msg_fake",
+          role: "assistant",
+          status: "completed",
+          content: [{ type: "output_text", text: DIAGRAM, annotations: [] }],
+        },
+      ],
+      usage: { input_tokens: 800, output_tokens: 90, total_tokens: 890 },
+    },
+  });
+  res.end();
+};
 
 const send = (res, status, body, type = "application/json") => {
   res.writeHead(status, { "content-type": type });
@@ -39,7 +113,7 @@ const server = createServer(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  await drain(req);
+  const body = await readBody(req);
   const token = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
   const path = (req.url ?? "").split("?")[0];
 
@@ -48,6 +122,37 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && path === "/responses") {
+    const offersFromImage = (body?.tools ?? []).some(
+      (tool) => tool?.parameters?.properties?.fromImage,
+    );
+    if (offersFromImage) {
+      return send(res, 200, {
+        id: "resp_fake",
+        object: "response",
+        created_at: 0,
+        status: "completed",
+        model: "fake",
+        output: [
+          {
+            type: "function_call",
+            id: "fc_fake",
+            call_id: "call_fake",
+            name: "create_document",
+            status: "completed",
+            arguments: JSON.stringify({
+              type: "CANVAS",
+              label: "Photo diagram",
+              prompt: "Turn the attached image into a diagram",
+              fromImage: true,
+            }),
+          },
+        ],
+        usage: { input_tokens: 300, output_tokens: 30, total_tokens: 330 },
+      });
+    }
+    if (body?.stream === true && body?.text?.format?.type === "json_object") {
+      return streamDiagram(res);
+    }
     return send(res, 200, {
       id: "resp_fake",
       object: "response",

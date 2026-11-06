@@ -17,7 +17,13 @@ import SettingTabs from "@nimbus/ui/SettingTabs";
 import Textarea from "@nimbus/ui/Textarea";
 import ToggleGroup from "@nimbus/ui/ToggleGroup";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import { useRef } from "react";
 import { ClientDocument } from "../api/document";
+import {
+  CHAT_IMAGE_ACCEPT,
+  useChatImageUpload,
+} from "../hooks/useChatImageUpload";
+import { socket } from "../lib/socket";
 import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
 import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
 import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
@@ -29,7 +35,8 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * @description Workspace settings modal (~500 lines, largest component):
  * `SettingTabs` with General (rename form, dirty-gated save), Members
  * (role OptionMenu + remove confirmations), Documents (create dialog with
- * MARKDOWN/CANVAS ToggleGroup + per-doc delete), AI (workspace provider keys,
+ * MARKDOWN/CANVAS ToggleGroup, a "From an image…" shortcut that uploads a
+ * picture and asks NimbusBot to diagram it, + per-doc delete), AI (workspace provider keys,
  * models, assistant switches and spend cap for admins; a read-only summary for
  * members), Usage (admins only: the AI call log), and Permissions (invite
  * copy/regenerate + danger-zone delete). New docs open via the
@@ -39,6 +46,9 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
 import { useDocEditorRef } from "./DocEditorRefContext";
 import WorkspaceAiPanel from "./WorkspaceAiPanel";
 import WorkspaceUsagePanel from "./WorkspaceUsagePanel";
+
+/** The chat message "From an image…" posts alongside the uploaded picture. */
+const IMAGE_TO_DIAGRAM_MESSAGE = "@nimbusbot turn this into a diagram";
 
 /**
  * @param props.workspace - Workspace under edit (seeds the rename form).
@@ -72,6 +82,25 @@ export default function WorkspaceSettings({
   } = useWorkspaceMembers(workspace.id);
 
   const addTabRef = useDocEditorRef();
+
+  const imageUpload = useChatImageUpload(workspace.id);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // "From an image…" has no code path of its own: it uploads the picture and
+  // posts the same chat message a member would type, so the bot, the quota and
+  // the overlay behave exactly as they do from the composer.
+  const handleImageToDiagram = async (file: File | undefined) => {
+    if (!file) return;
+    const imageUrl = await imageUpload.upload(file);
+    if (!imageUrl) return;
+    socket.emit("message:send", {
+      workspaceId: workspace.id,
+      content: IMAGE_TO_DIAGRAM_MESSAGE,
+      imageUrl,
+    });
+    imageUpload.reset();
+    document.getElementById("close-doc-dialog")?.click();
+  };
 
   const {
     register: docRegister,
@@ -336,6 +365,38 @@ export default function WorkspaceSettings({
                               docSetValue("type", val as "MARKDOWN" | "CANVAS")
                             }
                           />
+                        </div>
+
+                        <div className="mb-4">
+                          <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept={CHAT_IMAGE_ACCEPT}
+                            className="hidden"
+                            data-testid="doc-image-input"
+                            onChange={(e) => {
+                              void handleImageToDiagram(e.target.files?.[0]);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            type="button"
+                            data-testid="doc-from-image"
+                            loading={imageUpload.state.status === "uploading"}
+                            onClick={() => imageInputRef.current?.click()}
+                            className="w-full bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted) rounded-xl"
+                          >
+                            From an image…
+                          </Button>
+                          {imageUpload.state.status === "error" && (
+                            <p
+                              role="alert"
+                              className="mt-1 text-xs text-(--destructive)"
+                            >
+                              {imageUpload.state.message}
+                            </p>
+                          )}
                         </div>
 
                         {docError && (

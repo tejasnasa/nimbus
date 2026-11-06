@@ -11,6 +11,7 @@ import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
 import Textarea from "@nimbus/ui/Textarea";
 import ChatIcon from "@nimbus/ui/icons/Chat";
+import PaperclipIcon from "@nimbus/ui/icons/Paperclip";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { timeAgo } from "@nimbus/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,6 +27,11 @@ import { ClientDocument } from "../api/document";
  * `typing:start`/`typing:stop` events and renders peers' status as a
  * reserved-height line below the message list.
  *
+ * Images: the paperclip (or a file dropped on the composer) uploads straight to
+ * Cloudinary through `useChatImageUpload`, showing a progress chip that can be
+ * cancelled; once ready, Send posts the message with its `imageUrl` (the text
+ * may be empty). Messages with an image render a thumbnail that opens full size.
+ *
  * The composer **disables** when `features.chat.enabled === false` and renders
  * an {@link AiRefusalBanner}. Keys belong to the workspace, so an admin gets an
  * Add API key button (or, for a spent monthly cap, a button that opens the
@@ -40,6 +46,10 @@ import { ClientDocument } from "../api/document";
  *            (§10) is explicit that human chat remains open, and the comment
  *            lives here so a future reader does not mistake it for a bug.
  */
+import {
+  CHAT_IMAGE_ACCEPT,
+  useChatImageUpload,
+} from "../hooks/useChatImageUpload";
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import { useWorkspaceAiStatus } from "../hooks/useWorkspaceAiStatus";
 import { aiApi, workspaceAiPath } from "../lib/aiApi";
@@ -79,6 +89,12 @@ export default function Chat({
   const [content, setContent] = useState("");
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [aiRefusal, setAiRefusal] = useState<{
+    message: string;
+    cta: "add-key" | "manage-ai" | null;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -96,6 +112,9 @@ export default function Chat({
 
   // Throttled outbound + debounced inbound typing. The hook owns every timer
   // and clears them on unmount, so the composer never has to.
+  const imageUpload = useChatImageUpload(wsid);
+  const pendingImage = imageUpload.state;
+
   const { typingNames, handleTypingInput, stopTyping } = useTypingIndicator({
     wsid,
     currentUserId: userId,
@@ -145,8 +164,13 @@ export default function Chat({
       message: string;
       cta: "add-key" | "manage-ai" | null;
     }) {
-      // The chat composer only cares about chat refusals. Document refusals
-      // are surfaced by the doc editor's own overlay.
+      // The chat composer cares about chat refusals, and about a vision
+      // refusal (the bot could not read an image). Document refusals are
+      // surfaced by the doc editor's own overlay.
+      if (data.feature === "vision") {
+        setAiRefusal({ message: data.message, cta: data.cta });
+        return;
+      }
       if (data.feature !== "chat") return;
       setWorkspaceError(data.message);
     }
@@ -173,15 +197,26 @@ export default function Chat({
     // Disabled composer guard — defends against a programmatic submit, a stale
     // closure, or an Enter keydown slipping past the textarea's `disabled`.
     if (!chatEnabled) return;
-    if (!content.trim()) return;
+    const imageUrl =
+      pendingImage.status === "ready" ? pendingImage.imageUrl : undefined;
+    if (pendingImage.status === "uploading") return;
+    if (!content.trim() && !imageUrl) return;
     socket.emit("message:send", {
       workspaceId: wsid,
       content: content.trim(),
+      ...(imageUrl ? { imageUrl } : {}),
     });
     setContent("");
+    imageUpload.reset();
     // Sending also stops typing — the composer is empty, and a sent message
     // is a clear "I'm done" signal.
     stopTyping();
+  }
+
+  function handleFiles(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || !chatEnabled) return;
+    void imageUpload.upload(file);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -281,6 +316,38 @@ export default function Chat({
         </div>
       )}
 
+      {aiRefusal && (
+        <div
+          role="alert"
+          data-testid="vision-refusal"
+          className="mx-2 mt-2 flex items-start justify-between gap-2 rounded-lg border border-(--border) bg-(--muted)/40 px-3 py-2 text-xs"
+        >
+          <span>{aiRefusal.message}</span>
+          <span className="flex shrink-0 items-center gap-2">
+            {aiRefusal.cta === "manage-ai" && canManageAi && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSettingsOpen(true);
+                  setAiRefusal(null);
+                }}
+                className="hover:cursor-pointer underline"
+              >
+                AI settings
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={() => setAiRefusal(null)}
+              className="hover:cursor-pointer text-(--muted-foreground)"
+            >
+              ×
+            </button>
+          </span>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 scrollbar-thin">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -300,6 +367,7 @@ export default function Chat({
               name={msg.name}
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
+              imageUrl={msg.imageUrl}
               time={timeAgo(msg.createdAt)}
             />
           ) : (
@@ -308,6 +376,7 @@ export default function Chat({
               name={msg.name}
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
+              imageUrl={msg.imageUrl}
               time={timeAgo(msg.createdAt)}
               isOnline={onlineUsers.has(msg.userId)}
               isBot={msg.userId === process.env.NEXT_PUBLIC_BOT_USERID}
@@ -335,9 +404,106 @@ export default function Chat({
           />
         )}
         <TypingIndicator names={typingNames} />
-        <form className="relative" onSubmit={(e) => e.preventDefault()}>
+        {pendingImage.status !== "idle" && pendingImage.status !== "error" && (
+          <div
+            data-testid="chat-image-pending"
+            className="mb-1 flex items-center gap-2 rounded-lg border border-(--border) bg-(--muted)/40 p-1.5"
+          >
+            {/* A blob: preview of a local file; next/image cannot optimise it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={pendingImage.previewUrl}
+              alt="Selected image"
+              className="h-10 w-10 rounded object-cover"
+            />
+            <div className="min-w-0 flex-1 text-[10px] text-(--muted-foreground)">
+              {pendingImage.status === "uploading" ? (
+                <>
+                  <div
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={pendingImage.progress}
+                    className="h-1.5 w-full overflow-hidden rounded bg-(--muted)"
+                  >
+                    <div
+                      className="h-full bg-(--primary)"
+                      style={{ width: `${pendingImage.progress}%` }}
+                    />
+                  </div>
+                  <span>Uploading… {pendingImage.progress}%</span>
+                </>
+              ) : (
+                <span>Image ready to send</span>
+              )}
+            </div>
+            <button
+              type="button"
+              aria-label="Remove image"
+              data-testid="chat-image-cancel"
+              onClick={imageUpload.cancel}
+              className="shrink-0 hover:cursor-pointer text-(--muted-foreground)"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {pendingImage.status === "error" && (
+          <div
+            role="alert"
+            data-testid="chat-image-error"
+            className="mb-1 flex items-start justify-between gap-2 rounded-lg border border-(--destructive)/40 bg-(--destructive)/10 px-2 py-1 text-[10px] text-(--destructive)"
+          >
+            <span>{pendingImage.message}</span>
+            <button
+              type="button"
+              aria-label="Dismiss image error"
+              onClick={imageUpload.reset}
+              className="shrink-0 hover:cursor-pointer"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        <form
+          className={`relative rounded-xl ${dragging ? "ring-2 ring-(--primary)" : ""}`}
+          onSubmit={(e) => e.preventDefault()}
+          data-testid="chat-dropzone"
+          onDragOver={(e) => {
+            if (!chatEnabled) return;
+            e.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            handleFiles(e.dataTransfer.files);
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={CHAT_IMAGE_ACCEPT}
+            className="hidden"
+            data-testid="chat-image-input"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Attach image"
+            data-testid="chat-attach"
+            disabled={!chatEnabled}
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute bottom-3 left-2 z-10 hover:cursor-pointer text-(--muted-foreground) disabled:opacity-40"
+          >
+            <PaperclipIcon className="h-4 w-4" />
+          </button>
           <Textarea
-            className="text-xs w-full rounded-xl bg-(--muted)/50"
+            className="text-xs w-full rounded-xl bg-(--muted)/50 pl-8"
             placeholder={placeholder}
             value={content}
             onChange={handleChange}
@@ -350,7 +516,11 @@ export default function Chat({
           <Button
             size="xs"
             onClick={handleSend}
-            disabled={!chatEnabled || !content.trim()}
+            disabled={
+              !chatEnabled ||
+              pendingImage.status === "uploading" ||
+              (!content.trim() && pendingImage.status !== "ready")
+            }
             data-testid="chat-send"
             className="absolute bottom-3 right-2 hover:cursor-pointer rounded-lg"
           >

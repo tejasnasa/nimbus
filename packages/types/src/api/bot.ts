@@ -24,13 +24,18 @@ export type BotResult =
       label: string;
       /** Prompt forwarded to the markdown/canvas generation pipeline. */
       prompt: string;
+      /**
+       * The user wants the attached image turned into a diagram. Only honoured
+       * for a message that carries an image, and only as a CANVAS.
+       */
+      fromImage?: boolean;
       /** Chat message announcing the document creation to the room. */
       chatMessage: string;
     }
   | {
       kind: "refused";
       /** Which feature the refusal applies to. */
-      feature: "chat" | "markdown" | "canvas";
+      feature: "chat" | "markdown" | "canvas" | "vision";
       /** Stable, curated reason code from `AiRefusalReason`. */
       reason: string;
       /** User-visible message. Never contains a key. */

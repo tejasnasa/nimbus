@@ -32,6 +32,12 @@ export {
 } from "./validations/contact";
 export { documentSchema } from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
+export {
+  chatImageSignatureQuerySchema,
+  IMAGE_URL_MAX_LENGTH,
+  MESSAGE_MAX_LENGTH,
+  messageSendSchema,
+} from "./validations/message";
 export { signupSchema } from "./validations/signup";
 export {
   workspaceJoinSchema,
@@ -61,6 +67,12 @@ export type {
   AiWorkspaceSettingsDTO,
   AiWorkspaceStatusDTO,
 } from "./api/ai";
+export type {
+  Diagram,
+  DiagramDirection,
+  DiagramEdge,
+  DiagramNode,
+} from "./diagram/diagram";
 export type { Message } from "./api/message";
 export type { Member, Workspace } from "./api/workspaces";
 

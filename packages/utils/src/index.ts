@@ -16,3 +16,14 @@ export {
 export { estimateCostUsd, type TokenUsage, type CostUsage } from "./ai/cost";
 export { generateSlug } from "./slugGenerator";
 export { timeAgo } from "./timeAgo";
+export {
+  extractJsonObject,
+  parseDiagramPayload,
+  parseDiagramRecord,
+  PALETTE as DIAGRAM_PALETTE,
+} from "./diagram/parse";
+export { layoutDiagram } from "./diagram/layout";
+export {
+  buildExcalidrawFromDiagram,
+  type ExcalidrawBuildOptions,
+} from "./diagram/excalidraw";

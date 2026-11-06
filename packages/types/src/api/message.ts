@@ -11,4 +11,6 @@ export interface Message {
     name: string;
     /** Author avatar URL (joined from User). */
     image?: string;
+    /** Cloudinary URL of the attached image, when the message has one. */
+    imageUrl?: string | null;
 }

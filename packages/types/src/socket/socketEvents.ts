@@ -16,7 +16,12 @@ export type ClientToServerEvents = {
   /** Leave the workspace room. */
   "workspace:leave": (workspaceId: string) => void;
   /** Send a chat message; `@nimbusbot` mentions trigger the AI pipeline. */
-  "message:send": (data: { workspaceId: string; content: string }) => void;
+  "message:send": (data: {
+    workspaceId: string;
+    content: string;
+    /** Cloudinary URL of an image in this workspace's chat folder. */
+    imageUrl?: string;
+  }) => void;
   /** Start/stop the user's typing indicator in the room. */
   "typing:start": (workspaceId: string) => void;
   "typing:stop": (workspaceId: string) => void;
@@ -138,7 +143,7 @@ export type ServerToClientEvents = {
    * "creating it now…" acknowledgement so no GENERATING tab appears.
    */
   "ai:refused": (data: {
-    feature: "chat" | "markdown" | "canvas";
+    feature: "chat" | "markdown" | "canvas" | "vision";
     reason: string;
     message: string;
     cta: "add-key" | "manage-ai" | null;

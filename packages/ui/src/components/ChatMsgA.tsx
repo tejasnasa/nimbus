@@ -5,13 +5,16 @@
  * reveals on hover. Pair with `ChatMsgB` for the current user's messages.
  */
 import Avatar from "./Avatar";
+import ChatImage from "./ChatImage";
 
 /**
  * Incoming chat message bubble.
  *
  * @param props.name - Sender display name (rendered blue when `isBot`).
  * @param props.image - Sender avatar URL.
- * @param props.message - Plain-text content (whitespace preserved).
+ * @param props.message - Plain-text content (whitespace preserved). The text
+ *                       bubble is omitted when it is empty and an image is set.
+ * @param props.imageUrl - Attached image, shown as a thumbnail above the text.
  * @param props.time - Pre-formatted timestamp, shown on hover.
  * @param props.isOnline - Toggles the avatar presence dot.
  * @param props.isBot - Highlights the name for bot messages.
@@ -20,6 +23,7 @@ export default function ChatMsgA({
   name,
   image,
   message,
+  imageUrl,
   time,
   isOnline,
   isBot
@@ -27,6 +31,7 @@ export default function ChatMsgA({
   name: string;
   image: string;
   message: string;
+  imageUrl?: string | null;
   time: string;
   isOnline?: boolean;
   isBot?: boolean;
@@ -53,9 +58,12 @@ export default function ChatMsgA({
             {time}
           </span>
         </div>
-        <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tl-sm bg-(--muted)/40 w-fit max-w-[85%] whitespace-pre-wrap wrap-break-word">
-          {message}
-        </div>
+        {imageUrl && <ChatImage url={imageUrl} />}
+        {(message || !imageUrl) && (
+          <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tl-sm bg-(--muted)/40 w-fit max-w-[85%] whitespace-pre-wrap wrap-break-word">
+            {message}
+          </div>
+        )}
       </div>
     </div>
   );

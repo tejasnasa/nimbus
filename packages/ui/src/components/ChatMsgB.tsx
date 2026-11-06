@@ -5,6 +5,7 @@
  * on hover. Pair with `ChatMsgA` for incoming messages.
  */
 import Avatar from "./Avatar";
+import ChatImage from "./ChatImage";
 
 const MENTION = /(@nimbusbot)/gi;
 
@@ -29,7 +30,9 @@ function HighlightMentions({ text }: { text: string }) {
  *
  * @param props.name - Current user's display name.
  * @param props.image - Current user's avatar URL.
- * @param props.message - Plain-text content (whitespace preserved).
+ * @param props.message - Plain-text content (whitespace preserved). The text
+ *                       bubble is omitted when it is empty and an image is set.
+ * @param props.imageUrl - Attached image, shown as a thumbnail above the text.
  * @param props.time - Pre-formatted timestamp, shown on hover.
  * @param props.isOnline - Toggles the avatar presence dot.
  */
@@ -37,12 +40,14 @@ export default function ChatMsgB({
   name,
   image,
   message,
+  imageUrl,
   time,
   isOnline,
 }: {
   name: string;
   image: string;
   message: string;
+  imageUrl?: string | null;
   time: string;
   isOnline?: boolean;
 }) {
@@ -57,9 +62,12 @@ export default function ChatMsgB({
             {name}
           </span>
         </div>
-        <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tr-sm bg-(--primary)/15 w-fit max-w-[85%] whitespace-pre-wrap break-words">
-          <HighlightMentions text={message} />
-        </div>
+        {imageUrl && <ChatImage url={imageUrl} alignEnd />}
+        {(message || !imageUrl) && (
+          <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tr-sm bg-(--primary)/15 w-fit max-w-[85%] whitespace-pre-wrap break-words">
+            <HighlightMentions text={message} />
+          </div>
+        )}
       </div>
       <Avatar
         user={{

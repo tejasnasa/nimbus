@@ -12,15 +12,23 @@ interface SettingTabsProps {
     label: string;
     content: React.ReactNode;
   }[];
+  /** Label of the tab shown first. Unknown or absent means the first tab. */
+  defaultTab?: string;
 }
 
 /**
  * Vertical tab navigation for settings panels.
  *
  * @param props.tabs - Ordered tabs; the active index starts at 0.
+ * @param props.defaultTab - Label of the tab to open first, when it exists.
  */
-export default function SettingTabs({ tabs }: SettingTabsProps) {
-  const [active, setActive] = useState(0);
+export default function SettingTabs({ tabs, defaultTab }: SettingTabsProps) {
+  const [active, setActive] = useState(() =>
+    Math.max(
+      0,
+      tabs.findIndex((tab) => tab.label === defaultTab),
+    ),
+  );
 
   return (
     <div className="flex gap-8 w-full">

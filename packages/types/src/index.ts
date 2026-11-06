@@ -12,13 +12,17 @@ export {
   profileSchema,
 } from "./validations/account";
 export {
-  aiCredentialCreateSchema,
+  aiCallStatusSchema,
   aiCatalogQuerySchema,
+  aiCredentialCreateSchema,
   aiFeatureSchema,
   aiModelProbeSchema,
   aiModelSourceSchema,
   aiPreferenceSchema,
   aiProviderIdSchema,
+  aiSettingsSchema,
+  aiUsageQuerySchema,
+  aiWorkspaceParamsSchema,
 } from "./validations/ai";
 export {
   CONTACT_CATEGORIES,
@@ -39,13 +43,23 @@ export {
 export { ServerResponse } from "./api/serverResponse";
 
 export type {
+  AiAdminWorkspaceDTO,
+  AiCallDTO,
   AiCatalogDTO,
   AiCatalogModelDTO,
-  AiProbeResultDTO,
   AiCredentialDTO,
+  AiCredentialSaveDTO,
   AiFeatureStatus,
+  AiFreeAllowanceDTO,
+  AiFreeState,
+  AiFreeUsageDTO,
   AiPreferenceDTO,
-  AiStatusDTO,
+  AiProbeResultDTO,
+  AiUsageDTO,
+  AiUsageFeatureTotal,
+  AiVoiceUnavailableReason,
+  AiWorkspaceSettingsDTO,
+  AiWorkspaceStatusDTO,
 } from "./api/ai";
 export type { Message } from "./api/message";
 export type { Member, Workspace } from "./api/workspaces";
@@ -60,19 +74,28 @@ export type { VoiceUser } from "./socket/voice";
 export type { BotResult } from "./api/bot";
 
 export {
+  AI_DEFAULT_VOICE,
+  AI_FEATURES,
+  AI_FEATURE_KIND,
   AI_FEATURE_RECOMMENDED,
   AI_FEATURE_REQUIREMENTS,
+  AI_MODEL_KINDS,
   AI_MODEL_SOURCES,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
   capabilitiesMeetRequirements,
+  defaultModelFor,
   featuresServedBy,
   meetsRequirements,
   modelById,
+  modelKind,
   modelsFor,
+  modelsOfKind,
+  providerHasKind,
   type AiCapability,
   type AiEffort,
   type AiFeature,
+  type AiModelKind,
   type AiModelPricing,
   type AiModelSource,
   type AiModelSpec,

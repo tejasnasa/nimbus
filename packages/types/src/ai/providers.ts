@@ -17,8 +17,38 @@
  *            `verifiedAt` is stamped by measurement rather than assumed.
  */
 
-/** The three AI call sites, which have different capability requirements. */
-export type AiFeature = "chat" | "markdown" | "canvas";
+/** Every AI call site, in the order the UI lists them. */
+export const AI_FEATURES = [
+  "chat",
+  "markdown",
+  "canvas",
+  "vision",
+  "transcription",
+  "speech",
+  "meeting",
+] as const;
+
+/**
+ * The AI call sites, which have different capability requirements.
+ *
+ * - `chat`, `markdown`, `canvas`: the text features.
+ * - `vision`: reading an image (a photographed diagram).
+ * - `transcription` and `speech`: speech to text and text to speech.
+ * - `meeting`: text work over a meeting transcript.
+ */
+export type AiFeature = (typeof AI_FEATURES)[number];
+
+/** The kinds of model a provider can offer. */
+export const AI_MODEL_KINDS = ["text", "transcription", "speech"] as const;
+
+/**
+ * What a model does with its input. Text models take part in the Responses API;
+ * transcription and speech models are reached through the audio endpoints.
+ */
+export type AiModelKind = (typeof AI_MODEL_KINDS)[number];
+
+/** The voice name that means "this model takes no voice parameter". */
+export const AI_DEFAULT_VOICE = "default";
 
 /** What a model can do. Drives the picker's hard filter. */
 export type AiCapability =
@@ -75,11 +105,21 @@ export type AiModelSpec = {
   id: string;
   /** Human label for the picker. */
   label: string;
+  /** What the model does. Absent means `"text"`. */
+  kind?: AiModelKind;
   capabilities: readonly AiCapability[];
   /** Effort levels this model accepts, from the provider's own model listing. */
   effortLevels: readonly AiEffort[];
   /** List prices, when confirmed from the provider's pricing page. */
   pricing?: AiModelPricing;
+  /**
+   * Voices a speech model accepts, the default first. A model that takes no
+   * voice parameter lists the single name {@link AI_DEFAULT_VOICE}. Present on
+   * every speech model and on no other kind.
+   */
+  voices?: readonly string[];
+  /** Audio formats a speech model can return, when narrower than `pcm` and `mp3`. */
+  audioFormats?: readonly ("pcm" | "mp3")[];
 };
 
 /** One OpenAI-compatible provider. */
@@ -90,8 +130,12 @@ export type AiProviderSpec = {
   baseUrl: string;
   docsUrl: string;
   keyUrl: string;
-  /** The model used when the user or the free tier does not name one. */
+  /** The text model used when the user or the free tier does not name one. */
   defaultModel: string;
+  /** The transcription model used when a workspace names none. */
+  defaultTranscriptionModel?: string;
+  /** The speech model used when a workspace names none. */
+  defaultSpeechModel?: string;
   /**
    * Whether `reasoning: { effort }` may be sent at all.
    * False for a provider whose models are not reasoning models: the parameter is
@@ -166,7 +210,40 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         effortLevels: [],
         pricing: { inputPerMTok: 0.4, outputPerMTok: 1.6, checkedAt: "2026-11-02" },
       },
+      {
+        id: "gpt-4o-mini-transcribe",
+        label: "GPT-4o mini Transcribe",
+        kind: "transcription",
+        capabilities: [],
+        effortLevels: [],
+        // Token-billed ($1.25 / $5 per M tokens); this is the measured effective
+        // rate per audio minute.
+        pricing: { perAudioMinute: 0.0018, checkedAt: "2026-11-03" },
+      },
+      {
+        // Token-billed, so there is no per-character price to record.
+        id: "gpt-4o-mini-tts",
+        label: "GPT-4o mini TTS",
+        kind: "speech",
+        capabilities: [],
+        effortLevels: [],
+        voices: [
+          "alloy",
+          "ash",
+          "ballad",
+          "coral",
+          "echo",
+          "fable",
+          "nova",
+          "onyx",
+          "sage",
+          "shimmer",
+          "verse",
+        ],
+      },
     ],
+    defaultTranscriptionModel: "gpt-4o-mini-transcribe",
+    defaultSpeechModel: "gpt-4o-mini-tts",
     verifiedAt: "2026-09-27",
   },
 
@@ -287,11 +364,69 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         effortLevels: ["low", "high"],
         pricing: { inputPerMTok: 0.091, outputPerMTok: 0.182, checkedAt: "2026-11-02" },
       },
+      {
+        // Multipart and base64 JSON both work. `prompt` is ignored here and
+        // `response_format: "verbose_json"` is refused, so there are no segment
+        // timestamps. Billed per whole second, about $0.000075 each.
+        id: "openai/gpt-transcribe",
+        label: "GPT Transcribe",
+        kind: "transcription",
+        capabilities: [],
+        effortLevels: [],
+        pricing: { perAudioMinute: 0.0045, checkedAt: "2026-11-06" },
+      },
+      {
+        // Takes no voice and has no voice list in the catalogue. Returns `pcm`
+        // at the rate stated in the response header (44.1 kHz).
+        id: "fish-audio/drama-3",
+        label: "Fish Audio Drama 3",
+        kind: "speech",
+        capabilities: [],
+        effortLevels: [],
+        voices: [AI_DEFAULT_VOICE],
+        audioFormats: ["pcm", "mp3"],
+        pricing: { perMChars: 2, checkedAt: "2026-11-06" },
+      },
+      {
+        // Free fallback. `pcm` only.
+        id: "heygen/heygen-voice-1-turbo:free",
+        label: "HeyGen Voice 1 Turbo (free)",
+        kind: "speech",
+        capabilities: [],
+        effortLevels: [],
+        voices: [
+          "nadine",
+          "tabitha",
+          "bram",
+          "gareth",
+          "noelle",
+          "meredith",
+          "sabrina",
+          "lucian",
+          "weston",
+          "vincent",
+        ],
+        audioFormats: ["pcm"],
+        pricing: { perMChars: 0, checkedAt: "2026-11-06" },
+      },
     ],
+    defaultTranscriptionModel: "openai/gpt-transcribe",
+    defaultSpeechModel: "fish-audio/drama-3",
     // Key probe and capability probe passed against the Responses API with a
     // live key, measured on a free catalogue model.
     verifiedAt: "2026-11-03",
   },
+};
+
+/** Which kind of model serves each feature. */
+export const AI_FEATURE_KIND: Record<AiFeature, AiModelKind> = {
+  chat: "text",
+  markdown: "text",
+  canvas: "text",
+  vision: "text",
+  transcription: "transcription",
+  speech: "speech",
+  meeting: "text",
 };
 
 /** Hard requirements — a model missing any of these is not offered for the feature. */
@@ -303,6 +438,13 @@ export const AI_FEATURE_REQUIREMENTS: Record<AiFeature, readonly AiCapability[]>
   // The tolerant-JSON pipeline needs both: streaming for the live overlay and
   // structured output for anything to parse.
   canvas: ["streaming", "jsonMode"],
+  // Reads an image and answers with a JSON diagram.
+  vision: ["vision", "jsonMode"],
+  // Audio models are selected by kind alone.
+  transcription: [],
+  speech: [],
+  // Meeting work calls tools, returns validated JSON and streams answers.
+  meeting: ["tools", "jsonMode", "streaming"],
 };
 
 /**
@@ -317,7 +459,16 @@ export const AI_FEATURE_RECOMMENDED: Record<AiFeature, readonly AiCapability[]> 
   chat: [],
   markdown: ["reasoning"],
   canvas: ["reasoning"],
+  vision: [],
+  transcription: [],
+  speech: [],
+  meeting: [],
 };
+
+/** The model's kind, with the absent default applied. */
+export function modelKind(model: AiModelSpec): AiModelKind {
+  return model.kind ?? "text";
+}
 
 /** The provider's model spec, or undefined when the id is not in the registry. */
 export function modelById(
@@ -327,11 +478,48 @@ export function modelById(
   return provider.models.find((m) => m.id === modelId);
 }
 
-/** Whether a model satisfies every hard requirement for a feature. */
+/** The provider's models of one kind, in registry order. */
+export function modelsOfKind(
+  provider: AiProviderSpec,
+  kind: AiModelKind,
+): readonly AiModelSpec[] {
+  return provider.models.filter((m) => modelKind(m) === kind);
+}
+
+/** Whether the provider has any model of the kind. */
+export function providerHasKind(
+  provider: AiProviderSpec,
+  kind: AiModelKind,
+): boolean {
+  return provider.models.some((m) => modelKind(m) === kind);
+}
+
+/**
+ * The provider's default model for a kind: `defaultModel` for text, the named
+ * audio default otherwise. `undefined` when the provider has none.
+ */
+export function defaultModelFor(
+  provider: AiProviderSpec,
+  kind: AiModelKind,
+): AiModelSpec | undefined {
+  const id =
+    kind === "text"
+      ? provider.defaultModel
+      : kind === "transcription"
+        ? provider.defaultTranscriptionModel
+        : provider.defaultSpeechModel;
+  return id === undefined ? undefined : modelById(provider, id);
+}
+
+/**
+ * Whether a model satisfies every hard requirement for a feature: first the
+ * kind, then the capabilities. A speech model therefore never passes for chat.
+ */
 export function meetsRequirements(
   model: AiModelSpec,
   feature: AiFeature,
 ): boolean {
+  if (modelKind(model) !== AI_FEATURE_KIND[feature]) return false;
   return AI_FEATURE_REQUIREMENTS[feature].every((c) =>
     model.capabilities.includes(c),
   );
@@ -348,12 +536,15 @@ export function modelsFor(
 /**
  * Whether a capability list satisfies every hard requirement for a feature.
  * The same rule as {@link meetsRequirements}, for models that are not in the
- * registry and so have no {@link AiModelSpec} (catalogue and custom ids).
+ * registry and so have no {@link AiModelSpec} (catalogue and custom ids). Only
+ * text features can be served by such a model: audio models are registry-only,
+ * so an audio feature never passes here.
  */
 export function capabilitiesMeetRequirements(
   capabilities: readonly AiCapability[],
   feature: AiFeature,
 ): boolean {
+  if (AI_FEATURE_KIND[feature] !== "text") return false;
   return AI_FEATURE_REQUIREMENTS[feature].every((c) =>
     capabilities.includes(c),
   );
@@ -363,7 +554,7 @@ export function capabilitiesMeetRequirements(
 export function featuresServedBy(
   capabilities: readonly AiCapability[],
 ): AiFeature[] {
-  return (Object.keys(AI_FEATURE_REQUIREMENTS) as AiFeature[]).filter(
-    (feature) => capabilitiesMeetRequirements(capabilities, feature),
+  return AI_FEATURES.filter((feature) =>
+    capabilitiesMeetRequirements(capabilities, feature),
   );
 }

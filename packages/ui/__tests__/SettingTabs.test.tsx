@@ -40,6 +40,17 @@ describe("SettingTabs", () => {
     expect(buttons[0]!.className).toContain("text-(--muted-foreground)");
   });
 
+  it("opens on the tab named by defaultTab", () => {
+    const { container } = render(<SettingTabs tabs={tabs} defaultTab="Members" />);
+    expect(container.textContent).toContain("members-panel");
+    expect(container.textContent).not.toContain("general-panel");
+  });
+
+  it("falls back to the first tab when defaultTab names none", () => {
+    const { container } = render(<SettingTabs tabs={tabs} defaultTab="Missing" />);
+    expect(container.textContent).toContain("general-panel");
+  });
+
   it("renders an empty panel area for an empty tab list", () => {
     const { container } = render(<SettingTabs tabs={[]} />);
     expect(container.textContent).toBe("");

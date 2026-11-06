@@ -21,12 +21,16 @@
  */
 
 import {
+  AI_FEATURE_KIND,
   AI_PROVIDERS,
   capabilitiesMeetRequirements,
+  defaultModelFor,
   meetsRequirements,
   modelById,
+  providerHasKind,
   type AiCapability,
   type AiFeature,
+  type AiModelKind,
   type AiModelSource,
   type AiModelSpec,
   type AiProviderId,
@@ -42,6 +46,13 @@ export type CredentialView = {
   readonly id: string;
   readonly providerId: AiProviderId;
   readonly createdAt: Date;
+  /**
+   * The model kinds the save-time probe confirmed for this key. Absent means
+   * "not recorded" and the credential counts for every kind its provider has;
+   * present, it limits the credential to those kinds, so a key that only
+   * verified transcription never serves a chat request.
+   */
+  readonly verifiedKinds?: readonly AiModelKind[];
 };
 
 /**
@@ -108,11 +119,12 @@ export type SelectionRefusal = {
  *      *within that provider*.
  *   2. Preference present but the credential is gone (key deleted) → fall
  *      through to step 3, do not refuse.
- *   3. The user's primary credential (earliest `createdAt`, then `id`), using
- *      the provider's `defaultModel`. If that provider has no capable model,
- *      try the next credential in order.
- *   4. The free tier, **only when the user has no credentials at all**. A user
- *      with a credential never consumes the free tier (decision 9).
+ *   3. The primary credential (earliest `createdAt`, then `id`), using the
+ *      provider's default model for the feature's kind. If that provider has no
+ *      capable model, try the next credential in order.
+ *   4. The free tier, **only when there is no usable credential for the
+ *      feature's kind**. An owner of a usable key never consumes the free tier
+ *      (decision 9). Audio kinds have no free tier here: callers pass `null`.
  *   5. Refusal.
  *
  * The function is pure: no DB, no env, no logger. The single `console.warn`
@@ -120,8 +132,8 @@ export type SelectionRefusal = {
  * lives in the resolver wrapper, not here, because logging is a side effect.
  *
  * @param feature - Which call site is asking (chat / markdown / canvas).
- * @param preferences - The user's per-feature saved preferences, or empty.
- * @param credentials - The user's stored credentials, in any order.
+ * @param preferences - The per-feature saved preferences, or empty.
+ * @param credentials - The stored credentials, in any order.
  * @param freeTier - The operator's configured free tier, or null when disabled.
  * @param providers - The provider registry, defaulting to the imported one.
  *                   Accepting it as a parameter keeps the function easy to
@@ -139,21 +151,24 @@ export function selectModelForFeature(
 ): SelectedModel | SelectionRefusal {
   const pref = preferences.find((p) => p.feature === feature) ?? null;
 
-  // A credential for a provider that is no longer in the registry cannot be
-  // used to construct a client. Decision 9 says "a user with a key never
-  // consumes the free tier", but a stale row pointing at a retired provider
-  // is not a key — so we count only credentials with a known provider when
-  // deciding whether the free tier applies.
-  const usableCredentials = credentials.filter(
-    (c) => providers[c.providerId] !== undefined,
-  );
+  // A credential counts for a feature only when its provider is still in the
+  // registry, has a model of the feature's kind, and (when recorded) the probe
+  // verified that kind. A stale row pointing at a retired provider, or a key
+  // that only verified transcription, is not a key for chat — so only usable
+  // credentials decide whether the free tier applies.
+  const kind = AI_FEATURE_KIND[feature];
+  const usableCredentials = credentials.filter((c) => {
+    const provider = providers[c.providerId];
+    if (provider === undefined || !providerHasKind(provider, kind)) return false;
+    return c.verifiedKinds === undefined || c.verifiedKinds.includes(kind);
+  });
 
   // 1. Preference → credential for that provider → that model.
   //    Unknown provider id is treated as "no preference" rather than a hard
   //    error, so a stale row from before a registry change degrades gracefully
   //    instead of refusing the whole feature.
   if (pref && providers[pref.providerId]) {
-    const credential = credentials.find(
+    const credential = usableCredentials.find(
       (c) => c.providerId === pref.providerId,
     );
     if (credential) {
@@ -200,7 +215,7 @@ export function selectModelForFeature(
 
   for (const credential of ordered) {
     const provider = providers[credential.providerId]!;
-    const candidate = modelById(provider, provider.defaultModel);
+    const candidate = defaultModelFor(provider, kind);
     if (candidate && meetsRequirements(candidate, feature)) {
       // `substituted` is true when a preference was set but did not yield a
       // usable model — the user picked something, and we are using the

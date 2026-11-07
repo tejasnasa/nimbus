@@ -43,13 +43,27 @@
     "test": {
       "dependsOn": ["^db:generate", "db:generate"],
       "cache": false,
-      "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "NODE_ENV",
+        "LIVEKIT_URL",
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET"
+      ]
     },
     "test:coverage": {
       "dependsOn": ["^db:generate", "db:generate"],
       "cache": false,
       "outputs": ["coverage/**"],
-      "passThroughEnv": ["DATABASE_URL", "REDIS_URL", "NODE_ENV"]
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "NODE_ENV",
+        "LIVEKIT_URL",
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET"
+      ]
     }
   }
 }

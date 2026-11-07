@@ -2,7 +2,8 @@
 #
 # Brings up real Postgres + Redis, which the integration and smoke suites
 # require (see plans: Postgres and Redis are never mocked, only external APIs
-# like Groq/OpenAI/Resend are).
+# like Groq/OpenAI/Resend are), and a LiveKit server in dev mode so the voice
+# tests exercise a real media server rather than a stub.
 #
 # Host ports are deliberately offset (+1) from the 5433/6380 convention used
 # by the sibling Illume project's test containers, which may already be
@@ -11,6 +12,7 @@
 #   docker compose -f docker-compose.test.yml up -d
 #   DATABASE_URL  -> postgresql://nimbus:nimbus@localhost:5434/nimbus_test
 #   REDIS_URL     -> redis://localhost:6381
+#   LIVEKIT_URL   -> ws://localhost:7880   (API key `devkey`, secret `secret`)
 #
 # Credentials here are throwaway local-only values, not secrets.
 
@@ -44,6 +46,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+  # LiveKit in dev mode. The key pair is LiveKit's published development
+  # default, not a credential. The node IP is pinned to loopback so a browser on
+  # the host receives ICE candidates it can reach, and the media ports are
+  # published for the same reason (the E2E call needs them; the API tests only
+  # use 7880).
+  livekit-test:
+    image: livekit/livekit-server:latest
+    container_name: nimbus-livekit-test
+    restart: unless-stopped
+    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "127.0.0.1"]
+    environment:
+      LIVEKIT_CONFIG: |
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
 
 volumes:
   nimbus-postgres-test-data:

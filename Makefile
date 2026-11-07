@@ -102,7 +102,7 @@ db-deploy: ## Apply existing migrations (production / CI path)
 
 ##@ Test infrastructure
 
-test-infra-up: ## Start the test Postgres + Redis containers
+test-infra-up: ## Start the test Postgres, Redis and LiveKit containers
 	docker compose -f docker-compose.test.yml up -d
 
 test-infra-down: ## Stop the test containers (keeps the data volume)
@@ -168,7 +168,7 @@ seed-smoke-users-apply: ## Create or repair the two smoke-suite accounts
 probe-ai: ## Probe the live AI providers, e.g. `make probe-ai ARGS="--provider groq"`
 	cd apps/api && npx tsx scripts/probe_ai_providers.ts $(ARGS)
 
-prod-up: ## Start the production compose stack (api + coturn; needs .env)
+prod-up: ## Start the production compose stack (the api; needs .env)
 	docker compose up -d
 
 prod-down: ## Stop the production compose stack

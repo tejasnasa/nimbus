@@ -19,6 +19,9 @@ concurrency:
 env:
   DATABASE_URL: "postgresql://nimbus:nimbus@localhost:5434/nimbus_test"
   REDIS_URL: "redis://localhost:6381"
+  LIVEKIT_URL: "ws://localhost:7880"
+  LIVEKIT_API_KEY: "devkey"
+  LIVEKIT_API_SECRET: "secret"
 
 jobs:
   playwright:
@@ -48,6 +51,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+      livekit:
+        image: livekit/livekit-server:latest
+        env:
+          # The development key pair, as in docker-compose.test.yml. A service
+          # container cannot be given `--dev`, so the same settings arrive as env.
+          LIVEKIT_KEYS: "devkey: secret"
+          LIVEKIT_CONFIG: |
+            rtc:
+              tcp_port: 7881
+              udp_port: 7882
+              node_ip: 127.0.0.1
+        ports:
+          - 7880:7880
+          - 7881:7881
+          - 7882:7882/udp
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

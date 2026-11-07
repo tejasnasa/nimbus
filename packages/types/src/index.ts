@@ -39,6 +39,7 @@ export {
   messageSendSchema,
 } from "./validations/message";
 export { signupSchema } from "./validations/signup";
+export { voiceTokenSchema } from "./validations/voice";
 export {
   workspaceJoinSchema,
   workspaceMemberSchema,

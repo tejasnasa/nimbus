@@ -50,36 +50,12 @@ export type ClientToServerEvents = {
   /** Push a binary Yjs update (`Array.from(Y.encodeStateAsUpdate)` delta). */
   "doc:update": (docId: string, update: number[]) => void;
   "doc:leave": (docId: string) => void;
-
-  // ── Voice (WebRTC signaling relay) ──
-  "voice:join": (workspaceId: string) => void;
-  "voice:leave": (workspaceId: string) => void;
-  /** SDP offer relayed to a specific peer by userId. */
-  "voice:offer": (data: {
-    workspaceId: string;
-    targetUserId: string;
-    offer: RTCSessionDescriptionInit;
-  }) => void;
-  /** SDP answer relayed to a specific peer by userId. */
-  "voice:answer": (data: {
-    workspaceId: string;
-    targetUserId: string;
-    answer: RTCSessionDescriptionInit;
-  }) => void;
-  /** ICE candidate relayed to a specific peer by userId. */
-  "voice:ice-candidate": (data: {
-    workspaceId: string;
-    targetUserId: string;
-    candidate: RTCIceCandidateInit;
-  }) => void;
-  /** Broadcast local mic mute state to the room. */
-  "voice:mute-state": (data: { workspaceId: string; isMuted: boolean }) => void;
 };
 
 /**
  * Events emitted by the API server and consumed by the client.
  *
- * Grouped by feature area: chat/presence, canvas, markdown docs, and voice.
+ * Grouped by feature area: chat/presence, canvas, markdown docs, and the voice roster.
  */
 export type ServerToClientEvents = {
   // ── Chat & presence ──
@@ -92,8 +68,8 @@ export type ServerToClientEvents = {
   "typing:start": (data: { userId: string; name: string }) => void;
   "typing:stop": (data: { userId: string; name: string }) => void;
   /**
-   * A workspace-scoped request was refused — currently a `workspace:join` or
-   * `voice:join` from a non-member. Sent instead of failing silently, so the
+   * A workspace-scoped request was refused — currently a `workspace:join` from a
+   * non-member. Sent instead of failing silently, so the
    * client can distinguish a denial from a request still in flight.
    */
   "workspace:error": (message: string) => void;
@@ -151,35 +127,11 @@ export type ServerToClientEvents = {
 
   // ── Voice ──
   /**
-   * A peer entered the voice channel. Carries the avatar, not just the name:
-   * `voice:current-users` — the only other event with an image on it — is
-   * replayed to the *joiner* alone, so the room gets no second chance to learn
-   * this peer's avatar. Without it here, everyone already in the channel renders
-   * the fallback for the rest of the session.
+   * The workspace's call roster. Sent to the whole workspace room whenever a
+   * participant joins or leaves the media room, and to a socket alone when it
+   * joins the workspace, so the sidebar shows who is on the call before the
+   * user does. The roster is the server's view, fed by the media server's
+   * webhooks; the call itself runs between each browser and the media server.
    */
-  "voice:user-joined": (data: {
-    userId: string;
-    name: string;
-    image: string | null;
-  }) => void;
-  "voice:user-left": (data: { userId: string }) => void;
-  /** Snapshot of current voice participants (from Redis voice presence). */
-  "voice:current-users": (data: { users: VoiceUser[] }) => void;
-  /** Relayed SDP offer from a peer. */
-  "voice:offer": (data: {
-    fromUserId: string;
-    offer: RTCSessionDescriptionInit;
-  }) => void;
-  /** Relayed SDP answer from a peer. */
-  "voice:answer": (data: {
-    fromUserId: string;
-    answer: RTCSessionDescriptionInit;
-  }) => void;
-  /** Relayed ICE candidate from a peer. */
-  "voice:ice-candidate": (data: {
-    fromUserId: string;
-    candidate: RTCIceCandidateInit;
-  }) => void;
-  /** A peer's mic mute state changed. */
-  "voice:mute-state": (data: { userId: string; isMuted: boolean }) => void;
+  "voice:roster": (data: { users: VoiceUser[] }) => void;
 };

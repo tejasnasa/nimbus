@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getAiStatus } from "../../../api/ai";
 import { getDocuments } from "../../../api/document";
 import { getMessages } from "../../../api/message";
+import { getVoiceRoster } from "../../../api/voice";
 import { getWorkspace } from "../../../api/workspace";
 import Chat from "../../../components/Chat";
 import DocEditor from "../../../components/DocEditor";
@@ -15,7 +16,7 @@ import { authClient } from "../../../lib/auth-client";
  * @description Workspace room (server component): loads workspace, messages,
  * and documents in parallel-by-await, then composes the two-pane layout —
  * Chat sidebar (voice header + messages) beside `DocEditor` — inside
- * `VoiceProvider` (WebRTC identity) + `DocEditorRefProvider` (add-tab
+ * `VoiceProvider` (call room + identity) + `DocEditorRefProvider` (add-tab
  * bridge) with a global `VoiceOverlay`. AI status is fetched alongside so the
  * chat composer renders in the right enabled/disabled state on first paint.
  * Guarded by `proxy.ts`.
@@ -35,6 +36,7 @@ export default async function Workspace({
   const messages = await getMessages(workspaceData.id);
   const documents = await getDocuments(workspaceData.id);
   const initialAiStatus = await getAiStatus(workspaceData.id);
+  const initialRoster = await getVoiceRoster(workspaceData.id);
   const { data: session } = await authClient.getSession({
     fetchOptions: {
       headers: await headers(),
@@ -47,6 +49,7 @@ export default async function Workspace({
       userName={session!.user.name}
       userImage={session!.user.image ?? null}
       workspaceId={workspaceData.id}
+      initialRoster={initialRoster}
     >
       <DocEditorRefProvider>
         <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden relative">

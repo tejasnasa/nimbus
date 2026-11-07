@@ -110,19 +110,15 @@ export const handlers = [
   // ── Messages ──
   http.get(url("/api/messages/:wsid"), () => ok([])),
 
-  // ── TURN ──
-  http.get(url("/api/turn/credentials"), () =>
+  // ── Voice ──
+  http.post(url("/api/voice/token"), () =>
     ok({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        {
-          urls: "turn:127.0.0.1:3478?transport=udp",
-          username: "123:user-1",
-          credential: "abc",
-        },
-      ],
+      token: "test-call-token",
+      url: "ws://127.0.0.1:7880",
+      roomName: "nimbus-ws-cm_workspace_0000000000000",
     }),
   ),
+  http.get(url("/api/voice/:workspaceId/roster"), () => ok({ users: [] })),
 
   // ── Contact ──
   // The only public API route: it answers an anonymous caller too. The success

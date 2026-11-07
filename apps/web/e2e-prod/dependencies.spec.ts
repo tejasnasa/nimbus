@@ -7,11 +7,11 @@ import { apiUrl } from "./env";
  * is written.
  *
  * @important Two of these are weaker than they look, and the test names say so
- *            rather than implying more. `/api/turn/credentials` mints its
- *            credential locally from `TURN_SECRET`, and the avatar signature is
+ *            rather than implying more. `/api/voice/token` signs its token
+ *            locally from `LIVEKIT_API_SECRET`, and the avatar signature is
  *            computed locally from `CLOUDINARY_API_SECRET` — both produce a
  *            well-formed answer even when the secret is wrong. They prove the
- *            variable is *present*, not that Coturn or Cloudinary would accept
+ *            variable is *present*, not that LiveKit or Cloudinary would accept
  *            it. The AI status check is different: it reads live state.
  */
 
@@ -56,20 +56,28 @@ test.describe("dependency wiring", () => {
     expect(body.responseObject?.features?.chat?.enabled).toBe(true);
   });
 
-  test("the TURN endpoint mints credentials (env wired, not relay proven)", async ({
+  test("the voice token endpoint signs a token (env wired, not a call proven)", async ({
     context,
   }) => {
-    const response = await context.request.get(`${apiUrl}/api/turn/credentials`);
+    const listed = await context.request.get(`${apiUrl}/api/workspace/`);
+    expect(listed.status()).toBe(200);
+    const workspaces: Array<{ id: string }> =
+      (await listed.json()).responseObject ?? [];
+
+    test.skip(workspaces.length === 0, "the smoke user has no workspace to join");
+
+    const response = await context.request.post(`${apiUrl}/api/voice/token`, {
+      data: { workspaceId: workspaces[0]!.id },
+    });
 
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-    const iceServers = body.responseObject?.iceServers ?? [];
 
-    const turn = iceServers.find((server: { username?: string }) => server.username);
-
-    expect(turn, "no ICE server carried a TURN credential").toBeTruthy();
-    expect(turn.credential).toBeTruthy();
+    expect(body.responseObject?.token).toBeTruthy();
+    expect(body.responseObject?.url).toMatch(/^wss:\/\//);
+    // Only the signed token crosses the wire, never the secret that signed it.
+    expect(JSON.stringify(body)).not.toContain("api_secret");
   });
 
   test("the avatar signature endpoint signs (env wired, not upload proven)", async ({

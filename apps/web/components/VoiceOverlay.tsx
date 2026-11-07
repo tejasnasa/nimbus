@@ -1,14 +1,17 @@
 /**
  * @module web/components/VoiceOverlay
  * @description Floating speaking-indicator badges (top-right): avatars appear
- * when a user starts speaking and linger 1.5s after they stop (swept on a
- * 100ms interval), so brief pauses don't flicker the UI. Pointer-events-none
- * overlay; renders null when nobody is speaking.
+ * when a participant starts speaking and linger 1.5s after they stop (swept on
+ * a 100ms interval), so brief pauses don't flicker the UI. Participants come
+ * from the call room, and the assistant is marked with an "Agent" badge, told
+ * apart by the participant kind LiveKit reports rather than by name.
+ * Pointer-events-none overlay; renders null when nobody is speaking.
  *
- * @important Identity is read from the live roster at render time; the map only
- *            carries who is speaking and when they last did. A badge outlives
- *            the moment it appeared, so a snapshot of the avatar taken back then
- *            would pin the fallback picture for as long as the badge lives.
+ * @important Identity is read from the live participant list at render time;
+ *            the map only carries who is speaking and when they last did. A
+ *            badge outlives the moment it appeared, so a snapshot of the avatar
+ *            taken back then would pin the fallback picture for as long as the
+ *            badge lives.
  */
 "use client";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
@@ -21,11 +24,12 @@ interface SpeakerInfo {
   userId: string;
   name: string;
   image: string | null;
+  isAgent: boolean;
   lastSpoke: number;
 }
 
 export default function VoiceOverlay() {
-  const { speakingUsers, voiceUsers, localUser } = useVoice();
+  const { speakingUsers, participants } = useVoice();
   const [activeSpeakers, setActiveSpeakers] = useState<
     Map<string, SpeakerInfo>
   >(new Map());
@@ -47,22 +51,12 @@ export default function VoiceOverlay() {
       const updated = new Map(prevMap);
 
       started.forEach((userId) => {
-        let name = "Peer";
-        let image: string | null = null;
-        if (userId === localUser.userId) {
-          name = localUser.name;
-          image = localUser.image;
-        } else {
-          const user = voiceUsers.find((u) => u.userId === userId);
-          if (user) {
-            name = user.name;
-            image = user.image;
-          }
-        }
+        const who = participants.find((p) => p.userId === userId);
         updated.set(userId, {
           userId,
-          name,
-          image,
+          name: who?.name ?? "Peer",
+          image: who?.image ?? null,
+          isAgent: who?.isAgent ?? false,
           lastSpoke: Infinity,
         });
       });
@@ -78,7 +72,7 @@ export default function VoiceOverlay() {
     });
 
     prevSpeakingRef.current = next;
-  }, [speakingUsers, voiceUsers, localUser]);
+  }, [speakingUsers, participants]);
 
   // Sweep every 100ms: evict speakers silent >1.5s. Identity-preserving
   // (returns prev when unchanged) to avoid re-rendering on every tick.
@@ -109,17 +103,15 @@ export default function VoiceOverlay() {
   return (
     <div className="absolute top-8 right-8 z-50 flex flex-col pointer-events-none">
       {speakersList.map((speaker) => {
-        // Read the roster now rather than trusting the snapshot taken when they
-        // started speaking: an avatar can land after that moment, and the frozen
-        // copy would pin the fallback for the badge's whole life. A speaker who
-        // has already left the channel is gone from the roster, so the snapshot
+        // Read the participant now rather than trusting the snapshot taken when
+        // they started speaking: an avatar can land after that moment, and the
+        // frozen copy would pin the fallback for the badge's whole life. A
+        // speaker who has already left is gone from the list, so the snapshot
         // is still what the 1.5s linger shows.
-        const live =
-          speaker.userId === localUser.userId
-            ? localUser
-            : voiceUsers.find((u) => u.userId === speaker.userId);
+        const live = participants.find((p) => p.userId === speaker.userId);
         const name = live ? live.name : speaker.name;
         const image = live ? live.image : speaker.image;
+        const isAgent = live ? live.isAgent : speaker.isAgent;
 
         return (
           <div
@@ -138,6 +130,11 @@ export default function VoiceOverlay() {
                 unoptimized
                 className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
               />
+              {isAgent && (
+                <span className="absolute -bottom-1 -right-1 rounded-full bg-(--primary) px-1.5 text-[9px] font-semibold uppercase leading-4 text-(--primary-foreground)">
+                  Agent
+                </span>
+              )}
             </div>
           </div>
         );

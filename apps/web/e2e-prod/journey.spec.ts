@@ -106,10 +106,9 @@ test.describe("journey", () => {
     await expect(page.getByText("New Document", { exact: true })).toBeVisible();
 
     // Cleaned up over the API rather than through the UI. The workspace settings
-    // modal — the only route to the danger zone — is rendered by `VoiceControls`,
-    // which returns a placeholder until the voice connection is up, and a
-    // headless browser never gets a microphone. Asserting on that modal here
-    // would pin the voice stack, not workspace deletion.
+    // modal — the only route to the danger zone — is opened from the call header
+    // (`VoiceControls`), so driving it here would couple this journey to that
+    // component rather than to workspace deletion.
     //
     // @important Leave the room *before* deleting it. Deleting while this page
     //            still has the workspace's documents mounted makes the API's

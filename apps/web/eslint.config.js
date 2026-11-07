@@ -1,11 +1,7 @@
 import { nextJsConfig } from "@nimbus/eslint-config/next-js";
 
 /** @type {import("eslint").Linter.Config[]} */
-// The `lint` script runs with `--max-warnings 7`. All seven are standing
-// warnings in `hooks/useVoiceChat.ts` (six) and `components/VoiceControls.tsx`
-// (one); both files are slated for replacement, and the budget returns to 0 when
-// they go. A new warning anywhere else fails the gate. Lower this number when
-// warnings are fixed; never raise it.
+// The `lint` script runs with `--max-warnings 0`: any warning fails the gate.
 export default [
   ...nextJsConfig,
   {

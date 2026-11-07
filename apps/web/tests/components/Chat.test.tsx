@@ -11,7 +11,7 @@
  * fully interactive and the banner is absent.
  *
  * The chat panel is a `use client` component but a few of its dependencies
- * are heavy (`@nimbus/ui/icons/Chat`, the `VoiceControls` WebRTC header).
+ * are heavy (`@nimbus/ui/icons/Chat`, the `VoiceControls` call header).
  * They are stubbed here the same way `VoiceControls.test.tsx` stubs
  * `useVoice`.
  *
@@ -49,11 +49,17 @@ const voice = vi.hoisted(() => ({
       userId: string;
       name: string;
       image: string | null;
-      isMuted: boolean;
     }[],
+    participants: [] as never[],
     speakingUsers: new Set<string>(),
     toggleMute: vi.fn(),
     toggleDeafen: vi.fn(),
+    join: vi.fn(),
+    leave: vi.fn(),
+    isJoining: false,
+    connectionState: "connected",
+    error: null,
+    canRejoin: false,
     localUser: { userId: "user-1", name: "Ada Lovelace", image: null },
   },
 }));

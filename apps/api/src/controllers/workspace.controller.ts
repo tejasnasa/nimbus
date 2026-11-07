@@ -11,12 +11,18 @@
  *            `ensureBotUser` creates it at boot. If it has gone missing,
  *            creation rolls back and answers with a curated 500 rather than
  *            leaking the Prisma payload.
+ *
+ * @important Ending a membership also ends the person's call: `removeMember`
+ *            and `deleteWorkspace` disconnect the affected participants from
+ *            the workspace's media room, best effort and after the database
+ *            change, so a removed member does not stay on a live call.
  */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 import { destroyChatImages } from "../lib/cloudinary";
+import { removeAllFromCall, removeFromCall } from "../lib/livekit/revocation";
 import { evictCanvas } from "../socket/canvas";
 import { evictDocument } from "../socket/document";
 
@@ -493,6 +499,10 @@ export const removeMember = async (
       },
     });
 
+    // After the row is gone, so a failure here can only leave a participant
+    // connected, never leave a member whose removal did not happen.
+    await removeFromCall(wsid, memberId);
+
     return ServerResponse.ok({}, "Member removed");
   } catch (error) {
     return ServerResponse.internalError(error);
@@ -606,6 +616,11 @@ export const deleteWorkspace = async (wsid: string, id: string) => {
     });
 
     if (hadChatImages) await destroyChatImages(wsid);
+
+    await removeAllFromCall(
+      wsid,
+      workspace.members.map((member) => member.userId),
+    );
 
     // The rows cascade, but the process-local Yjs and canvas maps do not.
     // Evicting each document drops its cached state and cancels any pending

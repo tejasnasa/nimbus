@@ -8,13 +8,14 @@
  * exact status: the security property is that bad input is rejected cleanly.
  */
 import request from "supertest";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../app";
 import {
   as,
   closeTestResources,
   mintUser,
   resetDatabase,
+  signWebhook,
   type TestUser,
 } from "@testhelpers";
 
@@ -116,6 +117,67 @@ describe("security: transport", () => {
       expect(res.status).toBe(201);
       // Escaping is the client's job; the API must not mangle or interpret it.
       expect(res.body.responseObject.name).toBe(payload);
+    });
+  });
+
+  describe("webhook logging", () => {
+    /** Everything written to stdout/stderr or the console while `work` runs. */
+    const captureOutput = async (work: () => Promise<unknown>) => {
+      const chunks: string[] = [];
+      const record = (chunk: unknown) => {
+        chunks.push(String(chunk));
+        return true;
+      };
+      const out = vi.spyOn(process.stdout, "write").mockImplementation(record);
+      const err = vi.spyOn(process.stderr, "write").mockImplementation(record);
+      try {
+        await work();
+      } finally {
+        out.mockRestore();
+        err.mockRestore();
+      }
+      return chunks.join("");
+    };
+
+    it("logs ordinary requests (control for the capture below)", async () => {
+      const output = await captureOutput(() => request(app).get("/"));
+
+      expect(output).toContain("GET /");
+    });
+
+    it("never writes a webhook delivery to the access log", async () => {
+      const SENTINEL = "sentinel-participant-name-7f3a";
+      const { body, authorization } = await signWebhook({
+        event: "participant_joined",
+        room: { name: "nimbus-ws-cm0000000000000000000000" },
+        participant: { identity: "user-x", name: SENTINEL },
+      });
+
+      const output = await captureOutput(() =>
+        request(app)
+          .post("/api/livekit/webhook")
+          .set("Content-Type", "application/webhook+json")
+          .set("Authorization", authorization)
+          .send(body),
+      );
+
+      expect(output).not.toContain(SENTINEL);
+      expect(output).not.toContain("/api/livekit/webhook");
+      expect(output).not.toContain(authorization);
+    });
+
+    it("does not log a rejected delivery either", async () => {
+      const SENTINEL = "sentinel-forged-body-91bc";
+
+      const output = await captureOutput(() =>
+        request(app)
+          .post("/api/livekit/webhook")
+          .set("Content-Type", "application/webhook+json")
+          .send(JSON.stringify({ event: "participant_joined", note: SENTINEL })),
+      );
+
+      expect(output).not.toContain(SENTINEL);
+      expect(output).not.toContain("/api/livekit/webhook");
     });
   });
 });

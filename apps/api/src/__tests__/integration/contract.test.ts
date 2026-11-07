@@ -49,7 +49,8 @@ const ROUTE_CONTRACT = [
   ["get", "/api/document/workspace/:workspaceId"],
   ["get", "/api/document/:docId"],
   ["delete", "/api/document/:docId"],
-  ["get", "/api/turn/credentials"],
+  ["post", "/api/voice/token"],
+  ["get", "/api/voice/:workspaceId/roster"],
   ["get", "/api/upload/avatar-signature"],
 ] as const;
 
@@ -121,12 +122,6 @@ describe("contract: socket events", () => {
     "doc:join",
     "doc:update",
     "doc:leave",
-    "voice:join",
-    "voice:leave",
-    "voice:offer",
-    "voice:answer",
-    "voice:ice-candidate",
-    "voice:mute-state",
   ];
 
   it("declares exactly the documented client→server events", () => {
@@ -196,13 +191,7 @@ describe("contract: server→client socket events", () => {
     "doc:ai:error",
     "ai:refused",
     // ── Voice ──
-    "voice:user-joined",
-    "voice:user-left",
-    "voice:current-users",
-    "voice:offer",
-    "voice:answer",
-    "voice:ice-candidate",
-    "voice:mute-state",
+    "voice:roster",
   ];
 
   it("declares exactly the documented server→client events", () => {
@@ -218,7 +207,7 @@ describe("contract: server→client socket events", () => {
     // The server block is everything from the `ServerToClientEvents` marker to
     // end of file — the type is the last declaration in the module, and the
     // slice is bounded by the file's trailing `};` and EOF. Underscores appear
-    // here (`presence:online_users`, `voice:current-users`) but not on the
+    // here (`presence:online_users`) but not on the
     // client side, and a few events use two colons (`doc:ai:start`), so the
     // regex has to accept both.
     const serverSection = source.split("ServerToClientEvents")[1] ?? "";

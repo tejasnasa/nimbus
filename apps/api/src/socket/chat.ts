@@ -7,7 +7,8 @@
  * `message:new` fan-out; an attached image must live in the workspace's own
  * chat folder), `@nimbusbot` mentions (resolve → decide → claim → announce →
  * generate → refund, with `ai:refused` for the targeted no-go), ephemeral
- * `typing:*` relays, and `disconnecting` presence cleanup.
+ * `typing:*` relays, and `disconnecting` presence cleanup. Joining a workspace
+ * also replays the current call roster (`voice:roster`) to the joiner alone.
  *
  * A mention that carries an image is answered by a vision model, and the bot
  * may turn the image into a canvas diagram; a workspace that cannot read images
@@ -41,6 +42,7 @@ import {
 } from "../lib/imageCanvas";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
+import { voicePresenceService } from "../lib/voicePresence";
 import { AiCallError, recordAiRefusal } from "../lib/ai/callLog";
 import {
   resolveAi,
@@ -100,6 +102,11 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
       const onlineUserIds = await presenceService.getOnlineUsers(workspaceId);
 
       socket.emit("presence:online_users", onlineUserIds);
+
+      // So the sidebar shows who is already on the call before the user joins it.
+      socket.emit("voice:roster", {
+        users: await voicePresenceService.getUsers(workspaceId),
+      });
     } catch (err) {
       console.error(err);
     }

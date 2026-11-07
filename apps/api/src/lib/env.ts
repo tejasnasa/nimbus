@@ -5,8 +5,8 @@
  * The configuration the server cannot operate without is parsed once, here, and
  * a missing or malformed value fails the process at startup with the offending
  * variable named. Without that check a misconfigured deployment starts cleanly
- * and then fails per-request (an unset `TURN_SECRET` makes every voice call a
- * 500) or, worse, keeps serving with a feature silently degraded (an unset
+ * and then fails per-request (an unset `LIVEKIT_API_SECRET` makes every voice
+ * call a 500) or, worse, keeps serving with a feature silently degraded (an unset
  * `BOT_USERID` relabels the bot's own history as user input, so the model loses
  * the distinction between its replies and the user's).
  *
@@ -27,8 +27,7 @@ const required = z.string().min(1);
  * Everything in the required group is read unconditionally by the code path
  * that serves its feature, so an absent value means a broken feature rather
  * than a disabled one. The optional group covers values whose absence is
- * handled deliberately (`TURN_SERVER_URL` answers a named 500) or that nothing
- * in this app reads at all (`EXTERNAL_IP`, consumed by coturn's compose file).
+ * handled deliberately.
  */
 const envSchema = z.object({
   NODE_ENV: z
@@ -47,8 +46,15 @@ const envSchema = z.object({
   // are persisted under it, and chat history is classified by comparing to it.
   BOT_USERID: required,
 
-  // ── coturn ──
-  TURN_SECRET: required,
+  // ── Voice (LiveKit) ──
+  // The media server the call runs on. The URL is the WebSocket address browsers
+  // connect to; the key pair signs join tokens, verifies the server's webhooks
+  // and authorises the room API used to remove participants. All three are read
+  // by the voice routes unconditionally, so an absent value is a broken call
+  // feature rather than a disabled one.
+  LIVEKIT_URL: z.string().regex(/^wss?:\/\/.+/, "must be a ws:// or wss:// URL"),
+  LIVEKIT_API_KEY: required,
+  LIVEKIT_API_SECRET: required,
 
   // ── Providers ──
   // The mail client is constructed unconditionally at module load, so it is
@@ -102,9 +108,6 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: required,
   CLOUDINARY_API_SECRET: required,
 
-  TURN_SERVER_URL: z.string().min(1).optional(),
-  TURNS_SERVER_URL: z.string().min(1).optional(),
-  EXTERNAL_IP: z.string().min(1).optional(),
   BETTER_AUTH_API_KEY: z.string().min(1).optional(),
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
 });

@@ -18,7 +18,9 @@ const completeEnv = {
   BETTER_AUTH_URL: "http://localhost:3001",
   FRONTEND_URL: "http://localhost:3000",
   BOT_USERID: "bot-user-id",
-  TURN_SECRET: "turn-secret",
+  LIVEKIT_URL: "ws://localhost:7880",
+  LIVEKIT_API_KEY: "devkey",
+  LIVEKIT_API_SECRET: "secret",
   RESEND_API_KEY: "resend-key",
   CONTACT_TO_EMAIL: "contact@example.com",
   GOOGLE_CLIENT_ID: "google-id",
@@ -56,7 +58,7 @@ describe("lib/env", () => {
   it("names every missing variable in one pass rather than the first", () => {
     const {
       BOT_USERID: _bot,
-      TURN_SECRET: _turn,
+      LIVEKIT_API_SECRET: _livekit,
       REDIS_URL: _redis,
       ...incomplete
     } = completeEnv;
@@ -64,14 +66,25 @@ describe("lib/env", () => {
     // A boot that reports one problem per restart turns configuration into a
     // guessing game, so the whole list is expected.
     expect(() => parseEnv(incomplete)).toThrow(
-      /BOT_USERID[\s\S]*TURN_SECRET[\s\S]*REDIS_URL|REDIS_URL[\s\S]*BOT_USERID/,
+      /BOT_USERID[\s\S]*LIVEKIT_API_SECRET[\s\S]*REDIS_URL|REDIS_URL[\s\S]*BOT_USERID/,
     );
   });
 
   it("treats an empty string as missing, not as a value", () => {
-    expect(() => parseEnv({ ...completeEnv, TURN_SECRET: "" })).toThrow(
-      /TURN_SECRET/,
+    expect(() => parseEnv({ ...completeEnv, LIVEKIT_API_SECRET: "" })).toThrow(
+      /LIVEKIT_API_SECRET/,
     );
+  });
+
+  it("requires the media server URL to be a WebSocket address", () => {
+    // The same value is handed to browsers, which cannot connect to http(s).
+    expect(() =>
+      parseEnv({ ...completeEnv, LIVEKIT_URL: "https://x.livekit.cloud" }),
+    ).toThrow(/LIVEKIT_URL/);
+    expect(
+      parseEnv({ ...completeEnv, LIVEKIT_URL: "wss://x.livekit.cloud" })
+        .LIVEKIT_URL,
+    ).toBe("wss://x.livekit.cloud");
   });
 
   it("reports a non-object environment without crashing", () => {

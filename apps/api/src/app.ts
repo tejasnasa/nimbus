@@ -5,10 +5,10 @@
  * bootstrap over these, so tests can build the identical wiring on an ephemeral
  * port instead of inheriting a listener started as an import side effect.
  *
- * Express stack order matters: CORS (credentialed, FRONTEND_URL origin) → JSON
- * body parser → request logging → better-auth handler → the public contact and
- * health routes → REST routers → the `/api` 404 → the root greeting string →
- * the terminal error handler. The two handlers at the end are what keep every
+ * Express stack order matters: CORS (credentialed, FRONTEND_URL origin) → the
+ * media server's webhook (raw body) → JSON body parser → request logging →
+ * better-auth handler → the public contact and health routes → REST routers →
+ * the `/api` 404 → the root greeting string → the terminal error handler. The two handlers at the end are what keep every
  * response, failures included, in the `ServerResponse` envelope.
  */
 import { ServerResponse } from "@nimbus/types";
@@ -28,11 +28,14 @@ import {
 import applySocketAuth from "./middleware/socket.middleware";
 import contactRouter from "./routers/contact.router";
 import healthRouter from "./routers/health.router";
+import livekitWebhookRouter, {
+  WEBHOOK_CONTENT_TYPE,
+  WEBHOOK_PATH,
+} from "./routers/livekitWebhook.router";
 import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
 import registerChatHandlers from "./socket/chat";
 import { registerDocumentHandlers } from "./socket/document";
-import { registerVoiceHandlers } from "./socket/voice";
 
 /**
  * Builds the Express app.
@@ -55,8 +58,24 @@ export const createApp = (): Express => {
     }),
   );
 
+  // The media server's webhook is signed over its exact bytes, so it is mounted
+  // with a raw body parser and strictly before `express.json()`; once the JSON
+  // parser has run, the signature can no longer be verified. It is public (the
+  // caller holds no session) and sits outside the master router for that reason.
+  app.use(
+    WEBHOOK_PATH,
+    express.raw({ type: WEBHOOK_CONTENT_TYPE }),
+    livekitWebhookRouter,
+  );
+
   app.use(express.json());
-  app.use(morgan("dev"));
+  // The webhook path is skipped explicitly as well, so that a reordering of the
+  // mounts above can never put that traffic into the access log.
+  app.use(
+    morgan("dev", {
+      skip: (req) => (req.originalUrl ?? req.url).startsWith(WEBHOOK_PATH),
+    }),
+  );
   // better-auth exposes its own routes (sign-in, session, etc.) — mounted before
   // the app routers so `/api/auth/*` never hits authCheck or validation.
   app.all("/api/auth/{*any}", toNodeHandler(auth));
@@ -103,12 +122,11 @@ export const createIoServer = (httpServer: HttpServer): Server => {
   // Handshake auth runs before "connection" — downstream handlers can trust `socket.data.user`.
   applySocketAuth(io);
 
-  /** Fan out each authenticated socket to the four domain handler registrars. */
+  /** Fan out each authenticated socket to the three domain handler registrars. */
   io.on("connection", (socket) => {
     registerChatHandlers(io, socket);
     registerDocumentHandlers(io, socket);
     registerCanvasHandlers(io, socket);
-    registerVoiceHandlers(io, socket);
   });
 
   return io;
@@ -126,6 +144,8 @@ export const createHttpServer = () => {
   const app = createApp();
   const httpServer = createServer(app);
   const io = createIoServer(httpServer);
+  // Lets HTTP handlers outside the socket layer (the media webhook) broadcast.
+  app.set("io", io);
 
   return { app, httpServer, io };
 };

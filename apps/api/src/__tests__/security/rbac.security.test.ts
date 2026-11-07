@@ -7,6 +7,7 @@
  * an ADMIN cannot mint another ADMIN. Each is a privilege-escalation guard, so
  * they're asserted on the response *and* on the resulting database state.
  */
+import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
 import {
@@ -17,6 +18,7 @@ import {
   createWorkspace,
   mintUser,
   resetDatabase,
+  signWebhook,
   testPrisma,
   type TestUser,
 } from "@testhelpers";
@@ -188,6 +190,74 @@ describe("security: RBAC", () => {
       await expect(
         testPrisma.document.findUnique({ where: { id: doc.id } }),
       ).resolves.toBeNull();
+    });
+  });
+
+  describe("voice", () => {
+    it("issues a call token to a member and to nobody outside the workspace", async () => {
+      const outsider = await mintUser(app);
+
+      const ok = await as(app, member)
+        .post("/api/voice/token")
+        .send({ workspaceId: wsId });
+      const denied = await as(app, outsider)
+        .post("/api/voice/token")
+        .send({ workspaceId: wsId });
+
+      expect(ok.status).toBe(200);
+      expect(denied.status).toBe(404);
+      expect(denied.body.responseObject).toBeNull();
+    });
+
+    it("hides the roster from a non-member", async () => {
+      const outsider = await mintUser(app);
+
+      const res = await as(app, outsider).get(`/api/voice/${wsId}/roster`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects an unsigned webhook delivery without changing the roster", async () => {
+      const { body } = await signWebhook({
+        event: "participant_joined",
+        room: { name: `nimbus-ws-${wsId}` },
+        participant: { identity: member.id, name: "Mallory" },
+      });
+
+      const res = await request(app)
+        .post("/api/livekit/webhook")
+        .set("Content-Type", "application/webhook+json")
+        .send(body);
+
+      expect(res.status).toBe(401);
+      expect(res.text).toBe("");
+      const roster = await as(app, owner).get(`/api/voice/${wsId}/roster`);
+      expect(roster.body.responseObject.users).toEqual([]);
+    });
+
+    it("rejects a webhook signed with a key other than the project's", async () => {
+      const { body, authorization } = await signWebhook(
+        {
+          event: "participant_joined",
+          room: { name: `nimbus-ws-${wsId}` },
+          participant: { identity: member.id, name: "Mallory" },
+        },
+        "an-attackers-secret",
+      );
+
+      const res = await request(app)
+        .post("/api/livekit/webhook")
+        .set("Content-Type", "application/webhook+json")
+        .set("Authorization", authorization)
+        .send(body);
+
+      expect(res.status).toBe(401);
+    });
+
+    it("no longer serves the relay credentials endpoint", async () => {
+      const res = await as(app, member).get("/api/turn/credentials");
+
+      expect(res.status).toBe(404);
     });
   });
 });

@@ -14,6 +14,12 @@ export {
   TEST_AI_KEY,
   type TestRole,
 } from "./factories";
+export {
+  devRoomService,
+  signWebhook,
+  type SignedWebhook,
+  type WebhookFixture,
+} from "./livekit";
 export { TEST_PASSWORD, as, mintUser, type TestUser } from "./session";
 export {
   connectClient,

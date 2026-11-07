@@ -87,7 +87,8 @@ const ROUTES = [
   { method: "get", path: `/api/document/workspace/${R}` },
   { method: "get", path: `/api/document/${R}` },
   { method: "delete", path: `/api/document/${R}` },
-  { method: "get", path: "/api/turn/credentials" },
+  { method: "post", path: "/api/voice/token", body: { workspaceId: R } },
+  { method: "get", path: `/api/voice/${R}/roster` },
   { method: "get", path: "/api/upload/avatar-signature" },
 ] as const;
 

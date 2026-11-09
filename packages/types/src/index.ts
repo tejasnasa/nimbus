@@ -48,6 +48,8 @@ export {
 export {
   assistantStartSchema,
   liveMeetingQuerySchema,
+  MEETING_PAGE_MAX,
+  meetingListQuerySchema,
   SEGMENT_PAGE_MAX,
   segmentsQuerySchema,
 } from "./validations/meeting";
@@ -108,8 +110,10 @@ export type {
   LiveMeetingDTO,
   MeetingDTO,
   MeetingEndReason,
+  MeetingListDTO,
   MeetingSource,
   MeetingStatus,
+  MeetingSummaryDTO,
   SegmentDTO,
   SegmentPageDTO,
 } from "./api/meeting";

@@ -1,7 +1,8 @@
 /**
  * @module api/controllers/meeting
  * @description The REST surface of the in-call assistant: starting it, stopping
- * it, finding the workspace's live meeting and paging its transcript.
+ * it, finding the workspace's live meeting, listing past meetings and paging a
+ * transcript.
  *
  * Starting walks a fixed sequence: membership, an existing live meeting
  * (returned as-is, which makes the call idempotent), a call with people in it,
@@ -25,11 +26,13 @@ import { prisma } from "@nimbus/db";
 import {
   assistantStartSchema,
   liveMeetingQuerySchema,
+  meetingListQuerySchema,
   segmentsQuerySchema,
   ServerResponse,
   type AssistantRefusalDTO,
   type LiveMeetingDTO,
   type MeetingDTO,
+  type MeetingListDTO,
   type SegmentPageDTO,
 } from "@nimbus/types";
 import { readVoiceQuotaState } from "../lib/ai/quota";
@@ -98,7 +101,8 @@ export async function startAssistant(
   deps: { io?: MeetingBroadcaster } = {},
 ) {
   const parsed = assistantStartSchema.safeParse(body);
-  if (!parsed.success) return ServerResponse.badRequest("workspaceId is required");
+  if (!parsed.success)
+    return ServerResponse.badRequest("workspaceId is required");
   const { workspaceId } = parsed.data;
 
   try {
@@ -189,7 +193,10 @@ export async function startAssistant(
     const dto = toMeetingDTO(meeting);
     deps.io?.to(workspaceId).emit("meeting:started", dto);
     armBudgetBackstop(meeting, deps);
-    return ServerResponse.created<MeetingDTO>(dto, "Nimbus is joining the call");
+    return ServerResponse.created<MeetingDTO>(
+      dto,
+      "Nimbus is joining the call",
+    );
   } catch (error) {
     console.error(
       "[meeting] could not start the assistant:",
@@ -216,7 +223,9 @@ export async function stopAssistant(
   deps: { io?: MeetingBroadcaster } = {},
 ) {
   try {
-    const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: meetingId },
+    });
     if (!meeting) return ServerResponse.notFound("Meeting not found");
     const access = await requireWorkspaceRole(userId, meeting.workspaceId);
     if (!access.ok) return ServerResponse.notFound("Meeting not found");
@@ -230,7 +239,9 @@ export async function stopAssistant(
       await endMeeting(meeting.id, "stopped", deps);
     }
 
-    const current = await prisma.meeting.findUnique({ where: { id: meetingId } });
+    const current = await prisma.meeting.findUnique({
+      where: { id: meetingId },
+    });
     return ServerResponse.ok<MeetingDTO>(
       toMeetingDTO(current ?? meeting),
       "Nimbus stopped",
@@ -253,7 +264,8 @@ export async function stopAssistant(
  */
 export async function getLiveMeeting(userId: string, query: unknown) {
   const parsed = liveMeetingQuerySchema.safeParse(query);
-  if (!parsed.success) return ServerResponse.badRequest("workspaceId is required");
+  if (!parsed.success)
+    return ServerResponse.badRequest("workspaceId is required");
 
   try {
     const access = await requireWorkspaceRole(userId, parsed.data.workspaceId);
@@ -262,6 +274,57 @@ export async function getLiveMeeting(userId: string, query: unknown) {
     const live = await findLive(parsed.data.workspaceId);
     return ServerResponse.ok<LiveMeetingDTO>({
       meeting: live ? toMeetingDTO(live) : null,
+    });
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+}
+
+/**
+ * Lists a workspace's meetings, newest first, for the transcript history.
+ *
+ * @param userId - The authenticated user.
+ * @param query - The raw query string values (`workspaceId`, `cursor`, `limit`).
+ * @returns A page of meetings with who started each and how many segments it
+ *          holds; 404 for a non-member.
+ */
+export async function listMeetings(userId: string, query: unknown) {
+  const parsed = meetingListQuerySchema.safeParse(query);
+  if (!parsed.success) return ServerResponse.badRequest("Invalid query");
+
+  try {
+    const { workspaceId, cursor, limit } = parsed.data;
+    const access = await requireWorkspaceRole(userId, workspaceId);
+    if (!access.ok) return access.response;
+
+    // The cursor is a meeting id; scoping it to the workspace keeps a foreign
+    // id from paging another workspace's history.
+    const anchor = cursor
+      ? await prisma.meeting.findFirst({
+          where: { id: cursor, workspaceId },
+          select: { id: true },
+        })
+      : null;
+    if (cursor && !anchor) return ServerResponse.badRequest("Invalid cursor");
+
+    const rows = await prisma.meeting.findMany({
+      where: { workspaceId },
+      orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(anchor ? { cursor: { id: anchor.id }, skip: 1 } : {}),
+      include: {
+        startedBy: { select: { name: true } },
+        _count: { select: { segments: true } },
+      },
+    });
+    const page = rows.slice(0, limit);
+    return ServerResponse.ok<MeetingListDTO>({
+      meetings: page.map((row) => ({
+        ...toMeetingDTO(row),
+        startedByName: row.startedBy?.name ?? null,
+        segmentCount: row._count.segments,
+      })),
+      nextCursor: rows.length > limit ? page[page.length - 1]!.id : null,
     });
   } catch (error) {
     return ServerResponse.internalError(error);

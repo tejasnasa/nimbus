@@ -1,14 +1,16 @@
 /**
  * @module api/routers/meeting
  * @description Authenticated assistant endpoints under `/api/meetings`:
- * `POST /assistant/start`, `POST /:meetingId/assistant/stop`, `GET /live` and
- * `GET /:meetingId/segments`. Membership enforcement lives in the controller.
+ * `POST /assistant/start`, `POST /:meetingId/assistant/stop`, `GET /` (the
+ * workspace's meetings), `GET /live` and `GET /:meetingId/segments`. Membership
+ * enforcement lives in the controller.
  */
 import { assistantStartSchema } from "@nimbus/types";
 import express from "express";
 import type { Server } from "socket.io";
 import {
   getLiveMeeting,
+  listMeetings,
   listSegments,
   startAssistant,
   stopAssistant,
@@ -26,6 +28,11 @@ meetingRouter.post(
     return res.status(response.statusCode).json(response);
   },
 );
+
+meetingRouter.get("/", async (req, res) => {
+  const response = await listMeetings(req.user!.id, req.query);
+  return res.status(response.statusCode).json(response);
+});
 
 meetingRouter.get("/live", async (req, res) => {
   const response = await getLiveMeeting(req.user!.id, req.query);

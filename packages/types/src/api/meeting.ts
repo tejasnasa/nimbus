@@ -99,3 +99,18 @@ export type SegmentPageDTO = {
 export type LiveMeetingDTO = {
   meeting: MeetingDTO | null;
 };
+
+/** A past or running meeting in the workspace's transcript history. */
+export type MeetingSummaryDTO = MeetingDTO & {
+  /** Display name of whoever started the assistant, or null if they left. */
+  startedByName: string | null;
+  /** Transcript segments stored for the meeting. */
+  segmentCount: number;
+};
+
+/** `GET /api/meetings?workspaceId=`: newest first, cursor-paged. */
+export type MeetingListDTO = {
+  meetings: MeetingSummaryDTO[];
+  /** Pass back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
+};

@@ -78,6 +78,7 @@ const MODELS = [
   "AiCall",
   "Meeting",
   "TranscriptSegment",
+  "SegmentTranslation",
 ] as const;
 
 describe("schema.prisma — datasource and generator", () => {
@@ -307,6 +308,7 @@ describe("schema.prisma — User, Message and relations", () => {
     ["AiCall", "workspaceId"],
     ["Meeting", "workspaceId"],
     ["TranscriptSegment", "meetingId"],
+    ["SegmentTranslation", "segmentId"],
   ] as const)("%s.%s cascades on delete", (model, name) => {
     const relation = declarations("model", model).find((line) =>
       line.includes(`fields: [${name}]`),

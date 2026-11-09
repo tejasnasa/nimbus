@@ -298,8 +298,15 @@ describe("socket: caption language", () => {
       language: null,
     });
     await expectActive(["es"]);
+    const ownerHeard = waitForEvent<{ seq: number; language: string }>(
+      ownerSocket,
+      "meeting:translation",
+    );
     await post("/segments", { segments: [line(2)] }).expect(200);
     await vi.waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
     expect(targetsOf(1)).toEqual(["es"]);
+    // The batch broadcasts after the model call returns; waiting for it keeps
+    // that publish from landing after teardown has closed Redis.
+    expect(await ownerHeard).toMatchObject({ seq: 2, language: "es" });
   });
 });

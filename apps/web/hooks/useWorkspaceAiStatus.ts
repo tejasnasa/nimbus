@@ -7,6 +7,10 @@
  * `refresh()` lets a parent refetch: the AI tab uses it after a key, model or
  * setting changes, and the composer uses it on socket reconnect.
  *
+ * A server-fetched status can be passed as the starting value, so anything
+ * gated on it (the settings tabs only admins see) is right on first render
+ * instead of appearing once the request returns. It is still refetched.
+ *
  * @important The DTO is the source of truth for whether the composer is
  *            disabled: `features.chat.enabled === false` is the only signal the
  *            composer needs, and `canManage` the only signal for whether to
@@ -32,10 +36,17 @@ export type UseWorkspaceAiStatus = {
  * first request, then on each call to `refresh()`.
  *
  * @param workspaceId - The workspace cuid.
+ * @param initial - A status already fetched on the server, shown until the
+ *                  client's own request settles.
  * @returns The discriminated status state and a `refresh` callback.
  */
-export function useWorkspaceAiStatus(workspaceId: string): UseWorkspaceAiStatus {
-  const [state, setState] = useState<WorkspaceAiStatusState>({ kind: "loading" });
+export function useWorkspaceAiStatus(
+  workspaceId: string,
+  initial?: AiWorkspaceStatusDTO,
+): UseWorkspaceAiStatus {
+  const [state, setState] = useState<WorkspaceAiStatusState>(() =>
+    initial ? { kind: "ready", status: initial } : { kind: "loading" },
+  );
 
   const refresh = useCallback(async () => {
     const result = await aiApi<AiWorkspaceStatusDTO>(

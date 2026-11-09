@@ -84,6 +84,29 @@ describe("aiApi", () => {
 });
 
 describe("useWorkspaceAiStatus", () => {
+  it("starts ready from a server-fetched status, then refetches", async () => {
+    let hits = 0;
+    server.use(
+      http.get(route("/status"), () => {
+        hits += 1;
+        return ok(aiStatus({ canManage: false }));
+      }),
+    );
+    const { result } = renderHook(() =>
+      useWorkspaceAiStatus(WS, aiStatus({ canManage: true })),
+    );
+    expect(result.current.state).toMatchObject({
+      kind: "ready",
+      status: { canManage: true },
+    });
+    await waitFor(() => expect(hits).toBe(1));
+    await waitFor(() =>
+      expect(result.current.state).toMatchObject({
+        status: { canManage: false },
+      }),
+    );
+  });
+
   it("loads the status, then refreshes it", async () => {
     let call = 0;
     server.use(
@@ -318,7 +341,7 @@ describe("useWorkspaceAiUsage", () => {
     expect(hits).toBe(0);
   });
 
-  it("loads the first page, then appends the next on loadMore", async () => {
+  it("pages forward with the server's cursor and back with the remembered one", async () => {
     const cursors: Array<string | null> = [];
     server.use(
       http.get(route("/usage"), ({ request }) => {
@@ -331,15 +354,29 @@ describe("useWorkspaceAiUsage", () => {
     );
     const { result } = renderHook(() => useWorkspaceAiUsage(WS, true));
     await waitFor(() => expect(result.current.calls).toHaveLength(1));
-    expect(result.current.nextCursor).toBe("cursor-1");
+    expect(result.current).toMatchObject({
+      page: 1,
+      hasPrevious: false,
+      hasNext: true,
+    });
     expect(result.current.totals?.month).toBe("2026-11");
 
     await act(async () => {
-      await result.current.loadMore();
+      await result.current.nextPage();
     });
-    expect(result.current.calls.map((c) => c.id)).toEqual(["call-1", "call-2"]);
-    expect(result.current.nextCursor).toBeNull();
-    expect(cursors).toEqual([null, "cursor-1"]);
+    expect(result.current.calls.map((c) => c.id)).toEqual(["call-2"]);
+    expect(result.current).toMatchObject({
+      page: 2,
+      hasPrevious: true,
+      hasNext: false,
+    });
+
+    await act(async () => {
+      await result.current.previousPage();
+    });
+    expect(result.current.calls.map((c) => c.id)).toEqual(["call-1"]);
+    expect(result.current.page).toBe(1);
+    expect(cursors).toEqual([null, "cursor-1", null]);
   });
 
   it("restarts from the first page when a filter changes", async () => {
@@ -361,7 +398,7 @@ describe("useWorkspaceAiUsage", () => {
     expect(queries[1]).not.toContain("cursor=");
   });
 
-  it("keeps the rows already shown when a later page fails", async () => {
+  it("keeps the current page when the next one fails", async () => {
     server.use(
       http.get(route("/usage"), ({ request }) =>
         new URL(request.url).searchParams.get("cursor")
@@ -372,11 +409,12 @@ describe("useWorkspaceAiUsage", () => {
     const { result } = renderHook(() => useWorkspaceAiUsage(WS, true));
     await waitFor(() => expect(result.current.calls).toHaveLength(1));
     await act(async () => {
-      await result.current.loadMore();
+      await result.current.nextPage();
     });
     expect(result.current.calls).toHaveLength(1);
+    expect(result.current.page).toBe(1);
     expect(result.current.error).toBe("Boom");
-    expect(result.current.loadingMore).toBe(false);
+    expect(result.current.loading).toBe(false);
   });
 
   it("reports a first-page failure", async () => {
@@ -386,14 +424,38 @@ describe("useWorkspaceAiUsage", () => {
     expect(result.current.loading).toBe(false);
   });
 
-  it("does nothing on loadMore without a cursor", async () => {
-    server.use(http.get(route("/usage"), () => ok(usagePage())));
+  it("does nothing past either end", async () => {
+    let hits = 0;
+    server.use(
+      http.get(route("/usage"), () => {
+        hits += 1;
+        return ok(usagePage());
+      }),
+    );
     const { result } = renderHook(() => useWorkspaceAiUsage(WS, true));
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
-      await result.current.loadMore();
+      await result.current.nextPage();
+      await result.current.previousPage();
     });
-    expect(result.current.calls).toHaveLength(1);
+    expect(hits).toBe(1);
+    expect(result.current.page).toBe(1);
+  });
+
+  it("refreshes the page on screen", async () => {
+    let hits = 0;
+    server.use(
+      http.get(route("/usage"), () => {
+        hits += 1;
+        return ok(usagePage());
+      }),
+    );
+    const { result } = renderHook(() => useWorkspaceAiUsage(WS, true));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(hits).toBe(2);
   });
 });
 

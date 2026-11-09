@@ -5,20 +5,38 @@
  * @description The workspace settings "Usage" tab, shown to admins and owners:
  * this month's totals per feature as stat tiles, then the call log (time,
  * member, feature, model, source, tokens or seconds, latency, cost, status)
- * with feature and status filters and a "Load more" button.
+ * with feature and status filters, paged with Previous and Next.
  *
  * Costs are estimates from list prices. A call whose model has no price shows a
  * dash rather than zero, so a missing price is visible instead of looking free.
  */
-import Button from "@nimbus/ui/Button";
+import Select, { type SelectOption } from "@nimbus/ui/Select";
 import { AI_FEATURES, type AiCallDTO, type AiFeature } from "@nimbus/types";
 import { useWorkspaceAiUsage } from "../hooks/useWorkspaceAiUsage";
+import Pagination from "./Pagination";
 
-const STATUSES: ReadonlyArray<AiCallDTO["status"]> = [
-  "ok",
-  "error",
-  "refused",
-  "cancelled",
+const STATUS_LABEL: Record<AiCallDTO["status"], string> = {
+  ok: "OK",
+  error: "Error",
+  refused: "Refused",
+  cancelled: "Cancelled",
+};
+
+/** "Any" plus one choice per value, labelled for people rather than code. */
+const FEATURE_OPTIONS: readonly SelectOption[] = [
+  { value: "", label: "Any" },
+  ...AI_FEATURES.map((f) => ({
+    value: f,
+    label: f.charAt(0).toUpperCase() + f.slice(1),
+  })),
+];
+
+const STATUS_OPTIONS: readonly SelectOption[] = [
+  { value: "", label: "Any" },
+  ...(Object.keys(STATUS_LABEL) as AiCallDTO["status"][]).map((s) => ({
+    value: s,
+    label: STATUS_LABEL[s],
+  })),
 ];
 
 const usd = (value: number | null): string =>
@@ -71,66 +89,59 @@ export default function WorkspaceUsagePanel({
       </section>
 
       <div className="flex gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          Feature
-          <select
-            data-testid="usage-filter-feature"
-            className="rounded-lg border border-(--border) bg-(--background) px-2 py-1 text-sm"
-            value={usage.filters.feature ?? ""}
-            onChange={(e) =>
-              usage.setFilters({
-                ...usage.filters,
-                feature: (e.target.value || undefined) as AiFeature | undefined,
-              })
-            }
-          >
-            <option value="">Any</option>
-            {AI_FEATURES.map((f) => (
-              <option key={f} value={f}>
-                {f}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium">
-          Status
-          <select
-            data-testid="usage-filter-status"
-            className="rounded-lg border border-(--border) bg-(--background) px-2 py-1 text-sm"
-            value={usage.filters.status ?? ""}
-            onChange={(e) =>
-              usage.setFilters({
-                ...usage.filters,
-                status: (e.target.value || undefined) as
-                  | AiCallDTO["status"]
-                  | undefined,
-              })
-            }
-          >
-            <option value="">Any</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          id="usage-filter-feature"
+          label="Feature"
+          className="w-48"
+          value={usage.filters.feature ?? ""}
+          options={FEATURE_OPTIONS}
+          onChange={(value) =>
+            usage.setFilters({
+              ...usage.filters,
+              feature: (value || undefined) as AiFeature | undefined,
+            })
+          }
+        />
+        <Select
+          id="usage-filter-status"
+          label="Status"
+          className="w-40"
+          value={usage.filters.status ?? ""}
+          options={STATUS_OPTIONS}
+          onChange={(value) =>
+            usage.setFilters({
+              ...usage.filters,
+              status: (value || undefined) as AiCallDTO["status"] | undefined,
+            })
+          }
+        />
       </div>
 
       {usage.error && (
-        <p role="alert" className="text-xs text-(--destructive)" data-testid="usage-error">
+        <p
+          role="alert"
+          className="text-xs text-(--destructive)"
+          data-testid="usage-error"
+        >
           {usage.error}
         </p>
       )}
 
-      {usage.loading ? (
+      {/* Only the first load shows a placeholder; paging keeps the current
+          rows on screen, dimmed, until the next page replaces them. */}
+      {usage.loading && usage.calls.length === 0 ? (
         <p className="text-sm text-(--muted-foreground)">Loading usage…</p>
       ) : usage.calls.length === 0 ? (
-        <p className="text-sm text-(--muted-foreground)" data-testid="usage-empty">
+        <p
+          className="text-sm text-(--muted-foreground)"
+          data-testid="usage-empty"
+        >
           No calls match.
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div
+          className={`overflow-x-auto transition-opacity ${usage.loading ? "opacity-50" : ""}`}
+        >
           <table className="w-full text-left text-xs" data-testid="usage-table">
             <thead className="text-(--muted-foreground)">
               <tr>
@@ -163,7 +174,7 @@ export default function WorkspaceUsagePanel({
                   <td className="py-1 pr-3">{call.latencyMs} ms</td>
                   <td className="py-1 pr-3">{usd(call.costUsd)}</td>
                   <td className="py-1">
-                    {call.status}
+                    {STATUS_LABEL[call.status]}
                     {call.errorReason ? ` (${call.errorReason})` : ""}
                   </td>
                 </tr>
@@ -173,17 +184,15 @@ export default function WorkspaceUsagePanel({
         </div>
       )}
 
-      {usage.nextCursor && (
-        <Button
-          size="xs"
-          data-testid="usage-load-more"
-          loading={usage.loadingMore}
-          onClick={() => void usage.loadMore()}
-          className="rounded-lg hover:cursor-pointer"
-        >
-          Load more
-        </Button>
-      )}
+      <Pagination
+        testId="usage-pagination"
+        page={usage.page}
+        hasPrevious={usage.hasPrevious}
+        hasNext={usage.hasNext}
+        disabled={usage.loading}
+        onPrevious={() => void usage.previousPage()}
+        onNext={() => void usage.nextPage()}
+      />
     </div>
   );
 }

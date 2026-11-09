@@ -399,6 +399,18 @@ describe("VoiceProvider: participants and roster", () => {
     expect(latest.voiceUsers.map((u) => u.userId)).toEqual(["user-1"]);
   });
 
+  it("names the agent NimbusBot and never shows it as muted", async () => {
+    await mountJoined();
+    const agent = new lk.FakeParticipant("agent-AJ_x7Qk2", "");
+    agent.kind = lk.ParticipantKind.AGENT;
+
+    act(() => room().addRemote(agent));
+
+    const shown = latest.participants.find((p) => p.userId === "agent-AJ_x7Qk2");
+    expect(shown?.name).toBe("NimbusBot");
+    expect(shown?.isMuted).toBe(false);
+  });
+
   it("does not treat a person as an agent because of their name", async () => {
     await mountJoined();
 

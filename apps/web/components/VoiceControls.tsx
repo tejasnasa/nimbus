@@ -1,28 +1,26 @@
 /**
  * @module web/components/VoiceControls
- * @description Call header inside Chat. Before the user joins it shows who is
- * already on the call (from the server's roster) and a **Join call** button;
- * once in, it shows the participants with their mute state and the mute,
- * deafen and leave controls. An error from the provider (a refused microphone,
- * a failed join) is shown inline, and a dropped call offers **Rejoin**. The
- * settings gear opening `WorkspaceSettings` in an `AlertDialog` is available in
- * every state. Rendered at the top of the chat panel.
+ * @description Body of the voice call card. Before the user joins it shows who
+ * is already on the call (from the server's roster) and a **Join call** button;
+ * once in, an overlapping avatar stack of the participants (a green ring while
+ * someone speaks, a red dot while they are muted, a badge on the assistant),
+ * the mute, deafen and leave controls, the assistant's start and stop control
+ * and the running transcript. An error from the provider (a refused
+ * microphone, a failed join) is shown inline, and a dropped call offers
+ * **Rejoin**. Rendered inside `VoiceDock`.
  */
 "use client";
 
-import { Workspace } from "@nimbus/types";
-import AlertDialog from "@nimbus/ui/AlertDialog";
 import AvatarGroup from "@nimbus/ui/AvatarGroup";
 import Headphones from "@nimbus/ui/icons/Headphones";
 import HeadphonesOff from "@nimbus/ui/icons/HeadphonesOff";
 import Microphone from "@nimbus/ui/icons/Microphone";
 import MicrophoneOff from "@nimbus/ui/icons/MicrophoneOff";
-import Settings from "@nimbus/ui/icons/Settings";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { ConnectionState } from "livekit-client";
-import { ClientDocument } from "../api/document";
 import { useVoice } from "../providers/VoiceProvider";
-import WorkspaceSettings from "./WorkspaceSettings";
+import AssistantButton from "./meeting/AssistantButton";
+import LiveTranscript from "./meeting/LiveTranscript";
 
 /** Names the people on the call, e.g. "Ada and Grace are on the call". */
 function describeRoster(names: string[]): string {
@@ -32,21 +30,17 @@ function describeRoster(names: string[]): string {
   return `${names[0]}, ${names[1]} and ${names.length - 2} more are on the call`;
 }
 
-/**
- * @param props.documents - Workspace docs (forwarded to settings).
- * @param props.workspaceData - Workspace (forwarded to settings).
- */
-export default function VoiceControls({
-  documents,
-  workspaceData,
-}: {
-  documents: ClientDocument[];
-  workspaceData: Workspace;
-}) {
+/** Shared look of the primary join and rejoin buttons. */
+const JOIN_BUTTON_CLASS =
+  "px-3 py-1.5 rounded-lg text-xs font-semibold bg-(--primary) text-(--primary-foreground) hover:cursor-pointer hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed";
+
+/** Call card body; reads all of its state from `useVoice()`. */
+export default function VoiceControls() {
   const {
     isMuted,
     isDeafened,
     voiceUsers,
+    speakingUsers,
     participants,
     toggleMute,
     toggleDeafen,
@@ -57,21 +51,6 @@ export default function VoiceControls({
     error,
     canRejoin,
   } = useVoice();
-
-  const settingsTrigger = (
-    <AlertDialog
-      trigger={
-        <button
-          title="Workspace settings"
-          className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0"
-        >
-          <Settings />
-        </button>
-      }
-    >
-      <WorkspaceSettings workspace={workspaceData} documents={documents} />
-    </AlertDialog>
-  );
 
   const errorMessage = error ? (
     <p role="alert" className="text-xs text-red-500 leading-snug">
@@ -86,67 +65,90 @@ export default function VoiceControls({
 
   if (!inCall) {
     return (
-      <div className="flex flex-col gap-2 p-4 bg-(--card) backdrop-blur-sm border-b border-(--border) mb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {voiceUsers.length > 0 && (
-              <AvatarGroup
-                users={voiceUsers.map((user) => ({
-                  image: user.image || getAvatarForUser(user.userId),
-                }))}
-                max={3}
-              />
-            )}
-            <span
-              data-testid="call-roster"
-              className="text-xs font-semibold text-(--muted-foreground) truncate"
-            >
-              {describeRoster(voiceUsers.map((user) => user.name))}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            {canRejoin && (
-              <button
-                onClick={() => void join()}
-                disabled={isJoining}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-(--primary) text-(--primary-foreground) hover:cursor-pointer hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                Rejoin
-              </button>
-            )}
-            {!canRejoin && (
-              <button
-                onClick={() => void join()}
-                disabled={isJoining}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-(--primary) text-(--primary-foreground) hover:cursor-pointer hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isJoining ? "Joining..." : "Join call"}
-              </button>
-            )}
-            {settingsTrigger}
-          </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {voiceUsers.length > 0 && (
+            <AvatarGroup
+              users={voiceUsers.map((user) => ({
+                image: user.image || getAvatarForUser(user.userId),
+              }))}
+              max={4}
+            />
+          )}
+          <span
+            data-testid="call-roster"
+            className="text-xs font-semibold text-(--muted-foreground) truncate"
+          >
+            {describeRoster(voiceUsers.map((user) => user.name))}
+          </span>
         </div>
+        <button
+          onClick={() => void join()}
+          disabled={isJoining}
+          className={`${JOIN_BUTTON_CLASS} self-start`}
+        >
+          {canRejoin ? "Rejoin" : isJoining ? "Joining..." : "Join call"}
+        </button>
         {errorMessage}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-(--card) backdrop-blur-sm border-b border-(--border) mb-3 transition-all duration-300">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div
-            className={`w-2.5 h-2.5 rounded-full animate-pulse ${
+            className={`w-2.5 h-2.5 shrink-0 rounded-full animate-pulse ${
               isReconnecting
                 ? "bg-amber-500"
                 : "bg-(--chart-2) shadow-[0_0_8px_rgba(16,185,129,0.5)]"
             }`}
           />
-          <span className="text-xs font-semibold text-(--muted-foreground)">
-            {isReconnecting ? "Reconnecting..." : "On the call"}
-          </span>
+          {isReconnecting ? (
+            <span className="text-xs font-semibold text-(--muted-foreground)">
+              Reconnecting...
+            </span>
+          ) : (
+            <ul aria-label="On the call" className="flex items-center">
+              {participants.map((participant, i) => (
+                <li
+                  key={participant.userId}
+                  data-testid="call-participant"
+                  data-muted={participant.isMuted}
+                  title={`${participant.name}${participant.isMuted ? " (muted)" : ""}`}
+                  className="relative -ml-3 first:ml-0"
+                  style={{ zIndex: participants.length - i }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      participant.image || getAvatarForUser(participant.userId)
+                    }
+                    alt={participant.name}
+                    className={`h-9 w-9 rounded-full border-2 object-cover transition-colors ${
+                      speakingUsers.has(participant.userId)
+                        ? "border-(--chart-2)"
+                        : "border-(--background)"
+                    }`}
+                  />
+                  {participant.isAgent && (
+                    <span className="absolute -top-1 -right-1 rounded-full bg-(--primary) px-1 text-[8px] font-semibold uppercase leading-3 text-(--primary-foreground)">
+                      Bot
+                    </span>
+                  )}
+                  {participant.isMuted && (
+                    <span className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full border-2 border-(--background) bg-red-500">
+                      <MicrophoneOff className="h-2 w-2 text-white" />
+                      <span className="sr-only">muted</span>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={toggleMute}
             disabled={isReconnecting}
@@ -189,42 +191,11 @@ export default function VoiceControls({
           >
             Leave
           </button>
-
-          {settingsTrigger}
         </div>
       </div>
 
-      {participants.length > 0 && (
-        <ul aria-label="On the call" className="flex flex-wrap gap-1.5">
-          {participants.map((participant) => (
-            <li
-              key={participant.userId}
-              data-testid="call-participant"
-              data-muted={participant.isMuted}
-              className="flex items-center gap-1.5 rounded-full bg-(--muted)/60 pl-1 pr-2 py-0.5 text-xs"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={participant.image || getAvatarForUser(participant.userId)}
-                alt=""
-                className="h-5 w-5 rounded-full object-cover"
-              />
-              <span>{participant.name}</span>
-              {participant.isAgent && (
-                <span className="rounded bg-(--primary)/15 px-1 text-[10px] font-semibold uppercase text-(--primary)">
-                  Agent
-                </span>
-              )}
-              {participant.isMuted && (
-                <>
-                  <MicrophoneOff className="h-3.5 w-3.5 text-red-500" />
-                  <span className="sr-only">muted</span>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+      <AssistantButton inCall />
+      <LiveTranscript />
       {errorMessage}
     </div>
   );

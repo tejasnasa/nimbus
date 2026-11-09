@@ -5,7 +5,8 @@
  * a 100ms interval), so brief pauses don't flicker the UI. Participants come
  * from the call room, and the assistant is marked with an "Agent" badge, told
  * apart by the participant kind LiveKit reports rather than by name.
- * Pointer-events-none overlay; renders null when nobody is speaking.
+ * Pointer-events-none overlay; renders no badges when nobody is speaking. Live
+ * captions share this layer while the assistant is in the call.
  *
  * @important Identity is read from the live participant list at render time;
  *            the map only carries who is speaking and when they last did. A
@@ -18,6 +19,7 @@ import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useVoice } from "../providers/VoiceProvider";
+import CaptionsBar from "./meeting/CaptionsBar";
 
 /** Visible speaker with `Infinity` lastSpoke while actively talking. */
 interface SpeakerInfo {
@@ -98,47 +100,53 @@ export default function VoiceOverlay() {
   }, []);
 
   const speakersList = Array.from(activeSpeakers.values());
-  if (speakersList.length === 0) return null;
+  const badges =
+    speakersList.length === 0 ? null : (
+      <div className="absolute top-8 right-8 z-50 flex flex-col pointer-events-none">
+        {speakersList.map((speaker) => {
+          // Read the participant now rather than trusting the snapshot taken when
+          // they started speaking: an avatar can land after that moment, and the
+          // frozen copy would pin the fallback for the badge's whole life. A
+          // speaker who has already left is gone from the list, so the snapshot
+          // is still what the 1.5s linger shows.
+          const live = participants.find((p) => p.userId === speaker.userId);
+          const name = live ? live.name : speaker.name;
+          const image = live ? live.image : speaker.image;
+          const isAgent = live ? live.isAgent : speaker.isAgent;
+
+          return (
+            <div
+              key={speaker.userId}
+              className="flex items-center bg-(--background)/85 backdrop-blur-md p-1 rounded-full border border-(--chart-3)/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)] animate-fade-in transition-all duration-300 transform scale-100 hover:scale-105"
+            >
+              <div className="relative">
+                <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
+                {/* `unoptimized`: avatars come from arbitrary hosts, so none can be
+                  pre-registered for the image optimiser. */}
+                <Image
+                  src={image || getAvatarForUser(speaker.userId)}
+                  alt={name}
+                  width={40}
+                  height={40}
+                  unoptimized
+                  className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                />
+                {isAgent && (
+                  <span className="absolute -bottom-1 -right-1 rounded-full bg-(--primary) px-1.5 text-[9px] font-semibold uppercase leading-4 text-(--primary-foreground)">
+                    Agent
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
 
   return (
-    <div className="absolute top-8 right-8 z-50 flex flex-col pointer-events-none">
-      {speakersList.map((speaker) => {
-        // Read the participant now rather than trusting the snapshot taken when
-        // they started speaking: an avatar can land after that moment, and the
-        // frozen copy would pin the fallback for the badge's whole life. A
-        // speaker who has already left is gone from the list, so the snapshot
-        // is still what the 1.5s linger shows.
-        const live = participants.find((p) => p.userId === speaker.userId);
-        const name = live ? live.name : speaker.name;
-        const image = live ? live.image : speaker.image;
-        const isAgent = live ? live.isAgent : speaker.isAgent;
-
-        return (
-          <div
-            key={speaker.userId}
-            className="flex items-center bg-(--background)/85 backdrop-blur-md p-1 rounded-full border border-(--chart-3)/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)] animate-fade-in transition-all duration-300 transform scale-100 hover:scale-105"
-          >
-            <div className="relative">
-              <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
-              {/* `unoptimized`: avatars come from arbitrary hosts, so none can be
-                  pre-registered for the image optimiser. */}
-              <Image
-                src={image || getAvatarForUser(speaker.userId)}
-                alt={name}
-                width={40}
-                height={40}
-                unoptimized
-                className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-              />
-              {isAgent && (
-                <span className="absolute -bottom-1 -right-1 rounded-full bg-(--primary) px-1.5 text-[9px] font-semibold uppercase leading-4 text-(--primary-foreground)">
-                  Agent
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <CaptionsBar />
+      {badges}
+    </>
   );
 }

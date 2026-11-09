@@ -19,6 +19,12 @@
  * generation overlay is observable, with a three-node diagram. Everything else
  * on `/responses` still gets the plain "ok".
  *
+ * The in-call assistant is driven by a token containing `agent`: its
+ * transcription requests are answered with a fixed sentence, whatever audio was
+ * sent, so a browser test can assert that a caption appears without a real
+ * speech model. Every other token still gets the empty transcript the probes
+ * expect.
+ *
  * Endpoints: `POST /responses`, `POST /audio/transcriptions`,
  * `POST /audio/speech`, plus `GET /health` for the readiness check.
  */
@@ -56,6 +62,9 @@ const DIAGRAM = JSON.stringify({
     { from: "api", to: "db" },
   ],
 });
+
+/** What the fake speech model hears when the assistant sends it audio. */
+const SCRIPTED_TRANSCRIPT = "Let us review the Nimbus launch plan together.";
 
 /** How long the streamed diagram is held back, so the overlay can be seen. */
 const STREAM_DELAY_MS = 1500;
@@ -177,7 +186,9 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && path === "/audio/transcriptions") {
-    return send(res, 200, { text: "" });
+    return send(res, 200, {
+      text: token.includes("agent") ? SCRIPTED_TRANSCRIPT : "",
+    });
   }
 
   if (req.method === "POST" && path === "/audio/speech") {

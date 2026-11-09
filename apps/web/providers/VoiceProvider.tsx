@@ -59,8 +59,7 @@ export const MIC_FAILED_MESSAGE =
   "Couldn't turn on your microphone. Check that one is connected and not in use by another app.";
 
 /** Shown when the call is lost without the user leaving it. */
-export const CONNECTION_LOST_MESSAGE =
-  "You were disconnected from the call.";
+export const CONNECTION_LOST_MESSAGE = "You were disconnected from the call.";
 
 /** Shown when the media server cannot be reached while joining. */
 export const JOIN_FAILED_MESSAGE =
@@ -127,14 +126,25 @@ function imageFromMetadata(metadata: string | undefined): string | null {
   }
 }
 
-/** Projects a LiveKit participant onto the shape the UI renders. */
+/** How the assistant is named in the call, whatever identity LiveKit gave it. */
+export const AGENT_DISPLAY_NAME = "NimbusBot";
+
+/**
+ * Projects a LiveKit participant onto the shape the UI renders.
+ *
+ * The assistant joins under a generated identity and publishes no microphone
+ * while it only listens, so it is shown by name and never as muted.
+ */
 function toParticipant(participant: Participant, isLocal: boolean) {
+  const isAgent = participant.kind === ParticipantKind.AGENT;
   return {
     userId: participant.identity,
-    name: participant.name || participant.identity,
+    name: isAgent
+      ? AGENT_DISPLAY_NAME
+      : participant.name || participant.identity,
     image: imageFromMetadata(participant.metadata),
-    isMuted: !participant.isMicrophoneEnabled,
-    isAgent: participant.kind === ParticipantKind.AGENT,
+    isMuted: isAgent ? false : !participant.isMicrophoneEnabled,
+    isAgent,
     isLocal,
   } satisfies VoiceParticipant;
 }
@@ -229,7 +239,8 @@ export function VoiceProvider({
 
   useEffect(() => {
     const onParticipantsChanged = () => refresh();
-    const onReconnecting = () => setConnectionState(ConnectionState.Reconnecting);
+    const onReconnecting = () =>
+      setConnectionState(ConnectionState.Reconnecting);
     const onReconnected = () => {
       setConnectionState(ConnectionState.Connected);
       refresh();
@@ -357,7 +368,9 @@ export function VoiceProvider({
         refresh();
         return true;
       } catch (err) {
-        setError(isPermissionDenied(err) ? MIC_DENIED_MESSAGE : MIC_FAILED_MESSAGE);
+        setError(
+          isPermissionDenied(err) ? MIC_DENIED_MESSAGE : MIC_FAILED_MESSAGE,
+        );
         refresh();
         return false;
       }

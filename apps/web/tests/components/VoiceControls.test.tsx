@@ -1,17 +1,15 @@
 /**
  * @module web/tests/components/VoiceControls
- * @description The call header. Before joining it shows who is already on the
- * call and a Join call button; once in, the participants with their mute state
- * and the mute, deafen and leave controls (whose labels must reflect the
- * current state). Provider errors are shown inline, a dropped call offers
- * Rejoin, and the gear opens the workspace settings modal in every state.
+ * @description The call card body. Before joining it shows who is already on
+ * the call and a Join call button; once in, the participants as an avatar stack
+ * with their mute and speaking state, and the mute, deafen and leave controls
+ * (whose labels must reflect the current state). Provider errors are shown
+ * inline and a dropped call offers Rejoin.
  */
 import "./testUtils";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Workspace } from "@nimbus/types";
-import type { ClientDocument } from "../../api/document";
 import VoiceControls from "../../components/VoiceControls";
 import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
 
@@ -56,23 +54,10 @@ vi.mock("../../providers/VoiceProvider", () => ({
   useVoice: () => voice.current,
 }));
 
-const workspace: Workspace = {
-  id: "cm_workspace_0000000000000",
-  name: "Design Guild",
-  description: "Shared drafts",
-  slug: "design-guild",
-  slugId: 1,
-  inviteCode: "invite-code",
-  updatedAt: new Date("2026-01-01T00:00:00.000Z").toISOString(),
-  members: [{ id: "user-1", name: "Ada Lovelace", image: null, role: "OWNER" }],
-};
-
-const documents: ClientDocument[] = [];
-
 function renderControls() {
   return render(
     <DocEditorRefProvider>
-      <VoiceControls documents={documents} workspaceData={workspace} />
+      <VoiceControls />
     </DocEditorRefProvider>,
   );
 }
@@ -95,10 +80,6 @@ function connect(overrides: Partial<ReturnType<typeof initialVoice>> = {}) {
     ...overrides,
   });
 }
-
-/** The gear is an icon-only button; its title names it. */
-const settingsButton = () =>
-  screen.getByRole("button", { name: "Workspace settings" });
 
 beforeEach(() => {
   voice.current = initialVoice();
@@ -189,12 +170,6 @@ describe("VoiceControls: before joining", () => {
 
     expect(voice.current.join).toHaveBeenCalledTimes(1);
   });
-
-  it("keeps the settings gear reachable", () => {
-    renderControls();
-
-    expect(settingsButton()).toBeInTheDocument();
-  });
 });
 
 describe("VoiceControls: in the call", () => {
@@ -235,11 +210,44 @@ describe("VoiceControls: in the call", () => {
 
     const list = screen.getByRole("list", { name: "On the call" });
     const [ada, grace] = within(list).getAllByTestId("call-participant");
-    expect(ada).toHaveTextContent("Ada Lovelace");
+    expect(ada).toHaveAttribute("title", "Ada Lovelace");
     expect(ada).toHaveAttribute("data-muted", "false");
-    expect(grace).toHaveTextContent("Grace Hopper");
+    expect(within(ada!).getByRole("img")).toHaveAccessibleName("Ada Lovelace");
+    expect(grace).toHaveAttribute("title", "Grace Hopper (muted)");
     expect(grace).toHaveAttribute("data-muted", "true");
     expect(grace).toHaveTextContent("muted");
+  });
+
+  it("rings whoever is speaking", () => {
+    connect({
+      participants: [
+        {
+          userId: "user-1",
+          name: "Ada Lovelace",
+          image: null,
+          isMuted: false,
+          isAgent: false,
+          isLocal: true,
+        },
+        {
+          userId: "user-2",
+          name: "Grace Hopper",
+          image: null,
+          isMuted: false,
+          isAgent: false,
+          isLocal: false,
+        },
+      ],
+      speakingUsers: new Set(["user-2"]),
+    });
+    renderControls();
+
+    expect(screen.getByRole("img", { name: "Grace Hopper" })).toHaveClass(
+      "border-(--chart-2)",
+    );
+    expect(screen.getByRole("img", { name: "Ada Lovelace" })).not.toHaveClass(
+      "border-(--chart-2)",
+    );
   });
 
   it("badges the agent", () => {
@@ -247,7 +255,7 @@ describe("VoiceControls: in the call", () => {
       participants: [
         {
           userId: "agent-1",
-          name: "Nimbus",
+          name: "NimbusBot",
           image: null,
           isMuted: false,
           isAgent: true,
@@ -257,7 +265,11 @@ describe("VoiceControls: in the call", () => {
     });
     renderControls();
 
-    expect(screen.getByText("Agent")).toBeInTheDocument();
+    expect(screen.getByText("Bot")).toBeInTheDocument();
+    expect(screen.getByTestId("call-participant")).toHaveAttribute(
+      "title",
+      "NimbusBot",
+    );
   });
 
   it("shows an unmuted microphone while the user can be heard", () => {
@@ -337,30 +349,5 @@ describe("VoiceControls: in the call", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Microphone access is blocked.",
     );
-  });
-});
-
-describe("VoiceControls: settings", () => {
-  it("opens the workspace settings modal from the gear", async () => {
-    const user = userEvent.setup();
-    connect();
-    renderControls();
-
-    await user.click(settingsButton());
-
-    const dialogHeading = await screen.findByRole("heading", {
-      name: "Settings",
-    });
-    expect(dialogHeading).toBeInTheDocument();
-    expect(screen.getByText("Design Guild")).toBeInTheDocument();
-  });
-
-  it("keeps the settings modal closed until the gear is used", () => {
-    connect();
-    renderControls();
-
-    expect(
-      screen.queryByRole("heading", { name: "Settings" }),
-    ).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -19,9 +20,26 @@ import { resolve } from "node:path";
  *            AI settings spec never reaches a real provider. If you reuse an API
  *            that was started without it, that spec will fail rather than call
  *            out, because the fake key is rejected by the real provider.
+ *
+ * @important The voice agent runs as a third process, a real worker registered
+ *            with the LiveKit dev server (never LiveKit Cloud: its URL and
+ *            `devkey` credentials are set explicitly here, so nothing in the
+ *            shell or in a `.env` file can redirect it). The speech provider it
+ *            is handed is the same local fake, reached through the API's free
+ *            voice tier with a key that tells the fake to answer with a
+ *            scripted transcript.
  */
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const testEnvPath = resolve(repoRoot, ".env.test");
+
+/** Reads one value from the committed test env file. */
+const testEnvValue = (name: string): string => {
+  const line = readFileSync(testEnvPath, "utf8")
+    .split(/\r?\n/)
+    .find((l) => l.startsWith(`${name}=`));
+  if (!line) throw new Error(`${name} is missing from .env.test`);
+  return line.slice(name.length + 1).replace(/^["']|["']$/g, "");
+};
 
 export default defineConfig({
   testDir: ".",
@@ -91,6 +109,27 @@ export default defineConfig({
         REDIS_TLS: "false",
         // Every provider call the API makes goes to the local fake.
         AI_TEST_BASE_URL: "http://127.0.0.1:4010",
+        // The free voice tier points at the fake too; the key contains `agent`,
+        // which is what makes the fake answer transcription with its script.
+        AI_VOICE_API_KEY: "e2e-fake-agent-voice-key",
+        AI_VOICE_BASE_URL: "http://127.0.0.1:4010",
+      },
+    },
+    {
+      // The assistant's worker, joining rooms on the local media server.
+      command: "npx tsx src/index.ts start",
+      cwd: resolve(repoRoot, "apps/agent"),
+      url: "http://127.0.0.1:8081/",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      stdout: "pipe",
+      env: {
+        NODE_ENV: "development",
+        LIVEKIT_URL: "ws://localhost:7880",
+        LIVEKIT_API_KEY: "devkey",
+        LIVEKIT_API_SECRET: "secret",
+        NIMBUS_API_URL: "http://localhost:3001",
+        NIMBUS_AGENT_SECRET: testEnvValue("NIMBUS_AGENT_SECRET"),
       },
     },
     {

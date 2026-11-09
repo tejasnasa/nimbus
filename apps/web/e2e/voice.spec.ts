@@ -42,6 +42,10 @@ test.describe("voice call", () => {
     const member = await open("member");
 
     try {
+      // The call card is tucked behind the floating dock until opened.
+      for (const { page } of [owner, member]) {
+        await page.getByTestId("voice-dock-toggle").click();
+      }
       await expect(owner.page.getByRole("button", { name: "Join call" })).toBeVisible();
       await expect(member.page.getByRole("button", { name: "Join call" })).toBeVisible();
 

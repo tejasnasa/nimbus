@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  AiWorkspaceStatusDTO,
-  Message,
-  Workspace,
-} from "@nimbus/types";
+import { AiWorkspaceStatusDTO, Message, Workspace } from "@nimbus/types";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
@@ -57,15 +53,14 @@ import { socket } from "../lib/socket";
 import AiRefusalBanner from "./AiRefusalBanner";
 import ApiKeyDialog from "./ApiKeyDialog";
 import TypingIndicator from "./TypingIndicator";
-import VoiceControls from "./VoiceControls";
 import WorkspaceSettings from "./WorkspaceSettings";
 
 /**
  * @param props.userId - Current user (determines bubble side).
  * @param props.messages - Server-rendered history; live messages append.
  * @param props.wsid - Workspace cuid (socket room).
- * @param props.documents - Passed to to VoiceControls for context.
- * @param props.workspaceData - Membership/voice context for VoiceControls.
+ * @param props.documents - Forwarded to the settings dialog.
+ * @param props.workspaceData - Workspace the settings dialog edits.
  * @param props.initialAiStatus - Server-fetched workspace AI status so the
  *                                composer renders in the right state before
  *                                `useWorkspaceAiStatus` lands.
@@ -297,8 +292,6 @@ export default function Chat({
 
   return (
     <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
-      <VoiceControls workspaceData={workspaceData} documents={documents} />
-
       {workspaceError && (
         <div
           role="alert"
@@ -498,12 +491,13 @@ export default function Chat({
             data-testid="chat-attach"
             disabled={!chatEnabled}
             onClick={() => fileInputRef.current?.click()}
-            className="absolute bottom-3 left-2 z-10 hover:cursor-pointer text-(--muted-foreground) disabled:opacity-40"
+            title="Attach image"
+            className="absolute bottom-3 left-2 z-10 grid h-7 w-7 place-items-center rounded-lg border border-(--border) bg-(--card) text-(--muted-foreground) shadow-sm transition-colors hover:cursor-pointer hover:text-(--foreground) hover:bg-(--muted) disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <PaperclipIcon className="h-4 w-4" />
           </button>
           <Textarea
-            className="text-xs w-full rounded-xl bg-(--muted)/50 pl-8"
+            className="text-xs w-full rounded-xl bg-(--muted)/50 pb-12"
             placeholder={placeholder}
             value={content}
             onChange={handleChange}

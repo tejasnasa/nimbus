@@ -1,4 +1,10 @@
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type {
+  AssistantState,
+  MeetingDTO,
+  MeetingEndReason,
+  SegmentDTO,
+} from "../api/meeting";
 import { Message } from "../api/message";
 import type { VoiceUser } from "./voice";
 
@@ -55,7 +61,7 @@ export type ClientToServerEvents = {
 /**
  * Events emitted by the API server and consumed by the client.
  *
- * Grouped by feature area: chat/presence, canvas, markdown docs, and the voice roster.
+ * Grouped by feature area: chat/presence, canvas, markdown docs, the voice roster, and the in-call assistant's meetings.
  */
 export type ServerToClientEvents = {
   // ── Chat & presence ──
@@ -134,4 +140,25 @@ export type ServerToClientEvents = {
    * webhooks; the call itself runs between each browser and the media server.
    */
   "voice:roster": (data: { users: VoiceUser[] }) => void;
+
+  // ── Meetings (the in-call assistant) ──
+  /** The assistant was started; the call has a live transcript. */
+  "meeting:started": (meeting: MeetingDTO) => void;
+  /** The meeting ended, for the stated reason. */
+  "meeting:ended": (data: {
+    meetingId: string;
+    reason: MeetingEndReason;
+  }) => void;
+  /** What the assistant is doing, for the call UI. */
+  "meeting:assistant-state": (data: {
+    meetingId: string;
+    state: AssistantState;
+  }) => void;
+  /** Who the agent hears speaking right now. */
+  "meeting:speaking": (data: { meetingId: string; userIds: string[] }) => void;
+  /** One new caption, sent in sequence order. */
+  "meeting:segment": (data: {
+    meetingId: string;
+    segment: SegmentDTO;
+  }) => void;
 };

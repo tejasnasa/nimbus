@@ -12,6 +12,13 @@ export {
   profileSchema,
 } from "./validations/account";
 export {
+  agentStateSchema,
+  endedSchema,
+  redeemSchema,
+  segmentsInSchema,
+  usageInBodySchema,
+} from "./validations/agent";
+export {
   aiCallStatusSchema,
   aiCatalogQuerySchema,
   aiCredentialCreateSchema,
@@ -38,6 +45,12 @@ export {
   MESSAGE_MAX_LENGTH,
   messageSendSchema,
 } from "./validations/message";
+export {
+  assistantStartSchema,
+  liveMeetingQuerySchema,
+  SEGMENT_PAGE_MAX,
+  segmentsQuerySchema,
+} from "./validations/meeting";
 export { signupSchema } from "./validations/signup";
 export { voiceTokenSchema } from "./validations/voice";
 export {
@@ -74,6 +87,32 @@ export type {
   DiagramEdge,
   DiagramNode,
 } from "./diagram/diagram";
+export type {
+  AgentMember,
+  AgentVoiceConfig,
+  EndedRequest,
+  RedeemRequest,
+  RedeemResponse,
+  SegmentIn,
+  SegmentsRequest,
+  SegmentsResponse,
+  StateRequest,
+  StopResponse,
+  UsageIn,
+  UsageRequest,
+} from "./api/agent";
+export { AGENT_WAKE_NAMES } from "./api/agent";
+export type {
+  AssistantRefusalDTO,
+  AssistantState,
+  LiveMeetingDTO,
+  MeetingDTO,
+  MeetingEndReason,
+  MeetingSource,
+  MeetingStatus,
+  SegmentDTO,
+  SegmentPageDTO,
+} from "./api/meeting";
 export type { Message } from "./api/message";
 export type { Member, Workspace } from "./api/workspaces";
 

@@ -36,6 +36,8 @@ model User {
   workspaceAiCredentialsCreated WorkspaceAiCredential[] @relation("CredentialCreatedBy")
   workspaceAiPreferencesUpdated WorkspaceAiPreference[] @relation("PreferenceUpdatedBy")
   aiCalls        AiCall[]
+  meetingsStarted Meeting[]
+  transcriptSegments TranscriptSegment[]
 
   @@unique([email])
   @@map("user")
@@ -115,6 +117,7 @@ model Workspace {
   aiPreferences WorkspaceAiPreference[]
   aiSettings    WorkspaceAiSettings?
   aiCalls       AiCall[]
+  meetings      Meeting[]
 }
 
 /// Join table linking a User to a Workspace with an RBAC role.
@@ -319,6 +322,8 @@ model AiCall {
   id              String       @id @default(cuid())
   workspaceId     String?
   userId          String?
+  /// The meeting this call was made for, when the in-call assistant made it.
+  meetingId       String?
   feature         AiFeature
   providerId      String
   modelId         String
@@ -338,9 +343,68 @@ model AiCall {
   createdAt       DateTime     @default(now())
   workspace       Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  meeting         Meeting?     @relation(fields: [meetingId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, createdAt])
+  @@index([meetingId])
   @@map("ai_call")
+}
+
+/// One run of the in-call assistant. A call without the assistant creates no row.
+///
+/// At most one meeting per workspace is LIVE. Prisma cannot express a partial
+/// unique index, so the migration adds one in raw SQL (`Meeting_workspaceId_live_key`
+/// on `workspaceId` where `status = 'LIVE'`); it is what makes concurrent starts
+/// race safely.
+model Meeting {
+  id            String        @id @default(cuid())
+  workspaceId   String
+  /// The media room the call runs in, `nimbus-ws-<workspaceId>`.
+  roomName      String
+  status        MeetingStatus @default(LIVE)
+  startedById   String?
+  /// Whose budget pays: the workspace's own key or the starter's free seconds.
+  source        AiCallSource
+  startedAt     DateTime      @default(now())
+  endedAt       DateTime?
+  /// Why it ended; one of the values of `MeetingEndReason` in `@nimbus/types`.
+  endReason     String?
+  /// Free-minute budget handed to the agent, in seconds. Null for a workspace key.
+  budgetSeconds Int?
+  /// Highest transcript sequence number stored so far.
+  lastSeq       Int           @default(0)
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  startedBy     User?         @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  segments      TranscriptSegment[]
+  aiCalls       AiCall[]
+
+  @@index([workspaceId, startedAt])
+  @@index([status])
+}
+
+/// One transcribed utterance of a meeting: a caption.
+model TranscriptSegment {
+  id            String   @id @default(cuid())
+  meetingId     String
+  /// Monotonic per meeting, assigned by the agent at end of speech. Together
+  /// with `meetingId` it is the idempotency key for replayed posts.
+  seq           Int
+  /// The speaking member, or null when the spoken name matched no current member.
+  speakerUserId String?
+  speakerName   String
+  text          String
+  /// Milliseconds from `Meeting.startedAt` to the start of the utterance.
+  startMs       Int
+  endMs         Int
+  /// Language the transcriber reported, when it reported one.
+  language      String?
+  createdAt     DateTime @default(now())
+  meeting       Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  speaker       User?    @relation(fields: [speakerUserId], references: [id], onDelete: SetNull)
+
+  @@unique([meetingId, seq])
+  @@index([meetingId, startMs])
+  @@map("transcript_segment")
 }
 
 /// Role-based access control levels for workspace membership.
@@ -387,6 +451,18 @@ enum AiCallSource {
   BYOK
   /// The operator's free tier.
   FREE
+}
+
+/// Where a meeting is in its life.
+enum MeetingStatus {
+  /// The assistant is in the call.
+  LIVE
+  /// The assistant left or was stopped.
+  ENDED
+  /// Notes were produced after the meeting ended.
+  SUMMARIZED
+  /// The assistant could not be started.
+  FAILED
 }
 
 /// How a model call ended.

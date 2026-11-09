@@ -76,6 +76,8 @@ const MODELS = [
   "WorkspaceAiPreference",
   "WorkspaceAiSettings",
   "AiCall",
+  "Meeting",
+  "TranscriptSegment",
 ] as const;
 
 describe("schema.prisma — datasource and generator", () => {
@@ -143,6 +145,7 @@ describe("schema.prisma — enums", () => {
       "AiCallStatus",
       "AiFeature",
       "DocumentType",
+      "MeetingStatus",
       "MemberRole",
     ]);
   });
@@ -302,6 +305,8 @@ describe("schema.prisma — User, Message and relations", () => {
     ["WorkspaceAiPreference", "workspaceId"],
     ["WorkspaceAiSettings", "workspaceId"],
     ["AiCall", "workspaceId"],
+    ["Meeting", "workspaceId"],
+    ["TranscriptSegment", "meetingId"],
   ] as const)("%s.%s cascades on delete", (model, name) => {
     const relation = declarations("model", model).find((line) =>
       line.includes(`fields: [${name}]`),
@@ -397,6 +402,8 @@ describe("schema.prisma — workspace AI tables", () => {
     ["WorkspaceAiCredential", "createdById"],
     ["WorkspaceAiPreference", "updatedById"],
     ["AiCall", "userId"],
+    ["Meeting", "startedById"],
+    ["TranscriptSegment", "speakerUserId"],
   ] as const)(
     "%s.%s survives the user: it is set null, not cascaded",
     (model, name) => {

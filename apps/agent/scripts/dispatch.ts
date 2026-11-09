@@ -6,9 +6,6 @@
  * `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` from the
  * environment.
  */
-// A manual operator script, never run through turbo, so its variables are not
-// declared as task inputs.
-/* eslint-disable turbo/no-undeclared-env-vars */
 import { AgentDispatchClient } from "livekit-server-sdk";
 
 const [room, metadata = "{}"] = process.argv.slice(2);

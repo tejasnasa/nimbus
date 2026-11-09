@@ -79,6 +79,11 @@ export type SegmentDTO = {
   startMs: number;
   endMs: number;
   language: string | null;
+  /**
+   * The text in the language the request named with `?language=`. Absent
+   * unless one was requested; null when that segment has no stored translation.
+   */
+  translation?: string | null;
 };
 
 /** The reason and the fix when the assistant cannot be started. */

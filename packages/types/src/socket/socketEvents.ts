@@ -56,6 +56,17 @@ export type ClientToServerEvents = {
   /** Push a binary Yjs update (`Array.from(Y.encodeStateAsUpdate)` delta). */
   "doc:update": (docId: string, update: number[]) => void;
   "doc:leave": (docId: string) => void;
+
+  // ── Meetings ──
+  /**
+   * Choose the language this socket wants live captions in for a meeting, or
+   * `null` to read the original. Re-sent after a reconnect, because the
+   * server forgets a socket's choice when it disconnects.
+   */
+  "meeting:caption-language": (data: {
+    meetingId: string;
+    language: string | null;
+  }) => void;
 };
 
 /**
@@ -157,8 +168,12 @@ export type ServerToClientEvents = {
   /** Who the agent hears speaking right now. */
   "meeting:speaking": (data: { meetingId: string; userIds: string[] }) => void;
   /** One new caption, sent in sequence order. */
-  "meeting:segment": (data: {
+  "meeting:segment": (data: { meetingId: string; segment: SegmentDTO }) => void;
+  /** A caption translated into a language some viewer asked for. */
+  "meeting:translation": (data: {
     meetingId: string;
-    segment: SegmentDTO;
+    seq: number;
+    language: string;
+    text: string;
   }) => void;
 };

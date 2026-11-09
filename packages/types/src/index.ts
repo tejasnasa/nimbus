@@ -47,6 +47,7 @@ export {
 } from "./validations/message";
 export {
   assistantStartSchema,
+  captionLanguageSchema,
   liveMeetingQuerySchema,
   MEETING_PAGE_MAX,
   meetingListQuerySchema,

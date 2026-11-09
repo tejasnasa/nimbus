@@ -27,3 +27,10 @@ export {
   buildExcalidrawFromDiagram,
   type ExcalidrawBuildOptions,
 } from "./diagram/excalidraw";
+export {
+  CAPTION_LANGUAGES,
+  captionLanguageLabel,
+  isCaptionLanguage,
+  normalizeCaptionLanguage,
+  type CaptionLanguage,
+} from "./languages";

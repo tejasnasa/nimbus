@@ -401,10 +401,25 @@ model TranscriptSegment {
   createdAt     DateTime @default(now())
   meeting       Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   speaker       User?    @relation(fields: [speakerUserId], references: [id], onDelete: SetNull)
+  translations  SegmentTranslation[]
 
   @@unique([meetingId, seq])
   @@index([meetingId, startMs])
   @@map("transcript_segment")
+}
+
+/// A caption translated into one language. At most one row per segment and
+/// language, so a replayed translation overwrites rather than duplicates.
+model SegmentTranslation {
+  segmentId String
+  /// ISO-639-1 code from the supported caption languages.
+  language  String
+  text      String
+  createdAt DateTime          @default(now())
+  segment   TranscriptSegment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@id([segmentId, language])
+  @@map("segment_translation")
 }
 
 /// Role-based access control levels for workspace membership.

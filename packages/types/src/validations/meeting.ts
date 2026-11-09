@@ -1,7 +1,8 @@
 /**
  * @module validations/meeting
  * @description Zod schemas for the assistant routes: starting it, finding the
- * live meeting, listing past meetings and paging a transcript.
+ * live meeting, listing past meetings, paging a transcript and choosing a
+ * caption language.
  */
 import { z } from "zod";
 
@@ -32,4 +33,15 @@ export const SEGMENT_PAGE_MAX = 200;
 export const segmentsQuerySchema = z.object({
   afterSeq: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(SEGMENT_PAGE_MAX).default(100),
+  /**
+   * A caption language code. Whether it is a supported one is checked against
+   * the language list by the controller, which this package cannot import.
+   */
+  language: z.string().min(2).max(8).optional(),
+});
+
+/** Payload of the `meeting:caption-language` socket event. */
+export const captionLanguageSchema = z.object({
+  meetingId: z.string().min(1).max(64),
+  language: z.string().min(2).max(8).nullable(),
 });

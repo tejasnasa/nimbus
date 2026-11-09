@@ -7,13 +7,17 @@ import { timeAgo } from "../src/timeAgo";
 describe("@nimbus/utils barrel", () => {
   it("exposes exactly the shared helpers", () => {
     expect(Object.keys(barrel).sort()).toEqual([
+      "CAPTION_LANGUAGES",
       "DIAGRAM_PALETTE",
       "buildExcalidrawFromDiagram",
+      "captionLanguageLabel",
       "estimateCostUsd",
       "extractJsonObject",
       "generateSlug",
+      "isCaptionLanguage",
       "isOfferedFor",
       "layoutDiagram",
+      "normalizeCaptionLanguage",
       "parseDiagramPayload",
       "parseDiagramRecord",
       "selectModelForFeature",

@@ -2,7 +2,8 @@
  * @module web/tests/components/WorkspaceAiTabs
  * @description The AI surfaces around the settings dialogs: which tabs the
  * workspace settings offer to each role (AI for everyone, Usage for admins
- * only), the Usage tab's totals, filters and "Load more" paging, and the
+ * only, and there on first render when the server already knows the role),
+ * Transcripts for everyone, the Usage tab's totals, filters and paging, and the
  * account-level Free usage tab.
  */
 import "./testUtils";
@@ -51,13 +52,17 @@ beforeEach(() => {
   server.use(preflight);
 });
 
-function renderSettings(initialTab?: string) {
+function renderSettings(
+  initialTab?: string,
+  initialAiStatus?: ReturnType<typeof aiStatus>,
+) {
   return render(
     <DocEditorRefProvider>
       <WorkspaceSettings
         workspace={workspace}
         documents={[]}
         initialTab={initialTab}
+        initialAiStatus={initialAiStatus}
       />
     </DocEditorRefProvider>,
   );
@@ -70,6 +75,21 @@ describe("WorkspaceSettings: AI tabs", () => {
 
     expect(screen.getByRole("button", { name: "AI" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Usage" })).toBeInTheDocument();
+  });
+
+  it("offers Usage on the first render when the server status is passed in", () => {
+    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: true }))));
+    renderSettings(undefined, aiStatus({ canManage: true }));
+
+    expect(screen.getByRole("button", { name: "Usage" })).toBeInTheDocument();
+  });
+
+  it("offers Transcripts to every member", () => {
+    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: false }))));
+    renderSettings(undefined, aiStatus({ canManage: false }));
+
+    expect(screen.getByRole("button", { name: "Transcripts" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Usage" })).not.toBeInTheDocument();
   });
 
   it("offers a member the AI tab but never Usage", async () => {
@@ -145,7 +165,7 @@ describe("WorkspaceUsagePanel", () => {
     expect(await screen.findByTestId("usage-empty")).toBeInTheDocument();
   });
 
-  it("appends the next page when Load more is used, then hides the button", async () => {
+  it("pages with Next and Previous, replacing the rows", async () => {
     server.use(
       http.get(route("/usage"), ({ request }) =>
         new URL(request.url).searchParams.get("cursor")
@@ -156,11 +176,25 @@ describe("WorkspaceUsagePanel", () => {
     render(<WorkspaceUsagePanel workspaceId={WS} />);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByTestId("usage-load-more"));
+    await screen.findByTestId("usage-row-first");
+    expect(screen.getByTestId("usage-pagination-previous")).toBeDisabled();
+    await user.click(screen.getByTestId("usage-pagination-next"));
 
     await screen.findByTestId("usage-row-second");
-    expect(screen.getByTestId("usage-row-first")).toBeInTheDocument();
-    expect(screen.queryByTestId("usage-load-more")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("usage-row-first")).not.toBeInTheDocument();
+    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent("Page 2");
+    expect(screen.getByTestId("usage-pagination-next")).toBeDisabled();
+
+    await user.click(screen.getByTestId("usage-pagination-previous"));
+    await screen.findByTestId("usage-row-first");
+    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent("Page 1");
+  });
+
+  it("shows no pager when everything fits on one page", async () => {
+    server.use(http.get(route("/usage"), () => ok(usagePage())));
+    render(<WorkspaceUsagePanel workspaceId={WS} />);
+    await screen.findByTestId("usage-table");
+    expect(screen.queryByTestId("usage-pagination")).not.toBeInTheDocument();
   });
 
   it("re-queries with the chosen filters", async () => {
@@ -175,9 +209,11 @@ describe("WorkspaceUsagePanel", () => {
     const user = userEvent.setup();
     await screen.findByTestId("usage-table");
 
-    await user.selectOptions(screen.getByTestId("usage-filter-feature"), "canvas");
+    await user.click(screen.getByTestId("usage-filter-feature"));
+    await user.click(screen.getByRole("option", { name: "Canvas" }));
     await waitFor(() => expect(queries.some((q) => q.includes("feature=canvas"))).toBe(true));
-    await user.selectOptions(screen.getByTestId("usage-filter-status"), "error");
+    await user.click(screen.getByTestId("usage-filter-status"));
+    await user.click(screen.getByRole("option", { name: "Error" }));
     await waitFor(() =>
       expect(queries.some((q) => q.includes("feature=canvas") && q.includes("status=error"))).toBe(true),
     );

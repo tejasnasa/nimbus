@@ -2,14 +2,14 @@
  * @module web/tests/components/Meeting
  * @description The assistant's call UI: the start and stop button with its
  * states and reasons, the caption bar (ordering, line limit, speaking line,
- * live-region semantics, remembered preferences) and the transcript panel.
+ * live-region semantics, the viewer's caption look) and the transcript panel.
  *
  * The shared meeting state and the call are mocked, so each test states
  * exactly the situation it is about.
  */
 import "./testUtils";
 import type { MeetingDTO, SegmentDTO } from "@nimbus/types";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingState } from "../../hooks/useMeeting";
 
@@ -26,7 +26,8 @@ vi.mock("../../providers/VoiceProvider", () => ({
 }));
 
 import AssistantButton from "../../components/meeting/AssistantButton";
-import CaptionsBar, { prefsKey } from "../../components/meeting/CaptionsBar";
+import CaptionsBar from "../../components/meeting/CaptionsBar";
+import { prefsKey } from "../../hooks/useCaptionPrefs";
 import LiveTranscript, {
   formatOffset,
 } from "../../components/meeting/LiveTranscript";
@@ -208,32 +209,44 @@ describe("CaptionsBar", () => {
     );
   });
 
-  it("changes size, contrast and line count, and remembers them per user", () => {
+  it("draws captions with the viewer's stored size, contrast and line count", () => {
+    window.localStorage.setItem(
+      prefsKey("u1"),
+      JSON.stringify({ size: "l", highContrast: true, lines: 6 }),
+    );
     setAssistant({
       meeting: live,
       segments: [1, 2, 3, 4, 5, 6, 7].map((n) => seg(n)),
     });
-    const { unmount } = render(<CaptionsBar />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Caption settings" }));
-    fireEvent.click(screen.getByRole("button", { name: "L" }));
-    fireEvent.click(screen.getByLabelText("High contrast"));
-    fireEvent.change(screen.getByLabelText("Lines"), {
-      target: { value: "6" },
-    });
-
-    expect(screen.getByTestId("captions").className).toContain("text-lg");
-    expect(screen.getAllByTestId("caption-line")).toHaveLength(6);
-    expect(JSON.parse(window.localStorage.getItem(prefsKey("u1"))!)).toEqual({
-      size: "l",
-      highContrast: true,
-      lines: 6,
-    });
-
-    unmount();
     render(<CaptionsBar />);
+
     expect(screen.getByTestId("captions").className).toContain("text-lg");
     expect(screen.getAllByTestId("caption-line")).toHaveLength(6);
+    expect(screen.getByTestId("captions").parentElement!.className).toContain(
+      "bg-black",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Caption settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restyles when the viewer changes their choice in another tab", () => {
+    setAssistant({ meeting: live });
+    render(<CaptionsBar />);
+    expect(screen.getByTestId("captions").className).toContain("text-sm");
+
+    window.localStorage.setItem(
+      prefsKey("u1"),
+      JSON.stringify({ size: "s", highContrast: false, lines: 3 }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: prefsKey("u1") }),
+      );
+      window.dispatchEvent(new StorageEvent("storage", { key: "unrelated" }));
+    });
+
+    expect(screen.getByTestId("captions").className).toContain("text-xs");
   });
 
   it("keeps one user's choices from another", () => {
@@ -260,22 +273,6 @@ describe("CaptionsBar", () => {
     );
     render(<CaptionsBar />);
     expect(screen.getByTestId("captions").className).toContain("text-sm");
-  });
-
-  it("still works when storage refuses to be written", () => {
-    const setItem = vi
-      .spyOn(Storage.prototype, "setItem")
-      .mockImplementation(() => {
-        throw new Error("blocked");
-      });
-    setAssistant({ meeting: live });
-    render(<CaptionsBar />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Caption settings" }));
-    fireEvent.click(screen.getByRole("button", { name: "S" }));
-
-    expect(screen.getByTestId("captions").className).toContain("text-xs");
-    setItem.mockRestore();
   });
 });
 

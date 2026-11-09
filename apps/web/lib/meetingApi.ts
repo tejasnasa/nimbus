@@ -1,8 +1,8 @@
 /**
  * @module web/lib/meetingApi
  * @description Client calls for the in-call assistant: asking whether a
- * workspace has a live meeting, starting and stopping the assistant, and paging
- * the live transcript.
+ * workspace has a live meeting, starting and stopping the assistant, listing
+ * past meetings and paging a transcript.
  *
  * Failures resolve to `{ ok: false, message }` rather than throwing, matching
  * `lib/voiceApi`, so callers can show the message inline. A refusal to start
@@ -12,6 +12,7 @@ import type {
   AssistantRefusalDTO,
   LiveMeetingDTO,
   MeetingDTO,
+  MeetingListDTO,
   SegmentPageDTO,
 } from "@nimbus/types";
 
@@ -74,6 +75,23 @@ export function fetchLiveMeeting(workspaceId: string) {
   return call<LiveMeetingDTO>(
     `/api/meetings/live?workspaceId=${encodeURIComponent(workspaceId)}`,
   );
+}
+
+/**
+ * Reads one page of the workspace's meetings, newest first.
+ *
+ * @param workspaceId - The workspace cuid.
+ * @param cursor - The previous page's `nextCursor`, or null for the first page.
+ * @param limit - Meetings per page.
+ */
+export function fetchMeetings(
+  workspaceId: string,
+  cursor: string | null,
+  limit: number,
+) {
+  const params = new URLSearchParams({ workspaceId, limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return call<MeetingListDTO>(`/api/meetings?${params.toString()}`);
 }
 
 /**

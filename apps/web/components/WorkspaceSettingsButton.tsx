@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { Workspace } from "@nimbus/types";
+import { AiWorkspaceStatusDTO, Workspace } from "@nimbus/types";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Settings from "@nimbus/ui/icons/Settings";
 import { ClientDocument } from "../api/document";
@@ -15,13 +15,19 @@ import WorkspaceSettings from "./WorkspaceSettings";
 /**
  * @param props.workspace - Workspace the settings edit.
  * @param props.documents - Workspace docs (forwarded to settings).
+ * @param props.initialAiStatus - Server-fetched AI status (forwarded to settings).
+ * @param props.userId - Signed-in user (forwarded to settings for Captions).
  */
 export default function WorkspaceSettingsButton({
   workspace,
   documents,
+  initialAiStatus,
+  userId,
 }: {
   workspace: Workspace;
   documents: ClientDocument[];
+  initialAiStatus?: AiWorkspaceStatusDTO;
+  userId?: string;
 }) {
   return (
     <AlertDialog
@@ -34,7 +40,12 @@ export default function WorkspaceSettingsButton({
         </button>
       }
     >
-      <WorkspaceSettings workspace={workspace} documents={documents} />
+      <WorkspaceSettings
+        workspace={workspace}
+        documents={documents}
+        initialAiStatus={initialAiStatus}
+        userId={userId}
+      />
     </AlertDialog>
   );
 }

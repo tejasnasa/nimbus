@@ -1,6 +1,6 @@
 "use client";
 
-import { Workspace } from "@nimbus/types";
+import { AiWorkspaceStatusDTO, Workspace } from "@nimbus/types";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Avatar from "@nimbus/ui/Avatar";
 import Button from "@nimbus/ui/Button";
@@ -38,13 +38,17 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * MARKDOWN/CANVAS ToggleGroup, a "From an image…" shortcut that uploads a
  * picture and asks NimbusBot to diagram it, + per-doc delete), AI (workspace provider keys,
  * models, assistant switches and spend cap for admins; a read-only summary for
- * members), Usage (admins only: the AI call log), and Permissions (invite
+ * members), Usage (admins only: the AI call log), Transcripts (every member:
+ * past meetings NimbusBot transcribed), Captions (the viewer's own live caption
+ * look, when a user is given), and Permissions (invite
  * copy/regenerate + danger-zone delete). New docs open via the
  * `DocEditorRefContext` add-tab bridge; the create dialog closes through the
  * hidden `close-doc-dialog` click in `useWorkspaceDocumentForm`.
  */
+import CaptionSettingsPanel from "./CaptionSettingsPanel";
 import { useDocEditorRef } from "./DocEditorRefContext";
 import WorkspaceAiPanel from "./WorkspaceAiPanel";
+import WorkspaceTranscriptsPanel from "./WorkspaceTranscriptsPanel";
 import WorkspaceUsagePanel from "./WorkspaceUsagePanel";
 
 /** The chat message "From an image…" posts alongside the uploaded picture. */
@@ -55,18 +59,26 @@ const IMAGE_TO_DIAGRAM_MESSAGE = "@nimbusbot turn this into a diagram";
  * @param props.documents - Document list for the Documents tab.
  * @param props.initialTab - Label of the tab to open first (for example `"AI"`
  *                           when the chat banner sends an admin here).
+ * @param props.initialAiStatus - The server-fetched AI status, so the
+ *                                admin-only tabs are there from the first render.
+ * @param props.userId - The signed-in user; enables their Captions tab.
  */
 export default function WorkspaceSettings({
   workspace,
   documents,
   initialTab,
+  initialAiStatus,
+  userId,
 }: {
   workspace: Workspace;
   documents: ClientDocument[];
   initialTab?: string;
+  initialAiStatus?: AiWorkspaceStatusDTO;
+  userId?: string;
 }) {
   // One status fetch feeds the AI tab and decides whether Usage is offered.
-  const aiStatus = useWorkspaceAiStatus(workspace.id);
+  // Seeded from the server so the tab list does not change under the user.
+  const aiStatus = useWorkspaceAiStatus(workspace.id, initialAiStatus);
   const canManageAi =
     aiStatus.state.kind === "ready" && aiStatus.state.status.canManage;
 
@@ -509,7 +521,10 @@ export default function WorkspaceSettings({
             {
               label: "AI",
               content: (
-                <WorkspaceAiPanel workspaceId={workspace.id} status={aiStatus} />
+                <WorkspaceAiPanel
+                  workspaceId={workspace.id}
+                  status={aiStatus}
+                />
               ),
             },
             ...(canManageAi
@@ -517,6 +532,18 @@ export default function WorkspaceSettings({
                   {
                     label: "Usage",
                     content: <WorkspaceUsagePanel workspaceId={workspace.id} />,
+                  },
+                ]
+              : []),
+            {
+              label: "Transcripts",
+              content: <WorkspaceTranscriptsPanel workspaceId={workspace.id} />,
+            },
+            ...(userId
+              ? [
+                  {
+                    label: "Captions",
+                    content: <CaptionSettingsPanel userId={userId} />,
                   },
                 ]
               : []),

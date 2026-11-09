@@ -544,6 +544,8 @@ export default function Chat({
             workspace={workspaceData}
             documents={documents}
             initialTab="AI"
+            initialAiStatus={aiStatus}
+            userId={userId}
           />
         </AlertDialog>
       )}

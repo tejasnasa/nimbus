@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchLiveMeeting,
+  fetchMeetings,
   fetchSegments,
   startAssistant,
   stopAssistant,
@@ -32,6 +33,29 @@ afterEach(() => {
 });
 
 describe("lib/meetingApi", () => {
+  it("lists a workspace's meetings with the paging parameters", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({
+        success: true,
+        responseObject: { meetings: [], nextCursor: null },
+      }),
+    );
+
+    const first = await fetchMeetings("w 1", null, 10);
+    expect(first).toEqual({
+      ok: true,
+      data: { meetings: [], nextCursor: null },
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://api.test/api/meetings?workspaceId=w+1&limit=10",
+    );
+
+    await fetchMeetings("w1", "m-9", 5);
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      "http://api.test/api/meetings?workspaceId=w1&limit=5&cursor=m-9",
+    );
+  });
+
   it("asks for the live meeting of a workspace with the session cookie", async () => {
     fetchMock.mockResolvedValue(
       envelope({ success: true, responseObject: { meeting: null } }),

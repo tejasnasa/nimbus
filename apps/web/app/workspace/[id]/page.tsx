@@ -77,6 +77,8 @@ export default async function Workspace({
                 <WorkspaceSettingsButton
                   workspace={workspaceData}
                   documents={documents}
+                  initialAiStatus={initialAiStatus}
+                  userId={session!.user.id}
                 />
               </div>
               <div className="text-xs text-(--muted-foreground) px-4 pb-3 leading-relaxed">

@@ -2,7 +2,7 @@
  * @module web/lib/meetingApi
  * @description Client calls for the in-call assistant: asking whether a
  * workspace has a live meeting, starting and stopping the assistant, listing
- * past meetings and paging a transcript.
+ * past meetings and paging a transcript, optionally with stored translations.
  *
  * Failures resolve to `{ ok: false, message }` rather than throwing, matching
  * `lib/voiceApi`, so callers can show the message inline. A refusal to start
@@ -123,9 +123,16 @@ export function stopAssistant(meetingId: string) {
  *
  * @param meetingId - The meeting.
  * @param afterSeq - Return segments with a higher sequence number.
+ * @param language - A caption language code to include stored translations in,
+ *                   or null/omitted for the original text only.
  */
-export function fetchSegments(meetingId: string, afterSeq: number) {
+export function fetchSegments(
+  meetingId: string,
+  afterSeq: number,
+  language: string | null = null,
+) {
+  const suffix = language ? `&language=${encodeURIComponent(language)}` : "";
   return call<SegmentPageDTO>(
-    `/api/meetings/${encodeURIComponent(meetingId)}/segments?afterSeq=${afterSeq}&limit=100`,
+    `/api/meetings/${encodeURIComponent(meetingId)}/segments?afterSeq=${afterSeq}&limit=100${suffix}`,
   );
 }

@@ -1,8 +1,9 @@
 /**
  * @module web/hooks/useCaptionPrefs
  * @description How a viewer wants live captions to look (text size, contrast,
- * number of lines), remembered per user in the browser. Edited from the
- * workspace settings Captions tab and read by the captions bar over the call.
+ * number of lines) and which language they want to read them in, remembered
+ * per user in the browser. Edited from the workspace settings Captions tab and
+ * read by the captions bar over the call and by the Transcripts tab.
  *
  * Every instance of the hook stays in step: a change broadcasts a window event
  * so a captions bar already on screen restyles while the settings dialog is
@@ -11,9 +12,15 @@
  * @important Preferences live in `localStorage`, read and written inside
  *            try/catch. A browser that blocks storage gets the defaults, and a
  *            change lasts until the page closes; nothing else breaks.
+ *
+ * @important `language` is validated against the supported caption languages
+ *            on every read, so a stale or hand-edited value becomes `null`
+ *            (the original, untranslated captions) instead of reaching the
+ *            server as a language it would refuse.
  */
 "use client";
 
+import { isCaptionLanguage } from "@nimbus/utils";
 import { useCallback, useEffect, useState } from "react";
 
 export type CaptionSize = "s" | "m" | "l";
@@ -23,12 +30,15 @@ export interface CaptionPrefs {
   size: CaptionSize;
   highContrast: boolean;
   lines: 3 | 6;
+  /** Caption language code to read translations in; null shows the original. */
+  language: string | null;
 }
 
 export const DEFAULT_CAPTION_PREFS: CaptionPrefs = {
   size: "m",
   highContrast: false,
   lines: 3,
+  language: null,
 };
 
 /** Tailwind text size for each caption size. */
@@ -59,6 +69,7 @@ export function readPrefs(key: string): CaptionPrefs {
           : DEFAULT_CAPTION_PREFS.size,
       highContrast: parsed.highContrast === true,
       lines: parsed.lines === 6 ? 6 : 3,
+      language: isCaptionLanguage(parsed.language) ? parsed.language : null,
     };
   } catch {
     return DEFAULT_CAPTION_PREFS;

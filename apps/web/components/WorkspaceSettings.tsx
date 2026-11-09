@@ -39,8 +39,9 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * picture and asks NimbusBot to diagram it, + per-doc delete), AI (workspace provider keys,
  * models, assistant switches and spend cap for admins; a read-only summary for
  * members), Usage (admins only: the AI call log), Transcripts (every member:
- * past meetings NimbusBot transcribed), Captions (the viewer's own live caption
- * look, when a user is given), and Permissions (invite
+ * past meetings NimbusBot transcribed, in the viewer's caption language where
+ * translations are stored), Captions (the viewer's own live caption look and
+ * language, when a user is given), and Permissions (invite
  * copy/regenerate + danger-zone delete). New docs open via the
  * `DocEditorRefContext` add-tab bridge; the create dialog closes through the
  * hidden `close-doc-dialog` click in `useWorkspaceDocumentForm`.
@@ -537,7 +538,12 @@ export default function WorkspaceSettings({
               : []),
             {
               label: "Transcripts",
-              content: <WorkspaceTranscriptsPanel workspaceId={workspace.id} />,
+              content: (
+                <WorkspaceTranscriptsPanel
+                  workspaceId={workspace.id}
+                  userId={userId}
+                />
+              ),
             },
             ...(userId
               ? [

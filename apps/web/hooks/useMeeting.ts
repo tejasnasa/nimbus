@@ -6,11 +6,19 @@
  *
  * On mount it asks the API for the live meeting and, when there is one, pages
  * its transcript so a late joiner sees what was said. After that the socket
- * keeps it current (`meeting:started|ended|assistant-state|speaking|segment`).
+ * keeps it current (`meeting:started|ended|assistant-state|speaking|segment|
+ * translation`).
  *
  * @important Captions are inserted by sequence number and deduplicated, so a
  *            segment that arrives over the socket while the first page is still
  *            loading, or twice after a reconnect, appears once and in order.
+ *
+ * @important Translations are kept apart from the segments, keyed by
+ *            `seq` and language ({@link translationKey}), so a translation that
+ *            arrives before its caption, or for a language the viewer has since
+ *            left, is harmless: the bar looks up only the pair it needs and
+ *            falls back to the original text when there is none. They are
+ *            cleared when a different meeting starts.
  *
  * @important A refusal to start (`refusal`) is kept apart from `error`: it
  *            names a reason with a settings fix, while an error is transient.
@@ -42,6 +50,8 @@ export interface MeetingState {
   meeting: MeetingDTO | null;
   /** Captions of the current (or most recent) meeting, in sequence order. */
   segments: SegmentDTO[];
+  /** Live translations received, by {@link translationKey}. */
+  translations: Record<string, string>;
   assistantState: AssistantState | null;
   /** User ids the assistant hears speaking right now. */
   speakingUserIds: string[];
@@ -59,6 +69,7 @@ export interface MeetingState {
 export const NO_MEETING: MeetingState = {
   meeting: null,
   segments: [],
+  translations: {},
   assistantState: null,
   speakingUserIds: [],
   endReason: null,
@@ -68,6 +79,16 @@ export const NO_MEETING: MeetingState = {
   start: async () => {},
   stop: async () => {},
 };
+
+/**
+ * The key a live translation is stored under.
+ *
+ * @param seq - The caption's sequence number.
+ * @param language - The translation's language code.
+ */
+export function translationKey(seq: number, language: string): string {
+  return `${seq}:${language}`;
+}
 
 /**
  * Inserts a caption by sequence number, ignoring one already present.
@@ -94,6 +115,7 @@ export function insertSegment(
 export function useMeeting(workspaceId: string): MeetingState {
   const [meeting, setMeeting] = useState<MeetingDTO | null>(null);
   const [segments, setSegments] = useState<SegmentDTO[]>([]);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
   const [assistantState, setAssistantState] = useState<AssistantState | null>(
     null,
   );
@@ -109,6 +131,7 @@ export function useMeeting(workspaceId: string): MeetingState {
     if (meetingIdRef.current !== next.id) {
       meetingIdRef.current = next.id;
       setSegments([]);
+      setTranslations({});
       setSpeakingUserIds([]);
     }
     setMeeting(next);
@@ -162,11 +185,25 @@ export function useMeeting(workspaceId: string): MeetingState {
       setSegments((current) => insertSegment(current, data.segment));
     };
 
+    const onTranslation = (data: {
+      meetingId: string;
+      seq: number;
+      language: string;
+      text: string;
+    }) => {
+      if (data.meetingId !== meetingIdRef.current) return;
+      setTranslations((current) => ({
+        ...current,
+        [translationKey(data.seq, data.language)]: data.text,
+      }));
+    };
+
     socket.on("meeting:started", onStarted);
     socket.on("meeting:ended", onEnded);
     socket.on("meeting:assistant-state", onState);
     socket.on("meeting:speaking", onSpeaking);
     socket.on("meeting:segment", onSegment);
+    socket.on("meeting:translation", onTranslation);
     return () => {
       cancelled = true;
       socket.off("meeting:started", onStarted);
@@ -174,6 +211,7 @@ export function useMeeting(workspaceId: string): MeetingState {
       socket.off("meeting:assistant-state", onState);
       socket.off("meeting:speaking", onSpeaking);
       socket.off("meeting:segment", onSegment);
+      socket.off("meeting:translation", onTranslation);
     };
   }, [workspaceId, adopt, loadTranscript]);
 
@@ -205,6 +243,7 @@ export function useMeeting(workspaceId: string): MeetingState {
   return {
     meeting,
     segments,
+    translations,
     assistantState,
     speakingUserIds,
     endReason,

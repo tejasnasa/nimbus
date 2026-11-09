@@ -71,6 +71,7 @@ function setAssistant(patch: Partial<MeetingState> = {}) {
   assistant.current = {
     meeting: null,
     segments: [],
+    translations: {},
     assistantState: null,
     speakingUserIds: [],
     endReason: null,

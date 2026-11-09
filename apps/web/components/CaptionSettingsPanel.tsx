@@ -4,13 +4,17 @@
  * @module web/components/CaptionSettingsPanel
  * @description The workspace settings "Captions" tab: how live captions look
  * for this viewer during a call (text size, high contrast, how many lines stay
- * on screen), with a preview drawn the way the captions bar will draw it.
- * Changes apply at once, including to a captions bar already on screen.
+ * on screen) and the language to read them in, with a preview drawn the way the
+ * captions bar will draw it. Changes apply at once, including to a captions bar
+ * already on screen, which tells the server the new language mid-call.
  *
  * @important The choice belongs to the viewer, not the workspace: it is kept
- *            per user in this browser and nobody else sees it.
+ *            per user in this browser and nobody else sees it. Picking a
+ *            language only changes what this viewer reads; the call's other
+ *            participants, and the stored transcript, are unaffected.
  */
 import Select from "@nimbus/ui/Select";
+import { CAPTION_LANGUAGES } from "@nimbus/utils";
 import {
   CAPTION_SIZE_CLASS,
   useCaptionPrefs,
@@ -21,6 +25,14 @@ const SIZES: { value: CaptionSize; label: string }[] = [
   { value: "s", label: "Small" },
   { value: "m", label: "Medium" },
   { value: "l", label: "Large" },
+];
+
+/** The picker's value for "no translation". */
+const ORIGINAL = "original";
+
+const LANGUAGE_OPTIONS = [
+  { value: ORIGINAL, label: "Original (no translation)" },
+  ...CAPTION_LANGUAGES.map(({ code, label }) => ({ value: code, label })),
 ];
 
 const SAMPLE_LINES = [
@@ -92,6 +104,22 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
         ]}
         className="max-w-48"
       />
+
+      <Select
+        id="caption-language"
+        label="Caption language"
+        value={prefs.language ?? ORIGINAL}
+        onChange={(value) =>
+          update({ language: value === ORIGINAL ? null : value })
+        }
+        options={LANGUAGE_OPTIONS}
+        className="max-w-64"
+      />
+      <p className="-mt-3 text-xs text-(--muted-foreground)">
+        Captions are translated for you during a call. Until a translation
+        arrives you see the original, and hovering or focusing a translated line
+        shows what was said.
+      </p>
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Preview</h2>

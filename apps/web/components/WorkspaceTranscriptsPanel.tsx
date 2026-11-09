@@ -6,11 +6,14 @@
  * the meetings the assistant has transcribed, newest first, each showing when it
  * happened, how long it ran, who started it and how many lines it holds. Opening
  * a meeting loads and shows its full transcript; the list pages with Previous
- * and Next.
+ * and Next. When the viewer picked a caption language in the Captions tab, lines
+ * show their stored translation (the original is on hover and in the tooltip),
+ * and lines with none show the original.
  */
 import type { MeetingSummaryDTO } from "@nimbus/types";
 import CaretDown from "@nimbus/ui/icons/CaretDown";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useCaptionPrefs } from "../hooks/useCaptionPrefs";
 import {
   useWorkspaceMeetings,
   type TranscriptState,
@@ -36,19 +39,28 @@ function clock(ms: number): string {
 
 /**
  * @param props.workspaceId - The workspace cuid.
+ * @param props.userId - The signed-in user, whose caption language applies.
  */
 export default function WorkspaceTranscriptsPanel({
   workspaceId,
+  userId,
 }: {
   workspaceId: string;
+  userId?: string;
 }) {
-  const meetings = useWorkspaceMeetings(workspaceId);
+  const { prefs } = useCaptionPrefs(userId);
+  const meetings = useWorkspaceMeetings(workspaceId, prefs.language);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { loadTranscript } = meetings;
+
+  // Loads the open meeting, and loads it again in the new language when the
+  // caption language changes (the hook drops its cache then).
+  useEffect(() => {
+    if (openId) void loadTranscript(openId);
+  }, [openId, loadTranscript]);
 
   const toggle = (meetingId: string) => {
-    const next = openId === meetingId ? null : meetingId;
-    setOpenId(next);
-    if (next) void meetings.loadTranscript(next);
+    setOpenId(openId === meetingId ? null : meetingId);
   };
 
   return (
@@ -166,9 +178,13 @@ function Transcript({ state }: { state: TranscriptState | undefined }) {
           <span className="w-10 shrink-0 font-mono text-(--muted-foreground)">
             {clock(segment.startMs)}
           </span>
-          <p>
+          <p
+            title={
+              segment.translation ? `Original: ${segment.text}` : undefined
+            }
+          >
             <span className="font-semibold">{segment.speakerName}:</span>{" "}
-            {segment.text}
+            {segment.translation ?? segment.text}
           </p>
         </li>
       ))}

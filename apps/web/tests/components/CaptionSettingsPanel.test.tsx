@@ -92,7 +92,12 @@ describe("CaptionSettingsPanel", () => {
     const preview = screen.getByTestId("caption-preview");
     expect(preview.className).toContain("bg-black");
     expect(preview.firstElementChild!.className).toContain("text-lg");
-    expect(stored("u1")).toEqual({ size: "l", highContrast: true, lines: 6 });
+    expect(stored("u1")).toEqual({
+      size: "l",
+      highContrast: true,
+      lines: 6,
+      language: null,
+    });
     expect(window.localStorage.getItem(prefsKey("u2"))).toBeNull();
   });
 
@@ -142,6 +147,7 @@ describe("useCaptionPrefs", () => {
         size: "l",
         highContrast: false,
         lines: 6,
+        language: null,
       }),
     );
     expect(otherUser.result.current.prefs).toEqual(DEFAULT_CAPTION_PREFS);

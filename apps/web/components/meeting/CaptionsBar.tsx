@@ -6,6 +6,14 @@
  * number of lines follow the viewer's choice in the workspace settings Captions
  * tab, and restyle live when that choice changes mid-call.
  *
+ * When the viewer picked a caption language, each line shows its translation
+ * once it arrives and the original text until then. Hovering or focusing a
+ * translated line shows the original beneath it.
+ *
+ * Mounting the bar is what subscribes the viewer to translation: it reports the
+ * chosen language to the server for as long as it is on screen, including when
+ * the choice is changed from the settings tab during the call.
+ *
  * @important The caption list is an `aria-live="polite"` region, so a screen
  *            reader announces new lines without interrupting what it is
  *            already saying. The "is speaking" line is deliberately outside
@@ -14,18 +22,70 @@
  */
 "use client";
 
+import type { SegmentDTO } from "@nimbus/types";
+import { useState } from "react";
+import { useCaptionLanguage } from "../../hooks/useCaptionLanguage";
 import {
   CAPTION_SIZE_CLASS,
   useCaptionPrefs,
 } from "../../hooks/useCaptionPrefs";
+import { translationKey } from "../../hooks/useMeeting";
 import { useAssistant } from "../../providers/MeetingProvider";
 import { useVoice } from "../../providers/VoiceProvider";
 
+/**
+ * One caption. A translated line is focusable so keyboard and touch users can
+ * reach the original the same way a pointer user hovers it.
+ */
+function CaptionLine({
+  segment,
+  translation,
+}: {
+  segment: SegmentDTO;
+  translation: string | undefined;
+}) {
+  const [showOriginal, setShowOriginal] = useState(false);
+
+  if (!translation) {
+    return (
+      <p data-testid="caption-line">
+        <span className="font-semibold">{segment.speakerName}: </span>
+        {segment.text}
+      </p>
+    );
+  }
+
+  return (
+    <p
+      data-testid="caption-line"
+      tabIndex={0}
+      title={`Original: ${segment.text}`}
+      onMouseEnter={() => setShowOriginal(true)}
+      onMouseLeave={() => setShowOriginal(false)}
+      onFocus={() => setShowOriginal(true)}
+      onBlur={() => setShowOriginal(false)}
+      className="rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2"
+    >
+      <span className="font-semibold">{segment.speakerName}: </span>
+      <span data-testid="caption-translation">{translation}</span>
+      {showOriginal && (
+        <span
+          data-testid="caption-original"
+          className="mt-0.5 block text-[0.85em] italic opacity-70"
+        >
+          Original: {segment.text}
+        </span>
+      )}
+    </p>
+  );
+}
+
 export default function CaptionsBar() {
-  const { meeting, segments, speakingUserIds } = useAssistant();
+  const { meeting, segments, translations, speakingUserIds } = useAssistant();
   const { participants } = useVoice();
   const me = participants.find((p) => p.isLocal);
   const { prefs } = useCaptionPrefs(me?.userId);
+  useCaptionLanguage(meeting && me ? meeting.id : null, prefs.language);
 
   if (!meeting || !me) return null;
 
@@ -54,10 +114,15 @@ export default function CaptionsBar() {
             <p className="opacity-70">Captions will appear here.</p>
           )}
           {visible.map((segment) => (
-            <p key={segment.seq} data-testid="caption-line">
-              <span className="font-semibold">{segment.speakerName}: </span>
-              {segment.text}
-            </p>
+            <CaptionLine
+              key={segment.seq}
+              segment={segment}
+              translation={
+                prefs.language
+                  ? translations[translationKey(segment.seq, prefs.language)]
+                  : undefined
+              }
+            />
           ))}
         </div>
         {speakingNames.length > 0 && (

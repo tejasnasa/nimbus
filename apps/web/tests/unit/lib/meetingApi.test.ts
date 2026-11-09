@@ -144,6 +144,21 @@ describe("lib/meetingApi", () => {
     );
   });
 
+  it("asks for stored translations when a language is given", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({
+        success: true,
+        responseObject: { segments: [], hasMore: false },
+      }),
+    );
+
+    await fetchSegments("m1", 0, "hi");
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://api.test/api/meetings/m1/segments?afterSeq=0&limit=100&language=hi",
+    );
+  });
+
   it("falls back to a safe message when the response is unusable", async () => {
     fetchMock.mockResolvedValue(envelope({ success: false }, 500));
     expect(await fetchLiveMeeting("w")).toMatchObject({

@@ -8,6 +8,14 @@
  * cursor that opened each visited page, so Previous works without page numbers
  * on the server. Transcripts are fetched only when a meeting is opened and are
  * kept for the life of the hook, so reopening one does not refetch it.
+ *
+ * When the viewer has a caption language, each transcript is fetched with it so
+ * stored translations come back alongside the original text.
+ *
+ * @important Changing the language drops the cached transcripts: they hold the
+ *            translations of the previous language. A response that lands after
+ *            the language changed is discarded rather than cached under the new
+ *            one.
  */
 import type { MeetingSummaryDTO, SegmentDTO } from "@nimbus/types";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -43,10 +51,12 @@ export type UseWorkspaceMeetings = {
 
 /**
  * @param workspaceId - The workspace cuid.
+ * @param language - The viewer's caption language, or null for the original only.
  * @returns The page of meetings, paging handlers and the transcript cache.
  */
 export function useWorkspaceMeetings(
   workspaceId: string,
+  language: string | null = null,
 ): UseWorkspaceMeetings {
   const [meetings, setMeetings] = useState<MeetingSummaryDTO[]>([]);
   // `cursors[i]` opened page i + 1; the first page has no cursor.
@@ -62,6 +72,7 @@ export function useWorkspaceMeetings(
   const requested = useRef(new Set<string>());
   // Guards against an older page landing after a newer request.
   const generation = useRef(0);
+  const languageRef = useRef(language);
 
   const loadPage = useCallback(
     async (stack: Array<string | null>) => {
@@ -100,30 +111,45 @@ export function useWorkspaceMeetings(
     await loadPage(cursors.slice(0, -1));
   }, [cursors, loadPage]);
 
-  const loadTranscript = useCallback(async (meetingId: string) => {
-    if (requested.current.has(meetingId)) return;
-    requested.current.add(meetingId);
-    setTranscripts((t) => ({ ...t, [meetingId]: { kind: "loading" } }));
+  useEffect(() => {
+    languageRef.current = language;
+    requested.current.clear();
+    setTranscripts({});
+  }, [language]);
 
-    const segments: SegmentDTO[] = [];
-    let after = 0;
-    for (let page = 0; page < MAX_TRANSCRIPT_PAGES; page++) {
-      const result = await fetchSegments(meetingId, after);
-      if (!result.ok) {
-        requested.current.delete(meetingId);
-        setTranscripts((t) => ({
-          ...t,
-          [meetingId]: { kind: "error", message: result.message },
-        }));
-        return;
+  const loadTranscript = useCallback(
+    async (meetingId: string) => {
+      if (requested.current.has(meetingId)) return;
+      requested.current.add(meetingId);
+      const asked = language;
+      const stale = () => languageRef.current !== asked;
+      setTranscripts((t) => ({ ...t, [meetingId]: { kind: "loading" } }));
+
+      const segments: SegmentDTO[] = [];
+      let after = 0;
+      for (let page = 0; page < MAX_TRANSCRIPT_PAGES; page++) {
+        const result = await fetchSegments(meetingId, after, asked);
+        if (stale()) return;
+        if (!result.ok) {
+          requested.current.delete(meetingId);
+          setTranscripts((t) => ({
+            ...t,
+            [meetingId]: { kind: "error", message: result.message },
+          }));
+          return;
+        }
+        segments.push(...result.data.segments);
+        const last = result.data.segments[result.data.segments.length - 1];
+        if (!result.data.hasMore || !last) break;
+        after = last.seq;
       }
-      segments.push(...result.data.segments);
-      const last = result.data.segments[result.data.segments.length - 1];
-      if (!result.data.hasMore || !last) break;
-      after = last.seq;
-    }
-    setTranscripts((t) => ({ ...t, [meetingId]: { kind: "ready", segments } }));
-  }, []);
+      setTranscripts((t) => ({
+        ...t,
+        [meetingId]: { kind: "ready", segments },
+      }));
+    },
+    [language],
+  );
 
   return {
     meetings,

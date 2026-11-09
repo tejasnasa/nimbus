@@ -6,7 +6,10 @@
  *            a missing or weak secret must stop the process at startup rather
  *            than surface as a stream of 401s mid-meeting. LiveKit's own
  *            variables (`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`)
- *            are read by the agents framework itself, not here.
+ *            are read by the agents framework itself, not here. The speech
+ *            provider's address and key are not configuration at all: they
+ *            arrive per session from the API, which is why this file has no
+ *            provider settings.
  */
 import { z } from "zod";
 
@@ -50,4 +53,28 @@ export function loadConfig(
     throw new Error("Invalid agent environment: NIMBUS_API_URL must be https");
   }
   return config;
+}
+
+/**
+ * Checks that a provider address received from the API is safe to send a key to.
+ *
+ * Outside development the address must be HTTPS: the session's key goes in the
+ * `Authorization` header of every transcription request, and an `http://` URL
+ * would send it in the clear.
+ *
+ * @param baseUrl - The OpenAI-compatible base URL from the redeem response.
+ * @param config - The agent's settings.
+ * @returns True when requests may be sent there.
+ */
+export function isAllowedProviderUrl(
+  baseUrl: string,
+  config: Pick<AgentConfig, "NODE_ENV">,
+): boolean {
+  try {
+    const url = new URL(baseUrl);
+    if (url.protocol === "https:") return true;
+    return config.NODE_ENV !== "production" && url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }

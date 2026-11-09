@@ -9,7 +9,8 @@
     "start": "node dist/index.cjs start",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.5",
@@ -20,8 +21,10 @@
   },
   "devDependencies": {
     "@nimbus/eslint-config": "*",
+    "@nimbus/types": "*",
     "@nimbus/typescript-config": "*",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
     "tsup": "^9.0.0",
     "tsx": "^4.21.0",
     "vitest": "^5.0.0"

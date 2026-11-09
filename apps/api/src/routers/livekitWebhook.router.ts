@@ -23,13 +23,20 @@
  *            response is a 500, so the retry is processed rather than treated
  *            as a duplicate.
  *
- * @important Agent participants never enter the human roster.
+ * @important Agent participants never enter the human roster. Their departure
+ *            is instead what ends the workspace's live meeting, and a closed
+ *            room ends it too. An event stamped well before the live meeting
+ *            started belongs to a previous meeting's agent or room (webhooks
+ *            can arrive late) and is ignored, so a stale delivery cannot end a
+ *            meeting that was just started.
  */
+import { prisma } from "@nimbus/db";
 import { type VoiceUser } from "@nimbus/types";
 import express, { type Request, type Response } from "express";
 import { WebhookReceiver, type WebhookEvent } from "livekit-server-sdk";
 import type { Server } from "socket.io";
 import { livekitCredentials } from "../lib/livekit/client";
+import { endMeeting, type MeetingBroadcaster } from "../lib/meeting/lifecycle";
 import {
   isAgentParticipant,
   workspaceIdFromRoom,
@@ -66,7 +73,32 @@ async function broadcastRoster(io: Server | undefined, workspaceId: string) {
   io.to(workspaceId).emit("voice:roster", { users });
 }
 
-/** Applies one verified event to the roster. */
+/** How much older than the meeting an event must be to count as stale, in ms. */
+const STALE_EVENT_MARGIN_MS = 2000;
+
+/**
+ * Ends the workspace's live meeting because the media server reported that its
+ * agent or room is gone, unless the event predates the meeting.
+ */
+async function endLiveMeetingFor(
+  workspaceId: string,
+  event: WebhookEvent,
+  reason: "agent-left" | "room-finished",
+  io: MeetingBroadcaster | undefined,
+) {
+  const live = await prisma.meeting.findFirst({
+    where: { workspaceId, status: "LIVE" },
+    select: { id: true, startedAt: true },
+  });
+  if (!live) return;
+  const eventMs = Number(event.createdAt) * 1000;
+  if (eventMs > 0 && eventMs + STALE_EVENT_MARGIN_MS < live.startedAt.getTime()) {
+    return;
+  }
+  await endMeeting(live.id, reason, { io });
+}
+
+/** Applies one verified event to the roster and the live meeting. */
 async function applyEvent(event: WebhookEvent, io: Server | undefined) {
   const workspaceId = workspaceIdFromRoom(event.room?.name);
   if (!workspaceId) return;
@@ -87,7 +119,11 @@ async function applyEvent(event: WebhookEvent, io: Server | undefined) {
     }
     case "participant_left": {
       const participant = event.participant;
-      if (!participant?.identity || isAgentParticipant(participant)) return;
+      if (!participant?.identity) return;
+      if (isAgentParticipant(participant)) {
+        await endLiveMeetingFor(workspaceId, event, "agent-left", io);
+        return;
+      }
 
       await voicePresenceService.removeUser(workspaceId, participant.identity);
       await broadcastRoster(io, workspaceId);
@@ -96,6 +132,7 @@ async function applyEvent(event: WebhookEvent, io: Server | undefined) {
     case "room_finished": {
       await voicePresenceService.clear(workspaceId);
       await broadcastRoster(io, workspaceId);
+      await endLiveMeetingFor(workspaceId, event, "room-finished", io);
       return;
     }
     default:

@@ -21,6 +21,7 @@ const completeEnv = {
   LIVEKIT_URL: "ws://localhost:7880",
   LIVEKIT_API_KEY: "devkey",
   LIVEKIT_API_SECRET: "secret",
+  NIMBUS_AGENT_SECRET: "agent-secret-of-at-least-thirty-two-characters",
   RESEND_API_KEY: "resend-key",
   CONTACT_TO_EMAIL: "contact@example.com",
   GOOGLE_CLIENT_ID: "google-id",
@@ -68,6 +69,15 @@ describe("lib/env", () => {
     expect(() => parseEnv(incomplete)).toThrow(
       /BOT_USERID[\s\S]*LIVEKIT_API_SECRET[\s\S]*REDIS_URL|REDIS_URL[\s\S]*BOT_USERID/,
     );
+  });
+
+  it("refuses to boot without the agent secret, or with a short one", () => {
+    const without = { ...completeEnv, NIMBUS_AGENT_SECRET: undefined };
+
+    expect(() => parseEnv(without)).toThrow(/NIMBUS_AGENT_SECRET/);
+    expect(() =>
+      parseEnv({ ...completeEnv, NIMBUS_AGENT_SECRET: "too-short" }),
+    ).toThrow(/NIMBUS_AGENT_SECRET/);
   });
 
   it("treats an empty string as missing, not as a value", () => {

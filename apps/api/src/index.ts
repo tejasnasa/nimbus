@@ -11,6 +11,10 @@
  *            database: NimbusBot's user row is upserted before the server binds
  *            (see `lib/botUser`), and a failure there exits non-zero.
  *
+ * @important Live meetings whose media room no longer exists are ended at boot
+ *            (see `lib/meeting/lifecycle`), so a restart never strands a
+ *            workspace with an assistant nobody can stop.
+ *
  * @important The Redis adapter (attached in `app.ts`) is what allows
  *            multi-instance horizontal scaling — without it, rooms and
  *            broadcasts are process-local.
@@ -26,6 +30,7 @@ import {
   resolveCookieAttributes,
 } from "./lib/cookieAttributes";
 import { createHttpServer } from "./app";
+import { recoverOrphanedMeetings } from "./lib/meeting/lifecycle";
 
 /**
  * Log the cookie attributes resolved from `BETTER_AUTH_URL` + `AUTH_COOKIE_DOMAIN`.
@@ -49,10 +54,20 @@ void auth;
 async function main(): Promise<void> {
   await ensureBotUser();
 
-  const { httpServer } = createHttpServer();
+  const { httpServer, io } = createHttpServer();
 
   httpServer.listen(3001, () => {
     console.log("Server is running on port 3001");
+  });
+
+  // Meetings left live by a restart or a lost webhook are ended here. Run after
+  // the listener is up and never allowed to fail the boot: an unreachable media
+  // server only means the sweep is skipped until the next start.
+  void recoverOrphanedMeetings({ io }).catch((error: unknown) => {
+    console.error(
+      "[boot] Could not recover live meetings:",
+      error instanceof Error ? error.name : "unknown error",
+    );
   });
 }
 

@@ -7,7 +7,8 @@
  *
  * Express stack order matters: CORS (credentialed, FRONTEND_URL origin) → the
  * media server's webhook (raw body) → JSON body parser → request logging →
- * better-auth handler → the public contact and health routes → REST routers →
+ * better-auth handler → the public contact and health routes → the voice
+ * agent's internal routes → REST routers →
  * the `/api` 404 → the root greeting string → the terminal error handler. The two handlers at the end are what keep every
  * response, failures included, in the `ServerResponse` envelope.
  */
@@ -26,6 +27,7 @@ import {
   errorHandler,
 } from "./middleware/error.middleware";
 import applySocketAuth from "./middleware/socket.middleware";
+import agentInternalRouter from "./routers/agentInternal.router";
 import contactRouter from "./routers/contact.router";
 import healthRouter from "./routers/health.router";
 import livekitWebhookRouter, {
@@ -36,6 +38,9 @@ import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
 import registerChatHandlers from "./socket/chat";
 import { registerDocumentHandlers } from "./socket/document";
+
+/** Mount point of the voice agent's internal API. */
+export const AGENT_INTERNAL_PATH = "/internal/agent";
 
 /**
  * Builds the Express app.
@@ -71,9 +76,14 @@ export const createApp = (): Express => {
   app.use(express.json());
   // The webhook path is skipped explicitly as well, so that a reordering of the
   // mounts above can never put that traffic into the access log.
+  // The agent's internal routes are skipped as well: the redeem response carries
+  // a plaintext provider key, and nothing about that exchange belongs in a log.
   app.use(
     morgan("dev", {
-      skip: (req) => (req.originalUrl ?? req.url).startsWith(WEBHOOK_PATH),
+      skip: (req) => {
+        const url = req.originalUrl ?? req.url;
+        return url.startsWith(WEBHOOK_PATH) || url.startsWith(AGENT_INTERNAL_PATH);
+      },
     }),
   );
   // better-auth exposes its own routes (sign-in, session, etc.) — mounted before
@@ -83,6 +93,9 @@ export const createApp = (): Express => {
   // Also public, and for the same reason: a monitor has no session. Must stay
   // above the `/api` mount below, which is where `authCheck` lives.
   app.use("/api/health", healthRouter);
+  // The voice agent's private API. Outside `/api` and `masterRouter` on purpose:
+  // it authenticates with the shared secret and a session token, not a cookie.
+  app.use(AGENT_INTERNAL_PATH, agentInternalRouter);
   app.use("/api", masterRouter);
 
   // Unknown /api/* paths answer in the same envelope as every real endpoint, so a

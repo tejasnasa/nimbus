@@ -5,11 +5,15 @@
  * behind `authCheck` can treat `req.user` as defined.
  */
 import { User } from "better-auth";
+import type { AgentSession } from "../lib/meeting/agentSession";
+import type { MeetingRow } from "../lib/meeting/lifecycle";
 
 declare global {
   namespace Express {
     interface Request {
       user?: User;
+      /** Set by `requireAgentSession` on the internal agent routes. */
+      agentSession?: { session: AgentSession; meeting: MeetingRow };
     }
   }
 }

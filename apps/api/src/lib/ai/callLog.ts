@@ -31,6 +31,8 @@ import { classifyClientError } from "./clientFactory";
 export type AiCallMeta = {
   readonly workspaceId: string | null;
   readonly userId: string | null;
+  /** The meeting this call was made for, when the in-call assistant made it. */
+  readonly meetingId?: string | null;
   readonly feature: AiFeature;
   readonly providerId: string;
   readonly modelId: string;
@@ -148,6 +150,7 @@ export async function recordAiCall(
       data: {
         workspaceId: entry.workspaceId,
         userId: entry.userId,
+        meetingId: entry.meetingId ?? null,
         feature: entry.feature.toUpperCase() as Uppercase<AiFeature>,
         providerId: entry.providerId,
         modelId: entry.modelId,

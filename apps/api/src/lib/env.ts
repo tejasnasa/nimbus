@@ -56,6 +56,12 @@ const envSchema = z.object({
   LIVEKIT_API_KEY: required,
   LIVEKIT_API_SECRET: required,
 
+  // ── The voice agent ──
+  // Shared bearer secret for `/internal/agent/*`. The agent holds the same
+  // value. It guards the one route that returns a plaintext provider key, so a
+  // short value is refused rather than accepted as a weak one.
+  NIMBUS_AGENT_SECRET: z.string().min(32),
+
   // ── Providers ──
   // The mail client is constructed unconditionally at module load, so it is
   // required even when its feature goes unused.

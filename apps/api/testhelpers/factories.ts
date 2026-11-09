@@ -103,6 +103,37 @@ export const createMessage = async (
     data: { workspaceId, userId, content },
   });
 
+/**
+ * Creates a meeting row directly.
+ *
+ * @param workspaceId - Owning workspace.
+ * @param overrides - Optional starter, source, budget, status and start time.
+ */
+export const createMeeting = async (
+  workspaceId: string,
+  overrides: {
+    startedById?: string | null;
+    source?: "BYOK" | "FREE";
+    budgetSeconds?: number | null;
+    status?: "LIVE" | "ENDED" | "SUMMARIZED" | "FAILED";
+    startedAt?: Date;
+    endedAt?: Date | null;
+    roomName?: string;
+  } = {},
+) =>
+  testPrisma.meeting.create({
+    data: {
+      workspaceId,
+      roomName: overrides.roomName ?? `nimbus-ws-${workspaceId}`,
+      startedById: overrides.startedById ?? null,
+      source: overrides.source ?? "BYOK",
+      budgetSeconds: overrides.budgetSeconds ?? null,
+      status: overrides.status ?? "LIVE",
+      ...(overrides.startedAt ? { startedAt: overrides.startedAt } : {}),
+      ...(overrides.endedAt ? { endedAt: overrides.endedAt } : {}),
+    },
+  });
+
 /** The throwaway key tests store. Distinctive, so a leak is easy to grep for. */
 export const TEST_AI_KEY = "sk-test-fake-key-DISTINCT12345678";
 

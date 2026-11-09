@@ -12,6 +12,9 @@
 
 const ROOM_PREFIX = "nimbus-ws-";
 
+/** Name the voice agent registers under; only an explicit dispatch reaches it. */
+export const AGENT_NAME = "nimbus";
+
 /** Prefix of the identity LiveKit gives a worker that joins as an agent. */
 const AGENT_IDENTITY_PREFIX = "agent-";
 

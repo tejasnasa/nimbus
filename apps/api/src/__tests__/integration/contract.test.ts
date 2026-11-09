@@ -192,6 +192,12 @@ describe("contract: server→client socket events", () => {
     "ai:refused",
     // ── Voice ──
     "voice:roster",
+    // ── Meetings (the in-call assistant) ──
+    "meeting:started",
+    "meeting:ended",
+    "meeting:assistant-state",
+    "meeting:speaking",
+    "meeting:segment",
   ];
 
   it("declares exactly the documented server→client events", () => {

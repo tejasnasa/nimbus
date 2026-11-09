@@ -75,11 +75,18 @@ const MESSAGES: Record<VoiceRefusalReason, string> = {
     "This workspace has reached its monthly AI spend cap. An admin can raise it in AI settings.",
 };
 
-const refuse = (reason: VoiceRefusalReason): VoiceRefusal => ({
+/**
+ * Builds a refusal with its curated message.
+ *
+ * @param reason - Why voice cannot run.
+ */
+export const voiceRefusal = (reason: VoiceRefusalReason): VoiceRefusal => ({
   ok: false,
   reason,
   message: MESSAGES[reason],
 });
+
+const refuse = voiceRefusal;
 
 /**
  * Plans the assistant for a workspace and user.

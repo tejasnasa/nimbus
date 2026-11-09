@@ -9,7 +9,9 @@
  * the test environment has been pointed at one.
  */
 import { createHash, randomUUID } from "node:crypto";
+import { Room as RtcRoom } from "@livekit/rtc-node";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { createParticipantToken } from "../src/lib/livekit/tokens";
 
 /** The fields of a delivery a test cares about. */
 export type WebhookFixture = {
@@ -21,6 +23,8 @@ export type WebhookFixture = {
     metadata?: string;
     kind?: number;
   };
+  /** Seconds since the epoch; defaults to now. Set it to age a delivery. */
+  createdAt?: number;
   /** Defaults to a fresh id so deliveries are distinct unless a test says otherwise. */
   id?: string;
 };
@@ -58,3 +62,30 @@ export const devRoomService = (): RoomServiceClient =>
     process.env.LIVEKIT_API_KEY!,
     process.env.LIVEKIT_API_SECRET!,
   );
+
+const connected: RtcRoom[] = [];
+
+/**
+ * Puts a real participant in a workspace's call on the dev server, using a
+ * token the API itself mints, so the room genuinely has a human in it.
+ *
+ * @param user - The participant; their id becomes their identity.
+ * @param workspaceId - The workspace whose room to join.
+ * @returns A handle to leave the call. Everything left open is closed by
+ *          {@link leaveAllCalls}.
+ */
+export const joinCall = async (
+  user: { id: string; name: string },
+  workspaceId: string,
+) => {
+  const token = await createParticipantToken({ user, workspaceId });
+  const room = new RtcRoom();
+  await room.connect(process.env.LIVEKIT_URL!, token, { autoSubscribe: false });
+  connected.push(room);
+  return { room, leave: () => room.disconnect() };
+};
+
+/** Disconnects every participant {@link joinCall} opened. Call from `afterEach`. */
+export const leaveAllCalls = async () => {
+  await Promise.all(connected.splice(0).map((room) => room.disconnect()));
+};

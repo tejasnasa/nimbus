@@ -6,6 +6,7 @@ export { closeTestResources, resetDatabase, testPrisma } from "./database";
 export {
   addMember,
   createDocument,
+  createMeeting,
   createMessage,
   createUser,
   createWorkspace,
@@ -16,6 +17,8 @@ export {
 } from "./factories";
 export {
   devRoomService,
+  joinCall,
+  leaveAllCalls,
   signWebhook,
   type SignedWebhook,
   type WebhookFixture,

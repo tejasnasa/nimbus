@@ -51,6 +51,27 @@ function fakeDeps(
 const rowOf = (create: ReturnType<typeof fakeDeps>["create"]) =>
   (create.mock.calls[0]![0] as { data: Record<string, unknown> }).data;
 
+describe("recordAiCall for a meeting", () => {
+  it("stores the meeting the call was made for", async () => {
+    const { deps, create } = fakeDeps();
+
+    await recordAiCall(
+      { ...META, meetingId: "meeting-1", status: "OK", latencyMs: 5 },
+      deps,
+    );
+
+    expect(rowOf(create).meetingId).toBe("meeting-1");
+  });
+
+  it("stores no meeting for an ordinary call", async () => {
+    const { deps, create } = fakeDeps();
+
+    await recordAiCall({ ...META, status: "OK", latencyMs: 5 }, deps);
+
+    expect(rowOf(create).meetingId).toBeNull();
+  });
+});
+
 describe("estimateCallCost", () => {
   it("prices tokens from the model's list prices", () => {
     expect(

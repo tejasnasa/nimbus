@@ -32,7 +32,9 @@ export default function SettingTabs({ tabs, defaultTab }: SettingTabsProps) {
 
   return (
     <div className="flex gap-8 w-full">
-      <div className="flex flex-col w-44 shrink-0 gap-1">
+      {/* Sticky so the tab list stays in view while a long panel scrolls in
+          the parent's scroll container. */}
+      <div className="sticky top-0 self-start flex flex-col w-44 shrink-0 gap-1">
         {tabs.map((tab, i) => (
           <button
             key={tab.label}

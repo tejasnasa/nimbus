@@ -148,10 +148,20 @@ describe("WorkspaceAiPanel: admin", () => {
     expect(await screen.findByText(/No API keys saved/)).toBeInTheDocument();
   });
 
-  it("lists every picker group", async () => {
+  it("lists a picker for every feature", async () => {
     render(<WorkspaceAiPanel workspaceId={WS} status={ready(adminStatus)} />);
-    for (const title of ["Chat and docs", "Vision", "Meetings", "Voice"]) {
-      expect(await screen.findByTestId(`ai-group-${title}`)).toBeInTheDocument();
+    for (const label of [
+      "Chat replies",
+      "Markdown documents",
+      "Canvas diagrams",
+      "Reading images",
+      "Meeting notes and answers",
+      "Transcription",
+      "Speech",
+    ]) {
+      expect(
+        await screen.findByRole("heading", { name: label }),
+      ).toBeInTheDocument();
     }
   });
 

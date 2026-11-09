@@ -131,7 +131,7 @@ export default function WorkspaceSettings({
   } = useWorkspacePermissions(workspace.id);
 
   return (
-    <div className="relative z-50 w-200 h-150 rounded-2xl border border-(--border) bg-(--card) shadow-2xl shadow-(--primary)/10 p-6 flex flex-col">
+    <div className="relative z-50 w-250 h-180 rounded-2xl border border-(--border) bg-(--card) shadow-2xl shadow-(--primary)/10 p-6 flex flex-col">
       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-(--border)">
         <div className="w-10 h-10 rounded-xl bg-linear-to-br from-(--primary) to-(--sidebar-primary) flex items-center justify-center shrink-0">
           <Settings className="w-5 h-5 text-(--primary-foreground)" />

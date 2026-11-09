@@ -57,38 +57,19 @@ type Props = {
   status: UseWorkspaceAiStatus;
 };
 
-/** Labels for the feature pickers, grouped as the tab lists them. */
-const FEATURE_GROUPS: ReadonlyArray<{
-  title: string;
-  features: ReadonlyArray<{ feature: AiFeature; label: string }>;
-}> = [
-  {
-    title: "Chat and docs",
-    features: [
-      { feature: "chat", label: "Chat replies" },
-      { feature: "markdown", label: "Markdown documents" },
-      { feature: "canvas", label: "Canvas diagrams" },
-    ],
-  },
-  {
-    title: "Vision",
-    features: [{ feature: "vision", label: "Reading images" }],
-  },
-  {
-    title: "Meetings",
-    features: [{ feature: "meeting", label: "Meeting notes and answers" }],
-  },
-  {
-    title: "Voice",
-    features: [
-      { feature: "transcription", label: "Transcription" },
-      { feature: "speech", label: "Speech" },
-    ],
-  },
+/** Labels for the feature pickers, in the order the tab lists them. */
+const FEATURES: ReadonlyArray<{ feature: AiFeature; label: string }> = [
+  { feature: "chat", label: "Chat replies" },
+  { feature: "markdown", label: "Markdown documents" },
+  { feature: "canvas", label: "Canvas diagrams" },
+  { feature: "vision", label: "Reading images" },
+  { feature: "meeting", label: "Meeting notes and answers" },
+  { feature: "transcription", label: "Transcription" },
+  { feature: "speech", label: "Speech" },
 ];
 
 const FEATURE_LABEL: Record<AiFeature, string> = Object.fromEntries(
-  FEATURE_GROUPS.flatMap((g) => g.features.map((f) => [f.feature, f.label])),
+  FEATURES.map((f) => [f.feature, f.label]),
 ) as Record<AiFeature, string>;
 
 const KIND_LABEL: Record<AiModelKind, string> = {
@@ -113,7 +94,11 @@ export default function WorkspaceAiPanel({ workspaceId, status }: Props) {
   }
   if (status.state.kind === "error") {
     return (
-      <p role="alert" className="text-sm text-(--destructive)" data-testid="ai-error">
+      <p
+        role="alert"
+        className="text-sm text-(--destructive)"
+        data-testid="ai-error"
+      >
         {status.state.message}
       </p>
     );
@@ -121,7 +106,11 @@ export default function WorkspaceAiPanel({ workspaceId, status }: Props) {
 
   const dto = status.state.status;
   return dto.canManage ? (
-    <AdminView workspaceId={workspaceId} status={dto} refresh={status.refresh} />
+    <AdminView
+      workspaceId={workspaceId}
+      status={dto}
+      refresh={status.refresh}
+    />
   ) : (
     <MemberView status={dto} />
   );
@@ -130,13 +119,13 @@ export default function WorkspaceAiPanel({ workspaceId, status }: Props) {
 /** The read-only summary members see. */
 function MemberView({ status }: { status: AiWorkspaceStatusDTO }) {
   const rows: Array<{ label: string; on: boolean; reason: string | null }> = [
-    ...FEATURE_GROUPS.flatMap((g) => g.features)
-      .filter(({ feature }) => AI_FEATURE_KIND[feature] === "text")
-      .map(({ feature, label }) => ({
-        label,
-        on: status.features[feature].enabled,
-        reason: status.features[feature].reason,
-      })),
+    ...FEATURES.filter(
+      ({ feature }) => AI_FEATURE_KIND[feature] === "text",
+    ).map(({ feature, label }) => ({
+      label,
+      on: status.features[feature].enabled,
+      reason: status.features[feature].reason,
+    })),
     {
       label: "In-call assistant",
       on: status.voice.available,
@@ -168,8 +157,8 @@ function MemberView({ status }: { status: AiWorkspaceStatusDTO }) {
         ))}
       </ul>
       <p className="text-xs text-(--muted-foreground)">
-        Your free allowance: {status.free.docsRemaining} of {status.free.docsLimit}{" "}
-        document generations and{" "}
+        Your free allowance: {status.free.docsRemaining} of{" "}
+        {status.free.docsLimit} document generations and{" "}
         {Math.floor(status.free.voiceSecondsRemaining / 60)} of{" "}
         {Math.floor(status.free.voiceSecondsLimit / 60)} assistant minutes
         remaining.
@@ -329,7 +318,7 @@ function AdminView({
 
       <section className="space-y-3">
         <header className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">API keys</h2>
+          <h2 className="text-base font-semibold">API keys</h2>
           <Button
             size="xs"
             data-testid="ai-add-key"
@@ -365,7 +354,9 @@ function AdminView({
                   setDialogInitialProvider(c.providerId as AiProviderId);
                   setDialogOpen(true);
                 }}
-                onRemove={() => void handleRemoveKey(c.providerId as AiProviderId)}
+                onRemove={() =>
+                  void handleRemoveKey(c.providerId as AiProviderId)
+                }
               />
             ))}
           </ul>
@@ -394,68 +385,61 @@ function AdminView({
         )}
       </section>
 
-      <section className="space-y-5">
-        <h2 className="text-sm font-semibold">Models</h2>
+      <section className="space-y-4">
+        <h2 className="text-base font-semibold">Models</h2>
         <p className="text-xs text-(--muted-foreground)">
           Changes save automatically. Models without the required capabilities
           for a feature are hidden, and a custom text model id is checked before
           it is saved. Voice models come from the curated list.
         </p>
 
-        {FEATURE_GROUPS.map((group) => (
-          <div key={group.title} className="space-y-4" data-testid={`ai-group-${group.title}`}>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-(--muted-foreground)">
-              {group.title}
+        {FEATURES.map(({ feature, label }) => (
+          <div key={feature} className="space-y-2">
+            <h3 className="text-xs font-medium uppercase text-(--muted-foreground)">
+              {label}
             </h3>
-            {group.features.map(({ feature, label }) => (
-              <div key={feature} className="space-y-2">
-                <h4 className="text-xs font-medium text-(--muted-foreground)">
-                  {label}
-                </h4>
-                <AiModelPicker
-                  workspaceId={workspaceId}
-                  feature={feature}
-                  credentials={credentials}
-                  preference={preferences[feature]}
-                  pending={pending === feature}
-                  // The hook carries one error string at a time, so a
-                  // successful save for another picker clears it.
-                  error={
-                    pending === feature || pending === null
-                      ? preferencesError
-                      : null
-                  }
-                  onChangeProviderAction={(providerId) =>
-                    void handleChangeProvider(feature, providerId)
-                  }
-                  onChangeModelAction={(modelId, modelSource) => {
-                    const providerId = providerFor(feature);
-                    if (!providerId) return;
-                    void handleChangeModel(
-                      feature,
-                      providerId,
-                      modelId,
-                      modelSource,
-                    );
-                  }}
-                  onChangeVoiceAction={
-                    feature === "speech"
-                      ? (voice) => {
-                          const current = preferences.speech;
-                          if (!current) return;
-                          void handleChangeModel(
-                            "speech",
-                            current.providerId,
-                            current.modelId,
-                            "registry",
-                            voice,
-                          );
-                        }
-                      : undefined
-                  }
-                />
-              </div>
-            ))}
+            <AiModelPicker
+              workspaceId={workspaceId}
+              feature={feature}
+              credentials={credentials}
+              preference={preferences[feature]}
+              pending={pending === feature}
+              // The hook carries one error string at a time, so a
+              // successful save for another picker clears it.
+              error={
+                pending === feature || pending === null
+                  ? preferencesError
+                  : null
+              }
+              onChangeProviderAction={(providerId) =>
+                void handleChangeProvider(feature, providerId)
+              }
+              onChangeModelAction={(modelId, modelSource) => {
+                const providerId = providerFor(feature);
+                if (!providerId) return;
+                void handleChangeModel(
+                  feature,
+                  providerId,
+                  modelId,
+                  modelSource,
+                );
+              }}
+              onChangeVoiceAction={
+                feature === "speech"
+                  ? (voice) => {
+                      const current = preferences.speech;
+                      if (!current) return;
+                      void handleChangeModel(
+                        "speech",
+                        current.providerId,
+                        current.modelId,
+                        "registry",
+                        voice,
+                      );
+                    }
+                  : undefined
+              }
+            />
           </div>
         ))}
       </section>
@@ -489,9 +473,10 @@ function AssistantSection({
   }
   const current = settings.state.settings;
 
-  const flip = async (
-    change: { assistantEnabled?: boolean; assistantSpeaks?: boolean },
-  ) => {
+  const flip = async (change: {
+    assistantEnabled?: boolean;
+    assistantSpeaks?: boolean;
+  }) => {
     setError(null);
     const result = await settings.save(change);
     if (!result.ok) setError(result.message);
@@ -535,13 +520,16 @@ function SpendCapSection({
   current,
 }: {
   settings: ReturnType<typeof useWorkspaceAiSettings>;
-  current: { monthlySpendCapUsd: number | null; monthToDateCostUsd: number } | null;
+  current: {
+    monthlySpendCapUsd: number | null;
+    monthToDateCostUsd: number;
+  } | null;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (!current) return null;
 
-  const shown = draft ?? (current.monthlySpendCapUsd?.toString() ?? "");
+  const shown = draft ?? current.monthlySpendCapUsd?.toString() ?? "";
 
   const commit = async (value: number | null) => {
     setError(null);
@@ -555,7 +543,9 @@ function SpendCapSection({
     if (trimmed === "") return void commit(null);
     const parsed = Number(trimmed);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setError("Enter an amount greater than zero, or leave it blank for no cap.");
+      setError(
+        "Enter an amount greater than zero, or leave it blank for no cap.",
+      );
       return;
     }
     void commit(Math.round(parsed * 100) / 100);
@@ -591,14 +581,17 @@ function SpendCapSection({
         >
           Save cap
         </Button>
-        <p className="text-xs text-(--muted-foreground)" data-testid="ai-month-to-date">
+        <p
+          className="text-xs text-(--muted-foreground)"
+          data-testid="ai-month-to-date"
+        >
           This month so far: ${current.monthToDateCostUsd.toFixed(4)}
         </p>
       </div>
       <p className="text-xs text-(--muted-foreground)">
         An estimate from list prices. Calls to a model with no known price count
-        as zero, and free-tier calls are not counted. A call already running when
-        the cap is reached finishes.
+        as zero, and free-tier calls are not counted. A call already running
+        when the cap is reached finishes.
       </p>
       {error && (
         <p role="alert" className="text-xs text-(--destructive)">

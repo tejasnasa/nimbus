@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Coverage ratchet.
+ * Coverage floor check.
  *
  * Compares each package's measured coverage against its `.coverage-floor` file
- * and exits non-zero if any metric has dropped. A ratchet, not a hard gate: the
- * floor is whatever the package last achieved, so coverage can only go up
- * unless someone edits the floor deliberately in review.
+ * and exits non-zero if any metric is below it. The floors are fixed minimums,
+ * set a few points under what the suite measures so run-to-run noise never
+ * fails a build; they are changed deliberately in review, not raised with
+ * every change.
  *
  * Usage:
  *   node scripts/check-coverage.mjs apps/api apps/web
@@ -72,7 +73,7 @@ for (const pkg of packages) {
     console.error(`✗ ${pkg}: coverage regressed`);
     for (const line of regressions) console.error(`    ${line}`);
     console.error(
-      `    Either add tests, or raise the floor deliberately in ${floorPath}.`,
+      `    Add tests to cover the change; ${floorPath} is a fixed minimum, not a target to edit.`,
     );
     failed = true;
   } else {

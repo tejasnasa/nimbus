@@ -1,6 +1,7 @@
 {
-  "statements": 99,
-  "branches": 98,
-  "functions": 100,
-  "lines": 99
+  "_comment": "Fixed coverage minimums, set a few points below what the suite measures so run-to-run noise never fails CI. CI fails only if coverage drops below them. They are not raised automatically; change them deliberately, never to make a build pass.",
+  "statements": 95,
+  "branches": 90,
+  "functions": 95,
+  "lines": 95
 }

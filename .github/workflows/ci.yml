@@ -91,9 +91,9 @@ jobs:
       - name: Apply the Prisma schema to the test database
         run: npx turbo run db:deploy --filter=@nimbus/db
       - run: npx turbo run test:coverage --filter=api
-      # The floor is a ratchet: it is whatever the suite last achieved, so it
-      # only fails when coverage actually drops. See scripts/check-coverage.mjs.
-      - name: Coverage ratchet
+      # Fixed per-package minimums, a few points under the measured numbers, so
+      # only a real drop fails. See scripts/check-coverage.mjs.
+      - name: Coverage floor
         run: node scripts/check-coverage.mjs apps/api
 
   web-tests:
@@ -107,7 +107,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx turbo run test:coverage --filter=web
-      - name: Coverage ratchet
+      - name: Coverage floor
         run: node scripts/check-coverage.mjs apps/web
 
   package-tests:
@@ -153,7 +153,7 @@ jobs:
           --filter=@nimbus/ui
           --filter=@nimbus/db
           --filter=agent
-      - name: Coverage ratchet
+      - name: Coverage floor
         run: >-
           node scripts/check-coverage.mjs
           packages/utils

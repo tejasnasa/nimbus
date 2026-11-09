@@ -122,6 +122,7 @@ describe("contract: socket events", () => {
     "doc:join",
     "doc:update",
     "doc:leave",
+    "meeting:caption-language",
   ];
 
   it("declares exactly the documented client→server events", () => {
@@ -198,6 +199,7 @@ describe("contract: server→client socket events", () => {
     "meeting:assistant-state",
     "meeting:speaking",
     "meeting:segment",
+    "meeting:translation",
   ];
 
   it("declares exactly the documented server→client events", () => {

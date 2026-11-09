@@ -1,12 +1,16 @@
 /**
  * @module api/lib/meeting/segments
- * @description Storing the transcript the agent posts, and broadcasting each new
- * caption to the workspace.
+ * @description Storing the transcript the agent posts, broadcasting each new
+ * caption to the workspace and queueing it for translation.
  *
  * @important Ingestion is idempotent on `(meetingId, seq)`. The agent retries a
  *            batch after any network error, so a replay inserts nothing and, in
  *            particular, broadcasts nothing: only rows this call inserted are
  *            announced, in sequence order. `Meeting.lastSeq` only moves forward.
+ *
+ * @important New captions are handed to translation after they are stored and
+ *            announced, detached, so a slow or failing model call never delays
+ *            the agent's response or loses a caption.
  *
  * @important A speaker id is trusted only if that user is a current member of
  *            the meeting's workspace. Anything else is stored with a null
@@ -16,6 +20,7 @@
 import { prisma } from "@nimbus/db";
 import type { SegmentDTO, SegmentIn } from "@nimbus/types";
 import type { MeetingBroadcaster } from "./lifecycle";
+import { translateSegments } from "./translation";
 
 /** What ingestion did with a batch. */
 export type IngestResult = {
@@ -80,7 +85,10 @@ export async function ingestSegments(
     speakerIds.length === 0
       ? []
       : await prisma.workspaceMember.findMany({
-          where: { workspaceId: meeting.workspaceId, userId: { in: speakerIds } },
+          where: {
+            workspaceId: meeting.workspaceId,
+            userId: { in: speakerIds },
+          },
           select: { userId: true },
         });
   const memberIds = new Set(members.map((member) => member.userId));
@@ -109,14 +117,15 @@ export async function ingestSegments(
     WHERE "id" = ${meeting.id}
   `;
 
-  const inserted = created
-    .map(toSegmentDTO)
-    .sort((a, b) => a.seq - b.seq);
+  const inserted = created.map(toSegmentDTO).sort((a, b) => a.seq - b.seq);
   for (const segment of inserted) {
     deps.io
       ?.to(meeting.workspaceId)
       .emit("meeting:segment", { meetingId: meeting.id, segment });
   }
+
+  // Detached: translation is never allowed to slow or fail the ingest response.
+  void translateSegments(meeting, inserted, { io: deps.io });
 
   return {
     accepted: [...new Set(segments.map((segment) => segment.seq))].sort(

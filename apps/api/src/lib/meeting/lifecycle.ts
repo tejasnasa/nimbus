@@ -30,6 +30,7 @@ import type { Server } from "socket.io";
 import { readVoiceQuotaLimit } from "../ai/quota";
 import { liveRoomNames, removeAgents } from "../livekit/agentRoom";
 import { pubClient } from "../redis";
+import { captionLanguagesKey } from "./captionLanguages";
 
 /** The slice of Socket.IO the lifecycle broadcasts through. */
 export type MeetingBroadcaster = Pick<Server, "to">;
@@ -184,7 +185,11 @@ export async function endMeeting(
 
   deps.io?.to(meeting.workspaceId).emit("meeting:ended", { meetingId, reason });
   await pubClient
-    .del(stopFlagKey(meetingId), stateKey(meetingId))
+    .del(
+      stopFlagKey(meetingId),
+      stateKey(meetingId),
+      captionLanguagesKey(meetingId),
+    )
     .catch(() => undefined);
   return { ended: true };
 }

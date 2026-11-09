@@ -35,6 +35,7 @@ import {
   type MeetingListDTO,
   type SegmentPageDTO,
 } from "@nimbus/types";
+import { isCaptionLanguage } from "@nimbus/utils";
 import { readVoiceQuotaState } from "../lib/ai/quota";
 import {
   planVoice,
@@ -336,8 +337,10 @@ export async function listMeetings(userId: string, query: unknown) {
  *
  * @param userId - The authenticated user.
  * @param meetingId - The meeting.
- * @param query - The raw query string values (`afterSeq`, `limit`).
- * @returns Segments after `afterSeq` in sequence order; 404 for a non-member.
+ * @param query - The raw query string values (`afterSeq`, `limit`, `language`).
+ * @returns Segments after `afterSeq` in sequence order, each with its stored
+ *          translation into `language` when one was asked for (null where
+ *          none exists); 400 for an unsupported language; 404 for a non-member.
  */
 export async function listSegments(
   userId: string,
@@ -346,6 +349,12 @@ export async function listSegments(
 ) {
   const parsed = segmentsQuerySchema.safeParse(query);
   if (!parsed.success) return ServerResponse.badRequest("Invalid paging");
+  if (
+    parsed.data.language !== undefined &&
+    !isCaptionLanguage(parsed.data.language)
+  ) {
+    return ServerResponse.badRequest("Unsupported caption language");
+  }
 
   try {
     const meeting = await prisma.meeting.findUnique({
@@ -356,14 +365,21 @@ export async function listSegments(
     const access = await requireWorkspaceRole(userId, meeting.workspaceId);
     if (!access.ok) return ServerResponse.notFound("Meeting not found");
 
-    const { afterSeq, limit } = parsed.data;
+    const { afterSeq, limit, language } = parsed.data;
     const rows = await prisma.transcriptSegment.findMany({
       where: { meetingId, seq: { gt: afterSeq } },
       orderBy: { seq: "asc" },
       take: limit + 1,
+      include: {
+        translations: language ? { where: { language } } : false,
+      },
     });
     return ServerResponse.ok<SegmentPageDTO>({
-      segments: rows.slice(0, limit).map(toSegmentDTO),
+      segments: rows.slice(0, limit).map((row) => {
+        const segment = toSegmentDTO(row);
+        if (!language) return segment;
+        return { ...segment, translation: row.translations?.[0]?.text ?? null };
+      }),
       hasMore: rows.length > limit,
     });
   } catch (error) {

@@ -38,6 +38,7 @@ import masterRouter from "./routers/master.router";
 import { registerCanvasHandlers } from "./socket/canvas";
 import registerChatHandlers from "./socket/chat";
 import { registerDocumentHandlers } from "./socket/document";
+import { registerMeetingHandlers } from "./socket/meeting";
 
 /** Mount point of the voice agent's internal API. */
 export const AGENT_INTERNAL_PATH = "/internal/agent";
@@ -82,7 +83,9 @@ export const createApp = (): Express => {
     morgan("dev", {
       skip: (req) => {
         const url = req.originalUrl ?? req.url;
-        return url.startsWith(WEBHOOK_PATH) || url.startsWith(AGENT_INTERNAL_PATH);
+        return (
+          url.startsWith(WEBHOOK_PATH) || url.startsWith(AGENT_INTERNAL_PATH)
+        );
       },
     }),
   );
@@ -135,11 +138,12 @@ export const createIoServer = (httpServer: HttpServer): Server => {
   // Handshake auth runs before "connection" — downstream handlers can trust `socket.data.user`.
   applySocketAuth(io);
 
-  /** Fan out each authenticated socket to the three domain handler registrars. */
+  /** Fan out each authenticated socket to the domain handler registrars. */
   io.on("connection", (socket) => {
     registerChatHandlers(io, socket);
     registerDocumentHandlers(io, socket);
     registerCanvasHandlers(io, socket);
+    registerMeetingHandlers(io, socket);
   });
 
   return io;

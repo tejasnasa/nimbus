@@ -141,7 +141,7 @@ test-coverage: ## Run every suite with coverage
 	npx turbo run test:coverage --force
 
 test-coverage-check: test-coverage ## Fail if any package's coverage dropped below its floor
-	node scripts/check-coverage.mjs apps/api apps/web packages/utils packages/ui packages/database
+	node scripts/check-coverage.mjs apps/api apps/web apps/agent packages/utils packages/ui packages/database
 
 ##@ End-to-end
 

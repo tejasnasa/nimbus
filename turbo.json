@@ -49,7 +49,9 @@
         "NODE_ENV",
         "LIVEKIT_URL",
         "LIVEKIT_API_KEY",
-        "LIVEKIT_API_SECRET"
+        "LIVEKIT_API_SECRET",
+        "NIMBUS_AGENT_SECRET",
+        "NIMBUS_API_URL"
       ]
     },
     "test:coverage": {
@@ -62,7 +64,9 @@
         "NODE_ENV",
         "LIVEKIT_URL",
         "LIVEKIT_API_KEY",
-        "LIVEKIT_API_SECRET"
+        "LIVEKIT_API_SECRET",
+        "NIMBUS_AGENT_SECRET",
+        "NIMBUS_API_URL"
       ]
     }
   }

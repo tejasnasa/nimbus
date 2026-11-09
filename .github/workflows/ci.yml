@@ -152,9 +152,11 @@ jobs:
           --filter=@nimbus/utils
           --filter=@nimbus/ui
           --filter=@nimbus/db
+          --filter=agent
       - name: Coverage ratchet
         run: >-
           node scripts/check-coverage.mjs
           packages/utils
           packages/ui
           packages/database
+          apps/agent

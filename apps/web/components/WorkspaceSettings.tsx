@@ -6,9 +6,7 @@ import Avatar from "@nimbus/ui/Avatar";
 import Button from "@nimbus/ui/Button";
 import Delete from "@nimbus/ui/icons/Delete";
 import Error from "@nimbus/ui/icons/Error";
-import Flow from "@nimbus/ui/icons/Flow";
 import Lock from "@nimbus/ui/icons/Lock";
-import Markdown from "@nimbus/ui/icons/Markdown";
 import Plus from "@nimbus/ui/icons/Plus";
 import Settings from "@nimbus/ui/icons/Settings";
 import Input from "@nimbus/ui/Input";
@@ -25,6 +23,7 @@ import {
 } from "../hooks/useChatImageUpload";
 import { socket } from "../lib/socket";
 import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
+import { useLiveDocuments } from "../hooks/useLiveDocuments";
 import { useWorkspaceDocumentForm } from "../hooks/useWorkspaceDocumentForm";
 import { useWorkspaceDocuments } from "../hooks/useWorkspaceDocuments";
 import { useWorkspaceAiStatus } from "../hooks/useWorkspaceAiStatus";
@@ -34,13 +33,15 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * @module web/components/WorkspaceSettings
  * @description Workspace settings modal (~500 lines, largest component):
  * `SettingTabs` with General (rename form, dirty-gated save), Members
- * (role OptionMenu + remove confirmations), Documents (create dialog with
- * MARKDOWN/CANVAS ToggleGroup, a "From an image…" shortcut that uploads a
- * picture and asks NimbusBot to diagram it, + per-doc delete), AI (workspace provider keys,
+ * (role OptionMenu + remove confirmations), Documents (a keyword search box,
+ * create dialog with MARKDOWN/CANVAS ToggleGroup, a "From an image…" shortcut
+ * that uploads a picture and asks NimbusBot to diagram it, and per-doc rename,
+ * download and delete; the list follows `document:*` events live), AI (workspace provider keys,
  * models, assistant switches and spend cap for admins; a read-only summary for
- * members), Usage (admins only: the AI call log), Transcripts (every member:
- * past meetings NimbusBot transcribed, in the viewer's caption language where
- * translations are stored), Captions (the viewer's own live caption look and
+ * members), Usage (admins only: the AI call log), Meetings (every member:
+ * the calls NimbusBot joined with their notes, action items and transcripts,
+ * searchable, in the viewer's caption language where translations are stored;
+ * `initialTab="Meetings"` lands here from the call card), Captions (the viewer's own live caption look and
  * language, when a user is given), and Permissions (invite
  * copy/regenerate + danger-zone delete). New docs open via the
  * `DocEditorRefContext` add-tab bridge; the create dialog closes through the
@@ -48,8 +49,10 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  */
 import CaptionSettingsPanel from "./CaptionSettingsPanel";
 import { useDocEditorRef } from "./DocEditorRefContext";
+import DocumentRow from "./DocumentRow";
+import DocumentSearch from "./DocumentSearch";
 import WorkspaceAiPanel from "./WorkspaceAiPanel";
-import WorkspaceTranscriptsPanel from "./WorkspaceTranscriptsPanel";
+import WorkspaceMeetingsPanel from "./WorkspaceMeetingsPanel";
 import WorkspaceUsagePanel from "./WorkspaceUsagePanel";
 
 /** The chat message "From an image…" posts alongside the uploaded picture. */
@@ -95,6 +98,7 @@ export default function WorkspaceSettings({
   } = useWorkspaceMembers(workspace.id);
 
   const addTabRef = useDocEditorRef();
+  const liveDocuments = useLiveDocuments(documents);
 
   const imageUpload = useChatImageUpload(workspace.id);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +126,7 @@ export default function WorkspaceSettings({
     onSubmit: docOnSubmit,
     setValue: docSetValue,
   } = useWorkspaceDocumentForm(workspace.id, (doc) => {
+    liveDocuments.add(doc);
     if (addTabRef.current) {
       addTabRef.current(doc);
     }
@@ -129,10 +134,15 @@ export default function WorkspaceSettings({
 
   const {
     handleDeleteDocument,
+    handleRenameDocument,
+    handleDownloadDocument,
     loading: docLoading,
     error: docDeleteError,
     notice: docDeleteNotice,
-  } = useWorkspaceDocuments();
+  } = useWorkspaceDocuments({
+    onDeleted: liveDocuments.remove,
+    onRenamed: liveDocuments.rename,
+  });
 
   const {
     handleRegenerateInviteCode,
@@ -448,32 +458,30 @@ export default function WorkspaceSettings({
                     </div>
                   </AlertDialog>
 
+                  <DocumentSearch workspaceId={workspace.id} />
                   <div className="space-y-1">
-                    {documents.map((document) => (
-                      <div
+                    {liveDocuments.documents.map((document) => (
+                      <DocumentRow
                         key={document.id}
-                        className="flex justify-between items-center p-3 rounded-xl hover:bg-(--muted)/30 transition-colors group"
+                        document={document}
+                        busy={docLoading === document.id}
+                        onRename={(title) =>
+                          handleRenameDocument(document.id, title)
+                        }
+                        onDownload={() =>
+                          void handleDownloadDocument(
+                            document.id,
+                            document.label,
+                          )
+                        }
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-lg bg-(--muted)/50 flex items-center justify-center shrink-0">
-                            {document.type === "MARKDOWN" ? (
-                              <Markdown className="w-5 h-5 text-(--muted-foreground)" />
-                            ) : (
-                              <Flow className="w-5 h-5 text-(--muted-foreground)" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium">
-                              {document.label}
-                            </div>
-                            <div className="text-xs text-(--muted-foreground)">
-                              {document.type}
-                            </div>
-                          </div>
-                        </div>
                         <AlertDialog
                           trigger={
-                            <button className="p-1.5 rounded-lg hover:bg-(--destructive)/10 transition-colors hover:cursor-pointer opacity-0 group-hover:opacity-100">
+                            <button
+                              type="button"
+                              aria-label={`Delete "${document.label}"`}
+                              className="p-1.5 rounded-lg hover:bg-(--destructive)/10 transition-colors hover:cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                            >
                               <Delete className="w-4 h-4 text-(--destructive)" />
                             </button>
                           }
@@ -513,7 +521,7 @@ export default function WorkspaceSettings({
                             </div>
                           </div>
                         </AlertDialog>
-                      </div>
+                      </DocumentRow>
                     ))}
                   </div>
                 </div>
@@ -537,11 +545,12 @@ export default function WorkspaceSettings({
                 ]
               : []),
             {
-              label: "Transcripts",
+              label: "Meetings",
               content: (
-                <WorkspaceTranscriptsPanel
+                <WorkspaceMeetingsPanel
                   workspaceId={workspace.id}
                   userId={userId}
+                  members={workspace.members}
                 />
               ),
             },

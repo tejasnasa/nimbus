@@ -3,7 +3,7 @@
  * @description The AI surfaces around the settings dialogs: which tabs the
  * workspace settings offer to each role (AI for everyone, Usage for admins
  * only, and there on first render when the server already knows the role),
- * Transcripts for everyone, the Usage tab's totals, filters and paging, and the
+ * Meetings for everyone, the Usage tab's totals, filters and paging, and the
  * account-level Free usage tab.
  */
 import "./testUtils";
@@ -18,12 +18,7 @@ import WorkspaceUsagePanel from "../../components/WorkspaceUsagePanel";
 import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
 import { BACKEND_URL, fail, ok } from "../msw/handlers";
 import { server } from "../msw/server";
-import {
-  aiStatus,
-  callRow,
-  freeUsage,
-  usagePage,
-} from "../msw/aiFixtures";
+import { aiStatus, callRow, freeUsage, usagePage } from "../msw/aiFixtures";
 import { preflight } from "./testUtils";
 
 vi.mock("next/navigation", () => ({
@@ -34,7 +29,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 const WS = "cm_workspace_0000000000000";
-const route = (suffix: string) => `${BACKEND_URL}/api/ai/workspaces/${WS}${suffix}`;
+const route = (suffix: string) =>
+  `${BACKEND_URL}/api/ai/workspaces/${WS}${suffix}`;
 
 const workspace: Workspace = {
   id: WS,
@@ -70,26 +66,38 @@ function renderSettings(
 
 describe("WorkspaceSettings: AI tabs", () => {
   it("offers the AI and Usage tabs to an admin", async () => {
-    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: true }))));
+    server.use(
+      http.get(route("/status"), () => ok(aiStatus({ canManage: true }))),
+    );
     renderSettings();
 
     expect(screen.getByRole("button", { name: "AI" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Usage" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Usage" }),
+    ).toBeInTheDocument();
   });
 
   it("offers Usage on the first render when the server status is passed in", () => {
-    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: true }))));
+    server.use(
+      http.get(route("/status"), () => ok(aiStatus({ canManage: true }))),
+    );
     renderSettings(undefined, aiStatus({ canManage: true }));
 
     expect(screen.getByRole("button", { name: "Usage" })).toBeInTheDocument();
   });
 
-  it("offers Transcripts to every member", () => {
-    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: false }))));
+  it("offers Meetings to every member", () => {
+    server.use(
+      http.get(route("/status"), () => ok(aiStatus({ canManage: false }))),
+    );
     renderSettings(undefined, aiStatus({ canManage: false }));
 
-    expect(screen.getByRole("button", { name: "Transcripts" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Usage" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Meetings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Usage" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers a member the AI tab but never Usage", async () => {
@@ -106,12 +114,16 @@ describe("WorkspaceSettings: AI tabs", () => {
 
     await user.click(screen.getByRole("button", { name: "AI" }));
     expect(await screen.findByTestId("ai-member-summary")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Usage" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Usage" }),
+    ).not.toBeInTheDocument();
     expect(usageHits).toBe(0);
   });
 
   it("opens on the requested tab", async () => {
-    server.use(http.get(route("/status"), () => ok(aiStatus({ canManage: false }))));
+    server.use(
+      http.get(route("/status"), () => ok(aiStatus({ canManage: false }))),
+    );
     renderSettings("AI");
     expect(await screen.findByTestId("ai-member-summary")).toBeInTheDocument();
   });
@@ -152,9 +164,13 @@ describe("WorkspaceUsagePanel", () => {
     render(<WorkspaceUsagePanel workspaceId={WS} />);
 
     await screen.findByTestId("usage-table");
-    expect(screen.getByTestId("usage-tile-All features")).toHaveTextContent("2 calls");
+    expect(screen.getByTestId("usage-tile-All features")).toHaveTextContent(
+      "2 calls",
+    );
     expect(screen.getByTestId("usage-row-a")).toHaveTextContent("$0.0123");
-    expect(screen.getByTestId("usage-row-a")).toHaveTextContent("100 in / 50 out");
+    expect(screen.getByTestId("usage-row-a")).toHaveTextContent(
+      "100 in / 50 out",
+    );
     expect(screen.getByTestId("usage-row-b")).toHaveTextContent("12.5 s");
     expect(screen.getByTestId("usage-row-b")).toHaveTextContent("—");
   });
@@ -182,12 +198,16 @@ describe("WorkspaceUsagePanel", () => {
 
     await screen.findByTestId("usage-row-second");
     expect(screen.queryByTestId("usage-row-first")).not.toBeInTheDocument();
-    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent("Page 2");
+    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent(
+      "Page 2",
+    );
     expect(screen.getByTestId("usage-pagination-next")).toBeDisabled();
 
     await user.click(screen.getByTestId("usage-pagination-previous"));
     await screen.findByTestId("usage-row-first");
-    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent("Page 1");
+    expect(screen.getByTestId("usage-pagination-page")).toHaveTextContent(
+      "Page 1",
+    );
   });
 
   it("shows no pager when everything fits on one page", async () => {
@@ -211,25 +231,35 @@ describe("WorkspaceUsagePanel", () => {
 
     await user.click(screen.getByTestId("usage-filter-feature"));
     await user.click(screen.getByRole("option", { name: "Canvas" }));
-    await waitFor(() => expect(queries.some((q) => q.includes("feature=canvas"))).toBe(true));
+    await waitFor(() =>
+      expect(queries.some((q) => q.includes("feature=canvas"))).toBe(true),
+    );
     await user.click(screen.getByTestId("usage-filter-status"));
     await user.click(screen.getByRole("option", { name: "Error" }));
     await waitFor(() =>
-      expect(queries.some((q) => q.includes("feature=canvas") && q.includes("status=error"))).toBe(true),
+      expect(
+        queries.some(
+          (q) => q.includes("feature=canvas") && q.includes("status=error"),
+        ),
+      ).toBe(true),
     );
   });
 
   it("shows the error when the log cannot be read", async () => {
     server.use(http.get(route("/usage"), () => fail(403, "Forbidden")));
     render(<WorkspaceUsagePanel workspaceId={WS} />);
-    expect(await screen.findByTestId("usage-error")).toHaveTextContent("Forbidden");
+    expect(await screen.findByTestId("usage-error")).toHaveTextContent(
+      "Forbidden",
+    );
   });
 });
 
 describe("FreeUsagePanel", () => {
   it("shows what is left of each allowance", () => {
     server.use(
-      http.get(`${BACKEND_URL}/api/ai/me/free-usage`, () => ok(freeUsage({ docsRemaining: 3 }))),
+      http.get(`${BACKEND_URL}/api/ai/me/free-usage`, () =>
+        ok(freeUsage({ docsRemaining: 3 })),
+      ),
     );
     render(
       <FreeUsagePanel
@@ -240,8 +270,12 @@ describe("FreeUsagePanel", () => {
         })}
       />,
     );
-    expect(screen.getByTestId("free-docs")).toHaveTextContent("3 of 5 remaining");
-    expect(screen.getByTestId("free-voice")).toHaveTextContent("3 min of 10 min remaining");
+    expect(screen.getByTestId("free-docs")).toHaveTextContent(
+      "3 of 5 remaining",
+    );
+    expect(screen.getByTestId("free-voice")).toHaveTextContent(
+      "3 min of 10 min remaining",
+    );
   });
 
   it("says when an allowance is used up and when one is not configured", () => {
@@ -252,11 +286,16 @@ describe("FreeUsagePanel", () => {
     );
     render(
       <FreeUsagePanel
-        initial={freeUsage({ docsState: "exhausted", voiceState: "unconfigured" })}
+        initial={freeUsage({
+          docsState: "exhausted",
+          voiceState: "unconfigured",
+        })}
       />,
     );
     expect(screen.getByTestId("free-docs")).toHaveTextContent("Used up");
-    expect(screen.getByTestId("free-voice")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("free-voice")).toHaveTextContent(
+      "Not configured",
+    );
   });
 
   it("links the workspaces the user administers", async () => {
@@ -266,7 +305,9 @@ describe("FreeUsagePanel", () => {
         { id: "w2", slugId: 9, name: "Ops" },
       ],
     });
-    server.use(http.get(`${BACKEND_URL}/api/ai/me/free-usage`, () => ok(usage)));
+    server.use(
+      http.get(`${BACKEND_URL}/api/ai/me/free-usage`, () => ok(usage)),
+    );
     render(<FreeUsagePanel initial={usage} />);
 
     const list = screen.getByTestId("free-admin-workspaces");
@@ -292,6 +333,8 @@ describe("FreeUsagePanel", () => {
     );
     render(<FreeUsagePanel initial={freeUsage({ docsRemaining: 4 })} />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Down");
-    expect(screen.getByTestId("free-docs")).toHaveTextContent("4 of 5 remaining");
+    expect(screen.getByTestId("free-docs")).toHaveTextContent(
+      "4 of 5 remaining",
+    );
   });
 });

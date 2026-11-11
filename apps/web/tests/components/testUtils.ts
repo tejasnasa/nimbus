@@ -36,15 +36,16 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": FRONTEND_URL,
   "Access-Control-Allow-Credentials": "true",
   "Access-Control-Allow-Headers": "content-type",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
 };
 
 /**
  * Answers the CORS preflight for every API route. Register it in `beforeEach`
  * (the global `afterEach` resets msw's handler list).
  */
-export const preflight = http.options(`${BACKEND_URL}/api/*`, () =>
-  new HttpResponse(null, { status: 204, headers: corsHeaders }),
+export const preflight = http.options(
+  `${BACKEND_URL}/api/*`,
+  () => new HttpResponse(null, { status: 204, headers: corsHeaders }),
 );
 
 /**

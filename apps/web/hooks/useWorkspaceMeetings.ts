@@ -1,37 +1,28 @@
 /**
  * @module web/hooks/useWorkspaceMeetings
- * @description The settings Transcripts tab's data: the workspace's meetings,
- * newest first, paged from `GET /api/meetings`, plus loading one meeting's full
- * transcript on demand.
+ * @description The settings Meetings tab's list: the workspace's meetings,
+ * newest first, paged from `GET /api/meetings`.
  *
  * Like the usage log, the server pages by cursor and the hook remembers the
  * cursor that opened each visited page, so Previous works without page numbers
- * on the server. Transcripts are fetched only when a meeting is opened and are
- * kept for the life of the hook, so reopening one does not refetch it.
+ * on the server.
  *
- * When the viewer has a caption language, each transcript is fetched with it so
- * stored translations come back alongside the original text.
+ * The list stays current over the socket: a meeting starting, ending or having
+ * its notes written reloads the page on screen in place (no loading flash, so a
+ * row's status changes under the reader), and a deleted meeting drops out at
+ * once.
  *
- * @important Changing the language drops the cached transcripts: they hold the
- *            translations of the previous language. A response that lands after
- *            the language changed is discarded rather than cached under the new
- *            one.
+ * @important A reload triggered by the socket keeps the page the reader is on
+ *            and is discarded if they have paged since, the same generation
+ *            guard that protects explicit paging.
  */
-import type { MeetingSummaryDTO, SegmentDTO } from "@nimbus/types";
+import type { MeetingSummaryDTO } from "@nimbus/types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchMeetings, fetchSegments } from "../lib/meetingApi";
+import { fetchMeetings } from "../lib/meetingApi";
+import { socket } from "../lib/socket";
 
 /** Meetings per page. */
 export const MEETINGS_PAGE_SIZE = 10;
-
-/** Upper bound on transcript pages read for one meeting. */
-const MAX_TRANSCRIPT_PAGES = 50;
-
-/** One meeting's transcript as the panel renders it. */
-export type TranscriptState =
-  | { kind: "loading" }
-  | { kind: "ready"; segments: SegmentDTO[] }
-  | { kind: "error"; message: string };
 
 export type UseWorkspaceMeetings = {
   meetings: MeetingSummaryDTO[];
@@ -43,20 +34,14 @@ export type UseWorkspaceMeetings = {
   error: string | null;
   nextPage: () => Promise<void>;
   previousPage: () => Promise<void>;
-  /** Transcripts fetched so far, by meeting id. */
-  transcripts: Record<string, TranscriptState>;
-  /** Fetches a meeting's whole transcript, once. */
-  loadTranscript: (meetingId: string) => Promise<void>;
 };
 
 /**
  * @param workspaceId - The workspace cuid.
- * @param language - The viewer's caption language, or null for the original only.
- * @returns The page of meetings, paging handlers and the transcript cache.
+ * @returns The page of meetings and the paging handlers.
  */
 export function useWorkspaceMeetings(
   workspaceId: string,
-  language: string | null = null,
 ): UseWorkspaceMeetings {
   const [meetings, setMeetings] = useState<MeetingSummaryDTO[]>([]);
   // `cursors[i]` opened page i + 1; the first page has no cursor.
@@ -64,21 +49,17 @@ export function useWorkspaceMeetings(
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [transcripts, setTranscripts] = useState<
-    Record<string, TranscriptState>
-  >({});
-  // Meetings whose transcript is loaded or loading; a failure is removed so
-  // opening the meeting again retries.
-  const requested = useRef(new Set<string>());
   // Guards against an older page landing after a newer request.
   const generation = useRef(0);
-  const languageRef = useRef(language);
+  const cursorsRef = useRef(cursors);
 
   const loadPage = useCallback(
-    async (stack: Array<string | null>) => {
+    async (stack: Array<string | null>, quiet = false) => {
       const mine = ++generation.current;
-      setLoading(true);
-      setError(null);
+      if (!quiet) {
+        setLoading(true);
+        setError(null);
+      }
       const result = await fetchMeetings(
         workspaceId,
         stack[stack.length - 1] ?? null,
@@ -89,16 +70,34 @@ export function useWorkspaceMeetings(
         setMeetings(result.data.meetings);
         setNextCursor(result.data.nextCursor);
         setCursors(stack);
-      } else {
+        cursorsRef.current = stack;
+      } else if (!quiet) {
         setError(result.message);
       }
-      setLoading(false);
+      if (!quiet) setLoading(false);
     },
     [workspaceId],
   );
 
   useEffect(() => {
     void loadPage([null]);
+  }, [loadPage]);
+
+  useEffect(() => {
+    const reload = () => void loadPage(cursorsRef.current, true);
+    const onDeleted = ({ meetingId }: { meetingId: string }) => {
+      setMeetings((rows) => rows.filter((row) => row.id !== meetingId));
+    };
+    socket.on("meeting:started", reload);
+    socket.on("meeting:ended", reload);
+    socket.on("meeting:notes-ready", reload);
+    socket.on("meeting:deleted", onDeleted);
+    return () => {
+      socket.off("meeting:started", reload);
+      socket.off("meeting:ended", reload);
+      socket.off("meeting:notes-ready", reload);
+      socket.off("meeting:deleted", onDeleted);
+    };
   }, [loadPage]);
 
   const nextPage = useCallback(async () => {
@@ -111,46 +110,6 @@ export function useWorkspaceMeetings(
     await loadPage(cursors.slice(0, -1));
   }, [cursors, loadPage]);
 
-  useEffect(() => {
-    languageRef.current = language;
-    requested.current.clear();
-    setTranscripts({});
-  }, [language]);
-
-  const loadTranscript = useCallback(
-    async (meetingId: string) => {
-      if (requested.current.has(meetingId)) return;
-      requested.current.add(meetingId);
-      const asked = language;
-      const stale = () => languageRef.current !== asked;
-      setTranscripts((t) => ({ ...t, [meetingId]: { kind: "loading" } }));
-
-      const segments: SegmentDTO[] = [];
-      let after = 0;
-      for (let page = 0; page < MAX_TRANSCRIPT_PAGES; page++) {
-        const result = await fetchSegments(meetingId, after, asked);
-        if (stale()) return;
-        if (!result.ok) {
-          requested.current.delete(meetingId);
-          setTranscripts((t) => ({
-            ...t,
-            [meetingId]: { kind: "error", message: result.message },
-          }));
-          return;
-        }
-        segments.push(...result.data.segments);
-        const last = result.data.segments[result.data.segments.length - 1];
-        if (!result.data.hasMore || !last) break;
-        after = last.seq;
-      }
-      setTranscripts((t) => ({
-        ...t,
-        [meetingId]: { kind: "ready", segments },
-      }));
-    },
-    [language],
-  );
-
   return {
     meetings,
     page: cursors.length,
@@ -160,7 +119,5 @@ export function useWorkspaceMeetings(
     error,
     nextPage,
     previousPage,
-    transcripts,
-    loadTranscript,
   };
 }

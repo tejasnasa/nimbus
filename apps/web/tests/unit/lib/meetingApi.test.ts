@@ -6,9 +6,16 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  deleteMeeting,
+  drawMeetingDiagram,
+  fetchActionItems,
+  fetchCatchUp,
   fetchLiveMeeting,
+  fetchMeetingDetail,
   fetchMeetings,
   fetchSegments,
+  patchActionItem,
+  searchMeetings,
   startAssistant,
   stopAssistant,
 } from "../../../lib/meetingApi";
@@ -174,5 +181,81 @@ describe("lib/meetingApi", () => {
       message: "Something went wrong. Please try again.",
       refusal: null,
     });
+  });
+
+  it("reads one meeting, its catch-up and posts a diagram request by id", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { id: "m/1" } }),
+    );
+
+    await fetchMeetingDetail("m/1");
+    await fetchCatchUp("m/1");
+    await drawMeetingDiagram("m/1");
+
+    expect(fetchMock.mock.calls.map((c) => [c[0], c[1].method])).toEqual([
+      ["http://api.test/api/meetings/m%2F1", undefined],
+      ["http://api.test/api/meetings/m%2F1/catch-up", undefined],
+      ["http://api.test/api/meetings/m%2F1/diagram", "POST"],
+    ]);
+  });
+
+  it("searches with the workspace, query and limit", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { hits: [] } }),
+    );
+
+    await searchMeetings("w1", "launch plan");
+    await searchMeetings("w1", "x", 5);
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://api.test/api/meetings/search?workspaceId=w1&q=launch+plan&limit=20",
+    );
+    expect(fetchMock.mock.calls[1]![0]).toContain("limit=5");
+  });
+
+  it("deletes a meeting by id", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { meetingId: "m1" } }),
+    );
+
+    const result = await deleteMeeting("m1");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/meetings/m1");
+    expect(init.method).toBe("DELETE");
+    expect(result.ok).toBe(true);
+  });
+
+  it("lists action items for each filter and cursor", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({
+        success: true,
+        responseObject: { items: [], nextCursor: null },
+      }),
+    );
+
+    await fetchActionItems("w1", { status: "open", mine: true }, null, 20);
+    await fetchActionItems("w1", { status: "all", mine: false }, "a-9", 20);
+
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      "http://api.test/api/action-items?workspaceId=w1&status=open&limit=20&owner=me",
+    );
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      "http://api.test/api/action-items?workspaceId=w1&status=all&limit=20&cursor=a-9",
+    );
+  });
+
+  it("patches an action item with only the changed fields", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { id: "a/1" } }),
+    );
+
+    await patchActionItem("a/1", { dueDate: null, status: "DONE" });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/action-items/a%2F1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ dueDate: null, status: "DONE" });
+    expect(init.headers).toEqual({ "content-type": "application/json" });
   });
 });

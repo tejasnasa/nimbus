@@ -1,7 +1,8 @@
 /**
  * @module web/components/VoiceControls
  * @description Body of the voice call card. Before the user joins it shows who
- * is already on the call (from the server's roster) and a **Join call** button;
+ * is already on the call (from the server's roster) and a **Start meeting**
+ * button, or **Join meeting** when someone is already there;
  * once in, an overlapping avatar stack of the participants (a green ring while
  * someone speaks, a red dot while they are muted, a badge on the assistant),
  * the mute, deafen and leave controls, the assistant's start and stop control
@@ -87,7 +88,13 @@ export default function VoiceControls() {
           disabled={isJoining}
           className={`${JOIN_BUTTON_CLASS} self-start`}
         >
-          {canRejoin ? "Rejoin" : isJoining ? "Joining..." : "Join call"}
+          {canRejoin
+            ? "Rejoin"
+            : isJoining
+              ? "Joining..."
+              : voiceUsers.length > 0
+                ? "Join meeting"
+                : "Start meeting"}
         </button>
         {errorMessage}
       </div>

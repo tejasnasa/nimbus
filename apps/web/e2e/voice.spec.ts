@@ -15,6 +15,9 @@ import { resolve } from "node:path";
 
 const room = `/workspace/${e2eState.workspace.slugId}`;
 
+/** The call card's entry button: Start meeting when the call is empty, Join meeting once someone is on it. */
+const ENTER_CALL = /^(Start|Join) meeting$/;
+
 test.use({
   launchOptions: {
     args: [
@@ -46,46 +49,66 @@ test.describe("voice call", () => {
       for (const { page } of [owner, member]) {
         await page.getByTestId("voice-dock-toggle").click();
       }
-      await expect(owner.page.getByRole("button", { name: "Join call" })).toBeVisible();
-      await expect(member.page.getByRole("button", { name: "Join call" })).toBeVisible();
+      await expect(
+        owner.page.getByRole("button", { name: ENTER_CALL }),
+      ).toBeVisible();
+      await expect(
+        member.page.getByRole("button", { name: ENTER_CALL }),
+      ).toBeVisible();
 
-      await owner.page.getByRole("button", { name: "Join call" }).click();
-      await member.page.getByRole("button", { name: "Join call" }).click();
+      await owner.page.getByRole("button", { name: ENTER_CALL }).click();
+      await member.page.getByRole("button", { name: ENTER_CALL }).click();
 
       // Each sees both people, and the Join button has become the call controls.
       for (const { page } of [owner, member]) {
         await expect(page.getByTestId("call-participant")).toHaveCount(2, {
           timeout: 30_000,
         });
-        await expect(page.getByRole("button", { name: "Leave call" })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Join call" })).toHaveCount(0);
+        await expect(
+          page.getByRole("button", { name: "Leave call" }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("button", { name: ENTER_CALL }),
+        ).toHaveCount(0);
       }
 
       // Everyone joins muted.
       for (const { page } of [owner, member]) {
-        await expect(page.locator('[data-testid="call-participant"][data-muted="false"]')).toHaveCount(0);
+        await expect(
+          page.locator('[data-testid="call-participant"][data-muted="false"]'),
+        ).toHaveCount(0);
       }
 
       // The member unmutes: the owner's view of the member changes.
-      await member.page.getByRole("button", { name: "Unmute Microphone" }).click();
+      await member.page
+        .getByRole("button", { name: "Unmute Microphone" })
+        .click();
       await expect(
         member.page.getByRole("button", { name: "Mute Microphone" }),
       ).toBeVisible();
       await expect(
-        owner.page.locator('[data-testid="call-participant"][data-muted="false"]'),
+        owner.page.locator(
+          '[data-testid="call-participant"][data-muted="false"]',
+        ),
       ).toHaveCount(1);
 
       // And back.
-      await member.page.getByRole("button", { name: "Mute Microphone" }).click();
+      await member.page
+        .getByRole("button", { name: "Mute Microphone" })
+        .click();
       await expect(
-        owner.page.locator('[data-testid="call-participant"][data-muted="false"]'),
+        owner.page.locator(
+          '[data-testid="call-participant"][data-muted="false"]',
+        ),
       ).toHaveCount(0);
 
       // The member leaves: the owner is alone on the call, and the member can
       // join again.
       await member.page.getByRole("button", { name: "Leave call" }).click();
       await expect(owner.page.getByTestId("call-participant")).toHaveCount(1);
-      await expect(member.page.getByRole("button", { name: "Join call" })).toBeVisible();
+      await expect(
+        member.page.getByRole("button", { name: ENTER_CALL }),
+      ).toBeVisible();
     } finally {
       await owner.context.close();
       await member.context.close();

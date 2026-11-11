@@ -20,6 +20,9 @@ import { resolve } from "node:path";
 
 const room = `/workspace/${e2eState.workspace.slugId}`;
 
+/** The call card's entry button: Start meeting when the call is empty, Join meeting once someone is on it. */
+const ENTER_CALL = /^(Start|Join) meeting$/;
+
 const SPEECH = resolve(
   import.meta.dirname,
   "../../agent/src/__tests__/fixtures/speech.wav",
@@ -45,12 +48,14 @@ test.describe("in-call assistant", () => {
     await memberPage.goto(room);
 
     // The assistant cannot be started from outside the call.
-    await expect(page.getByRole("button", { name: "Start Nimbus" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Start Nimbus" }),
+    ).toHaveCount(0);
 
     await page.getByTestId("voice-dock-toggle").click();
     await memberPage.getByTestId("voice-dock-toggle").click();
-    await page.getByRole("button", { name: "Join call" }).click();
-    await memberPage.getByRole("button", { name: "Join call" }).click();
+    await page.getByRole("button", { name: ENTER_CALL }).click();
+    await memberPage.getByRole("button", { name: ENTER_CALL }).click();
     await expect(page.getByTestId("call-participant")).toHaveCount(2, {
       timeout: 30_000,
     });
@@ -77,7 +82,9 @@ test.describe("in-call assistant", () => {
 
     // Stopping returns the button to its starting state on both screens.
     await page.getByRole("button", { name: "Stop Nimbus" }).click();
-    await expect(page.getByRole("button", { name: "Start Nimbus" })).toBeVisible({
+    await expect(
+      page.getByRole("button", { name: "Start Nimbus" }),
+    ).toBeVisible({
       timeout: 30_000,
     });
     await expect(memberPage.getByTestId("captions")).toHaveCount(0);

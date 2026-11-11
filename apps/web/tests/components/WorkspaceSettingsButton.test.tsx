@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Workspace } from "@nimbus/types";
 import WorkspaceSettingsButton from "../../components/WorkspaceSettingsButton";
+import { WorkspaceSettingsProvider } from "../../components/WorkspaceSettingsContext";
 import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
 
 vi.mock("next/navigation", () => ({
@@ -32,7 +33,9 @@ const workspace: Workspace = {
 function renderButton() {
   return render(
     <DocEditorRefProvider>
-      <WorkspaceSettingsButton workspace={workspace} documents={[]} />
+      <WorkspaceSettingsProvider workspace={workspace} documents={[]}>
+        <WorkspaceSettingsButton />
+      </WorkspaceSettingsProvider>
     </DocEditorRefProvider>,
   );
 }

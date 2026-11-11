@@ -1,7 +1,7 @@
 /**
  * @module web/tests/components/VoiceControls
  * @description The call card body. Before joining it shows who is already on
- * the call and a Join call button; once in, the participants as an avatar stack
+ * the call and a Start or Join meeting button; once in, the participants as an avatar stack
  * with their mute and speaking state, and the mute, deafen and leave controls
  * (whose labels must reflect the current state). Provider errors are shown
  * inline and a dropped call offers Rejoin.
@@ -48,7 +48,9 @@ const initialVoice = () => ({
 });
 
 /** Mutable voice state the mocked `useVoice()` reads on every render. */
-const voice = vi.hoisted(() => ({ current: {} as ReturnType<typeof initialVoice> }));
+const voice = vi.hoisted(() => ({
+  current: {} as ReturnType<typeof initialVoice>,
+}));
 
 vi.mock("../../providers/VoiceProvider", () => ({
   useVoice: () => voice.current,
@@ -86,15 +88,33 @@ beforeEach(() => {
 });
 
 describe("VoiceControls: before joining", () => {
-  it("offers a Join call button", async () => {
+  it("offers Start meeting while nobody is on the call", async () => {
     const user = userEvent.setup();
     renderControls();
 
-    await user.click(screen.getByRole("button", { name: "Join call" }));
+    await user.click(screen.getByRole("button", { name: "Start meeting" }));
 
     expect(voice.current.join).toHaveBeenCalledTimes(1);
     expect(
+      screen.queryByRole("button", { name: "Join meeting" }),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByRole("button", { name: "Mute Microphone" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers Join meeting once someone is on the call", async () => {
+    const user = userEvent.setup();
+    voice.current.voiceUsers = [
+      { userId: "user-2", name: "Grace Hopper", image: null },
+    ];
+    renderControls();
+
+    await user.click(screen.getByRole("button", { name: "Join meeting" }));
+
+    expect(voice.current.join).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: "Start meeting" }),
     ).not.toBeInTheDocument();
   });
 
@@ -164,7 +184,7 @@ describe("VoiceControls: before joining", () => {
     renderControls();
 
     expect(
-      screen.queryByRole("button", { name: "Join call" }),
+      screen.queryByRole("button", { name: "Start meeting" }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Rejoin" }));
 
@@ -173,12 +193,12 @@ describe("VoiceControls: before joining", () => {
 });
 
 describe("VoiceControls: in the call", () => {
-  it("replaces Join call with the call controls", () => {
+  it("replaces Start meeting with the call controls", () => {
     connect();
     renderControls();
 
     expect(
-      screen.queryByRole("button", { name: "Join call" }),
+      screen.queryByRole("button", { name: "Start meeting" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Leave call" }),
@@ -337,9 +357,7 @@ describe("VoiceControls: in the call", () => {
     expect(
       screen.getByRole("button", { name: "Mute Microphone" }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Leave call" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Leave call" })).toBeEnabled();
   });
 
   it("shows a refused microphone inline", () => {

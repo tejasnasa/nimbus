@@ -3,7 +3,7 @@
  * @description How a viewer wants live captions to look (text size, contrast,
  * number of lines) and which language they want to read them in, remembered
  * per user in the browser. Edited from the workspace settings Captions tab and
- * read by the captions bar over the call and by the Transcripts tab.
+ * read by the captions bar over the call and by the Meetings tab.
  *
  * Every instance of the hook stays in step: a change broadcasts a window event
  * so a captions bar already on screen restyles while the settings dialog is

@@ -8,13 +8,18 @@
  * Earlier lines are paged in by the meeting hook (`afterSeq`), so a person who
  * joins mid-meeting sees the conversation so far.
  *
+ * A "Catch me up" button beside the toggle asks the server for a short summary
+ * of the meeting so far and shows it in place.
+ *
  * @important The panel renders nothing when there is no transcript to show, so
  *            a call without the assistant gains no empty chrome.
  */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useCatchUp } from "../../hooks/useCatchUp";
 import { useAssistant } from "../../providers/MeetingProvider";
+import CatchUpSummary from "./CatchUpSummary";
 
 /** Formats milliseconds into the meeting as `m:ss`. */
 export function formatOffset(ms: number): string {
@@ -27,6 +32,7 @@ export function formatOffset(ms: number): string {
 export default function LiveTranscript() {
   const { segments, meeting } = useAssistant();
   const [open, setOpen] = useState(false);
+  const catchUp = useCatchUp(meeting?.id ?? null);
   const listRef = useRef<HTMLUListElement>(null);
   const pinnedRef = useRef(true);
 
@@ -39,14 +45,30 @@ export default function LiveTranscript() {
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="self-start text-xs font-semibold text-(--muted-foreground) hover:cursor-pointer hover:text-(--foreground)"
-      >
-        {open ? "Hide transcript" : `Show transcript (${segments.length})`}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="text-xs font-semibold text-(--muted-foreground) hover:cursor-pointer hover:text-(--foreground)"
+        >
+          {open ? "Hide transcript" : `Show transcript (${segments.length})`}
+        </button>
+        {meeting && (
+          <button
+            type="button"
+            onClick={() => void catchUp.load()}
+            disabled={catchUp.state.kind === "loading"}
+            className="text-xs font-semibold text-(--primary) hover:cursor-pointer hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Catch me up
+          </button>
+        )}
+      </div>
+      <CatchUpSummary
+        state={catchUp.state}
+        onRetry={() => void catchUp.load()}
+      />
       {open && (
         <ul
           ref={listRef}

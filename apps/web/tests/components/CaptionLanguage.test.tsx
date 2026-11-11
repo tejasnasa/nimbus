@@ -6,7 +6,7 @@
  * flight and revealing the original on hover or focus, the language being
  * reported to the server when it or the meeting changes, after a reconnect and
  * when changed from the settings tab mid-call, live translations landing in
- * meeting state, and stored translations in the Transcripts tab.
+ * meeting state, and stored translations in the Meetings tab.
  */
 import "./testUtils";
 import type { MeetingDTO, SegmentDTO } from "@nimbus/types";
@@ -16,6 +16,7 @@ import {
   render,
   renderHook,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -58,10 +59,12 @@ vi.mock("../../providers/VoiceProvider", () => ({
 
 import CaptionSettingsPanel from "../../components/CaptionSettingsPanel";
 import CaptionsBar from "../../components/meeting/CaptionsBar";
-import WorkspaceTranscriptsPanel from "../../components/WorkspaceTranscriptsPanel";
+import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
+import WorkspaceMeetingsPanel from "../../components/WorkspaceMeetingsPanel";
 import { prefsKey, readPrefs } from "../../hooks/useCaptionPrefs";
 import { translationKey, useMeeting } from "../../hooks/useMeeting";
 import { BACKEND_URL, ok } from "../msw/handlers";
+import { meetingDetail } from "../msw/meetingFixtures";
 import { server } from "../msw/server";
 import { preflight } from "./testUtils";
 
@@ -329,7 +332,7 @@ describe("useMeeting translations", () => {
   });
 });
 
-describe("Transcripts tab translations", () => {
+describe("Meetings tab translations", () => {
   const WS = "cm_workspace_0000000000000";
   const summary = {
     id: "m-1",
@@ -344,12 +347,29 @@ describe("Transcripts tab translations", () => {
     lastSeq: 2,
     startedByName: "Ada",
     segmentCount: 2,
+    title: null,
+    notesDocumentId: null,
   };
+  const detailRoute = http.get(`${BACKEND_URL}/api/meetings/m-1`, () =>
+    ok(meetingDetail()),
+  );
+  const openMeeting = async (user: ReturnType<typeof userEvent.setup>) => {
+    const row = await screen.findByTestId("meeting-row-m-1");
+    await user.click(within(row).getByRole("button"));
+  };
+  const renderPanel = (extra?: React.ReactNode) =>
+    render(
+      <DocEditorRefProvider>
+        {extra}
+        <WorkspaceMeetingsPanel workspaceId={WS} userId="u1" />
+      </DocEditorRefProvider>,
+    );
 
   it("asks for the viewer's language and shows stored translations, original otherwise", async () => {
     storeLanguage("hi");
     const urls: string[] = [];
     server.use(
+      detailRoute,
       http.get(`${BACKEND_URL}/api/meetings`, () =>
         ok({ meetings: [summary], nextCursor: null }),
       ),
@@ -364,21 +384,24 @@ describe("Transcripts tab translations", () => {
         });
       }),
     );
-    render(<WorkspaceTranscriptsPanel workspaceId={WS} userId="u1" />);
+    renderPanel();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { expanded: false }));
+    await openMeeting(user);
 
     const lines = await screen.findByTestId("transcript-lines");
     expect(lines).toHaveTextContent("Ada: एक");
     expect(lines).toHaveTextContent("Ada: line 2");
     expect(lines).not.toHaveTextContent("line 1");
-    expect(new URL(urls[0]!).searchParams.get("language")).toBe("hi");
+    // The stored preference is read after the first render, so an earlier read in
+    // the original may have been superseded.
+    expect(new URL(urls.at(-1)!).searchParams.get("language")).toBe("hi");
   });
 
   it("asks for no language when none is chosen", async () => {
     const urls: string[] = [];
     server.use(
+      detailRoute,
       http.get(`${BACKEND_URL}/api/meetings`, () =>
         ok({ meetings: [summary], nextCursor: null }),
       ),
@@ -387,10 +410,10 @@ describe("Transcripts tab translations", () => {
         return ok({ segments: [seg(1)], hasMore: false });
       }),
     );
-    render(<WorkspaceTranscriptsPanel workspaceId={WS} userId="u1" />);
+    renderPanel();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { expanded: false }));
+    await openMeeting(user);
     await screen.findByTestId("transcript-lines");
 
     expect(new URL(urls[0]!).searchParams.has("language")).toBe(false);
@@ -399,6 +422,7 @@ describe("Transcripts tab translations", () => {
   it("reloads an open transcript when the caption language changes", async () => {
     const languages: Array<string | null> = [];
     server.use(
+      detailRoute,
       http.get(`${BACKEND_URL}/api/meetings`, () =>
         ok({ meetings: [summary], nextCursor: null }),
       ),
@@ -411,15 +435,10 @@ describe("Transcripts tab translations", () => {
         });
       }),
     );
-    render(
-      <>
-        <CaptionSettingsPanel userId="u1" />
-        <WorkspaceTranscriptsPanel workspaceId={WS} userId="u1" />
-      </>,
-    );
+    renderPanel(<CaptionSettingsPanel userId="u1" />);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { expanded: false }));
+    await openMeeting(user);
     expect(await screen.findByTestId("transcript-lines")).toHaveTextContent(
       "line 1",
     );

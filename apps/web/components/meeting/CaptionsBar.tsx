@@ -10,6 +10,9 @@
  * once it arrives and the original text until then. Hovering or focusing a
  * translated line shows the original beneath it.
  *
+ * Above the captions, a dismissible "Catch me up" card (`CatchUpCard`) is offered
+ * once the meeting is more than two minutes old.
+ *
  * Mounting the bar is what subscribes the viewer to translation: it reports the
  * chosen language to the server for as long as it is on screen, including when
  * the choice is changed from the settings tab during the call.
@@ -32,6 +35,7 @@ import {
 import { translationKey } from "../../hooks/useMeeting";
 import { useAssistant } from "../../providers/MeetingProvider";
 import { useVoice } from "../../providers/VoiceProvider";
+import CatchUpCard from "./CatchUpCard";
 
 /**
  * One caption. A translated line is focusable so keyboard and touch users can
@@ -100,6 +104,7 @@ export default function CaptionsBar() {
 
   return (
     <div className="absolute bottom-6 left-1/2 z-50 w-[min(42rem,calc(100%-2rem))] -translate-x-1/2">
+      <CatchUpCard />
       <div
         className={`rounded-xl border p-3 shadow-lg backdrop-blur-md ${surface}`}
       >

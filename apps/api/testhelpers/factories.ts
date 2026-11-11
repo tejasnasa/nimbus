@@ -37,7 +37,10 @@ export const createUser = async (name = "Test User") => {
  * @param ownerId - User who becomes the sole OWNER.
  * @param name - Display name (schema only requires a non-empty string).
  */
-export const createWorkspace = async (ownerId: string, name = "Test Workspace") =>
+export const createWorkspace = async (
+  ownerId: string,
+  name = "Test Workspace",
+) =>
   testPrisma.workspace.create({
     data: {
       name,
@@ -67,7 +70,7 @@ export const addMember = async (
  * Creates a document inside a workspace.
  *
  * @param workspaceId - Owning workspace.
- * @param overrides - Optional title/type/canvasData/initialContent.
+ * @param overrides - Optional title/type/canvasData/initialContent/searchText.
  */
 export const createDocument = async (
   workspaceId: string,
@@ -75,6 +78,8 @@ export const createDocument = async (
     title?: string;
     type?: "CANVAS" | "MARKDOWN";
     initialContent?: string | null;
+    searchText?: string | null;
+    canvasData?: object[];
   } = {},
 ) =>
   testPrisma.document.create({
@@ -82,8 +87,9 @@ export const createDocument = async (
       title: overrides.title ?? "Test Document",
       type: overrides.type ?? "CANVAS",
       workspaceId,
-      canvasData: [],
+      canvasData: overrides.canvasData ?? [],
       initialContent: overrides.initialContent ?? null,
+      searchText: overrides.searchText ?? null,
     },
   });
 

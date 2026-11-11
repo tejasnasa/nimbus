@@ -102,6 +102,24 @@ describe("deployed schema — Document columns", () => {
     expect(initialContent.is_nullable).toBe("YES");
   });
 
+  it("generates a GIN-indexed search vector from the body text and the title", async () => {
+    const searchText = await column("Document", "searchText");
+    expect(searchText.data_type).toBe("text");
+    expect(searchText.is_nullable).toBe("YES");
+    expect((await column("Document", "search")).udt_name).toBe("tsvector");
+
+    const [generated] = await client.$queryRaw<{ is_generated: string }[]>`
+      SELECT is_generated FROM information_schema.columns
+      WHERE table_name = 'Document' AND column_name = 'search'
+    `;
+    expect(generated!.is_generated).toBe("ALWAYS");
+
+    const [index] = await client.$queryRaw<{ indexdef: string }[]>`
+      SELECT indexdef FROM pg_indexes WHERE indexname = 'Document_search_idx'
+    `;
+    expect(index!.indexdef).toContain("USING gin");
+  });
+
   it("types the document kind as the DocumentType enum, defaulting to CANVAS", async () => {
     const type = await column("Document", "type");
     expect(type.udt_name).toBe("DocumentType");
@@ -213,14 +231,8 @@ describe("deployed schema — referential actions", () => {
     ["account", "account_userId_fkey"],
     ["ai_credential", "ai_credential_userId_fkey"],
     ["ai_feature_preference", "ai_feature_preference_userId_fkey"],
-    [
-      "workspace_ai_credential",
-      "workspace_ai_credential_workspaceId_fkey",
-    ],
-    [
-      "workspace_ai_preference",
-      "workspace_ai_preference_workspaceId_fkey",
-    ],
+    ["workspace_ai_credential", "workspace_ai_credential_workspaceId_fkey"],
+    ["workspace_ai_preference", "workspace_ai_preference_workspaceId_fkey"],
     ["workspace_ai_settings", "workspace_ai_settings_workspaceId_fkey"],
     ["ai_call", "ai_call_workspaceId_fkey"],
   ])("%s.%s deletes children with the parent", async (table, constraint) => {
@@ -335,7 +347,9 @@ describe("deployed schema — workspace AI tables", () => {
   });
 
   it("adds the voice counter with a default of zero", async () => {
-    const column = await client.$queryRaw<{ udt_name: string; column_default: string | null }[]>`
+    const column = await client.$queryRaw<
+      { udt_name: string; column_default: string | null }[]
+    >`
       SELECT udt_name, column_default FROM information_schema.columns
       WHERE table_name = 'user' AND column_name = 'freeVoiceSecondsUsed'
     `;

@@ -38,7 +38,18 @@ export const startTestServer = async (): Promise<TestServer> => {
     url: `http://127.0.0.1:${port}`,
     port,
     close: async () => {
+      // Disconnect handlers are async (presence clean-up, then a broadcast that
+      // publishes through the Redis adapter). Closing before they finish lets a
+      // suite's teardown quit Redis under them, which Vitest reports as an
+      // unhandled "Connection is closed" even though every test passed. So wait
+      // for clients the tests closed to be gone, and let the handlers that
+      // `io.close()` itself triggers settle before returning.
+      const deadline = Date.now() + 2_000;
+      while (io.of("/").sockets.size > 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
       await io.close();
+      await new Promise((resolve) => setTimeout(resolve, 150));
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     },
   };

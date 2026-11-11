@@ -4,6 +4,7 @@
  * messages: avatar + name on the left, muted bubble underneath. Timestamp
  * reveals on hover. Pair with `ChatMsgB` for the current user's messages.
  */
+import type { ReactNode } from "react";
 import Avatar from "./Avatar";
 import ChatImage from "./ChatImage";
 
@@ -14,6 +15,9 @@ import ChatImage from "./ChatImage";
  * @param props.image - Sender avatar URL.
  * @param props.message - Plain-text content (whitespace preserved). The text
  *                       bubble is omitted when it is empty and an image is set.
+ * @param props.content - Rich replacement for `message` (for example text with
+ *                       links); `message` is then only used to decide whether
+ *                       the bubble shows.
  * @param props.imageUrl - Attached image, shown as a thumbnail above the text.
  * @param props.time - Pre-formatted timestamp, shown on hover.
  * @param props.isOnline - Toggles the avatar presence dot.
@@ -23,14 +27,16 @@ export default function ChatMsgA({
   name,
   image,
   message,
+  content,
   imageUrl,
   time,
   isOnline,
-  isBot
+  isBot,
 }: {
   name: string;
   image: string;
   message: string;
+  content?: ReactNode;
   imageUrl?: string | null;
   time: string;
   isOnline?: boolean;
@@ -61,7 +67,7 @@ export default function ChatMsgA({
         {imageUrl && <ChatImage url={imageUrl} />}
         {(message || !imageUrl) && (
           <div className="text-xs leading-relaxed px-3 py-1.5 rounded-xl rounded-tl-sm bg-(--muted)/40 w-fit max-w-[85%] whitespace-pre-wrap wrap-break-word">
-            {message}
+            {content ?? message}
           </div>
         )}
       </div>

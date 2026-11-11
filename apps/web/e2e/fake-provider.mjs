@@ -19,6 +19,11 @@
  * generation overlay is observable, with a three-node diagram. Everything else
  * on `/responses` still gets the plain "ok".
  *
+ * Meeting notes are recognised by their instructions ("write the notes for a
+ * meeting"): a non-streamed JSON-mode call carrying them is answered with a
+ * fixed, valid set of notes whose action items name the two seeded users, so a
+ * browser test can assert on the decisions, owners and document that follow.
+ *
  * The in-call assistant is driven by a token containing `agent`: its
  * transcription requests are answered with a fixed sentence, whatever audio was
  * sent, so a browser test can assert that a caption appears without a real
@@ -61,6 +66,25 @@ const DIAGRAM = JSON.stringify({
     { from: "client", to: "api" },
     { from: "api", to: "db" },
   ],
+});
+
+/** The notes the fake model writes for any meeting transcript it is sent. */
+const MEETING_NOTES = JSON.stringify({
+  title: "E2E launch sync",
+  summary:
+    "The team agreed to ship the launch on Friday and to write a rollback plan.",
+  decisions: [{ text: "Ship the launch on Friday", sourceSeq: 1 }],
+  actionItems: [
+    {
+      text: "Update the changelog",
+      ownerName: "E2E Member",
+      due: "2026-12-04",
+      sourceSeq: 2,
+    },
+    { text: "Write the rollback plan", ownerName: "E2E Owner", sourceSeq: 4 },
+  ],
+  openQuestions: ["Who reviews the rollback plan?"],
+  topics: ["launch", "rollback"],
 });
 
 /** What the fake speech model hears when the assistant sends it audio. */
@@ -114,7 +138,11 @@ const streamDiagram = async (res) => {
 
 const send = (res, status, body, type = "application/json") => {
   res.writeHead(status, { "content-type": type });
-  res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
+  res.end(
+    typeof body === "string" || Buffer.isBuffer(body)
+      ? body
+      : JSON.stringify(body),
+  );
 };
 
 const server = createServer(async (req, res) => {
@@ -127,7 +155,9 @@ const server = createServer(async (req, res) => {
   const path = (req.url ?? "").split("?")[0];
 
   if (token.includes("rejected")) {
-    return send(res, 401, { error: { message: "Incorrect API key provided." } });
+    return send(res, 401, {
+      error: { message: "Incorrect API key provided." },
+    });
   }
 
   if (req.method === "POST" && path === "/responses") {
@@ -159,6 +189,31 @@ const server = createServer(async (req, res) => {
         usage: { input_tokens: 300, output_tokens: 30, total_tokens: 330 },
       });
     }
+    if (
+      body?.stream !== true &&
+      body?.text?.format?.type === "json_object" &&
+      String(body?.instructions ?? "").includes("write the notes for a meeting")
+    ) {
+      return send(res, 200, {
+        id: "resp_fake",
+        object: "response",
+        created_at: 0,
+        status: "completed",
+        model: "fake",
+        output: [
+          {
+            type: "message",
+            id: "msg_fake",
+            role: "assistant",
+            status: "completed",
+            content: [
+              { type: "output_text", text: MEETING_NOTES, annotations: [] },
+            ],
+          },
+        ],
+        usage: { input_tokens: 400, output_tokens: 120, total_tokens: 520 },
+      });
+    }
     if (body?.stream === true && body?.text?.format?.type === "json_object") {
       return streamDiagram(res);
     }
@@ -182,7 +237,9 @@ const server = createServer(async (req, res) => {
   }
 
   if (token.includes("no-audio") && path.startsWith("/audio/")) {
-    return send(res, 403, { error: { message: "Audio is not enabled for this key." } });
+    return send(res, 403, {
+      error: { message: "Audio is not enabled for this key." },
+    });
   }
 
   if (req.method === "POST" && path === "/audio/transcriptions") {
@@ -192,7 +249,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && path === "/audio/speech") {
-    return send(res, 200, Buffer.from([0, 0, 1, 0, 2, 0, 3, 0]), "application/octet-stream");
+    return send(
+      res,
+      200,
+      Buffer.from([0, 0, 1, 0, 2, 0, 3, 0]),
+      "application/octet-stream",
+    );
   }
 
   return send(res, 404, { error: { message: "Not found" } });

@@ -20,6 +20,10 @@
  *            meeting's timestamps and capped at its budget, never from anything
  *            the agent reports. {@link recoverOrphanedMeetings} re-arms it.
  *
+ * @important The meeting's notes are queued from here, a few seconds after the
+ *            transition (see `notes`), by the one caller whose update changed
+ *            the row. Queuing never blocks or fails ending.
+ *
  * @important Free seconds are charged to the user who started the meeting, per
  *            user and not per workspace, as `ceil(endedAt - startedAt)` capped
  *            at the budget handed to the agent. A counter is never lowered.
@@ -31,6 +35,7 @@ import { readVoiceQuotaLimit } from "../ai/quota";
 import { liveRoomNames, removeAgents } from "../livekit/agentRoom";
 import { pubClient } from "../redis";
 import { captionLanguagesKey } from "./captionLanguages";
+import { scheduleNotes } from "./notes";
 
 /** The slice of Socket.IO the lifecycle broadcasts through. */
 export type MeetingBroadcaster = Pick<Server, "to">;
@@ -191,6 +196,7 @@ export async function endMeeting(
       captionLanguagesKey(meetingId),
     )
     .catch(() => undefined);
+  scheduleNotes(meetingId, { io: deps.io });
   return { ended: true };
 }
 

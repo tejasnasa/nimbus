@@ -61,12 +61,16 @@ export const mintUser = async (
   }
 
   const id = signUp.body.user?.id as string | undefined;
-  if (!id) throw new Error(`sign-up returned no user: ${JSON.stringify(signUp.body)}`);
+  if (!id)
+    throw new Error(`sign-up returned no user: ${JSON.stringify(signUp.body)}`);
 
   // `requireEmailVerification` blocks sign-in until the address is verified.
   // Completing it here stands in for following the emailed link (delivery is
   // mocked — see testhelpers/setup.ts).
-  await testPrisma.user.update({ where: { id }, data: { emailVerified: true } });
+  await testPrisma.user.update({
+    where: { id },
+    data: { emailVerified: true },
+  });
 
   const signIn = await request(app)
     .post("/api/auth/sign-in/email")
@@ -92,5 +96,6 @@ export const as = (app: Express, user: TestUser) => ({
   get: (url: string) => request(app).get(url).set("Cookie", user.cookie),
   post: (url: string) => request(app).post(url).set("Cookie", user.cookie),
   put: (url: string) => request(app).put(url).set("Cookie", user.cookie),
+  patch: (url: string) => request(app).patch(url).set("Cookie", user.cookie),
   delete: (url: string) => request(app).delete(url).set("Cookie", user.cookie),
 });

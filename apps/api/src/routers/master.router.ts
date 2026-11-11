@@ -6,6 +6,7 @@
  */
 import express from "express";
 import authCheck from "../middleware/authCheck.middleware";
+import actionItemRouter from "./actionItem.router";
 import aiRouter from "./ai.router";
 import documentRouter from "./document.router";
 import meetingRouter from "./meeting.router";
@@ -23,5 +24,6 @@ masterRouter.use("/document", authCheck, documentRouter);
 masterRouter.use("/upload", authCheck, uploadRouter);
 masterRouter.use("/voice", authCheck, voiceRouter);
 masterRouter.use("/meetings", authCheck, meetingRouter);
+masterRouter.use("/action-items", authCheck, actionItemRouter);
 
 export default masterRouter;

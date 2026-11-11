@@ -55,6 +55,20 @@ describe("security: transport", () => {
       expect(res.status).toBeLessThan(300);
       expect(res.headers["access-control-allow-origin"]).toBe(ALLOWED_ORIGIN);
     });
+
+    it("allows every method the API's routes use in a preflight", async () => {
+      const res = await request(app)
+        .options("/api/action-items/some-id")
+        .set("Origin", ALLOWED_ORIGIN)
+        .set("Access-Control-Request-Method", "PATCH");
+
+      // A browser refuses any method missing here before the request is sent,
+      // so a route using it fails for real users while the server never sees it.
+      const allowed = String(res.headers["access-control-allow-methods"]).split(",");
+      for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
+        expect(allowed).toContain(method);
+      }
+    });
   });
 
   describe("malformed input", () => {

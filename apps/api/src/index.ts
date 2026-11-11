@@ -15,6 +15,9 @@
  *            (see `lib/meeting/lifecycle`), so a restart never strands a
  *            workspace with an assistant nobody can stop.
  *
+ * @important Meeting notes that were not written when a meeting ended are retried
+ *            at boot and every ten minutes (see `lib/meeting/recovery`).
+ *
  * @important The Redis adapter (attached in `app.ts`) is what allows
  *            multi-instance horizontal scaling — without it, rooms and
  *            broadcasts are process-local.
@@ -31,6 +34,7 @@ import {
 } from "./lib/cookieAttributes";
 import { createHttpServer } from "./app";
 import { recoverOrphanedMeetings } from "./lib/meeting/lifecycle";
+import { startNotesRecovery } from "./lib/meeting/recovery";
 
 /**
  * Log the cookie attributes resolved from `BETTER_AUTH_URL` + `AUTH_COOKIE_DOMAIN`.
@@ -69,6 +73,10 @@ async function main(): Promise<void> {
       error instanceof Error ? error.name : "unknown error",
     );
   });
+
+  // Notes the first attempt did not finish are retried now and every ten
+  // minutes. The sweep runs detached and logs its own failures.
+  startNotesRecovery({ io });
 }
 
 main().catch((error) => {

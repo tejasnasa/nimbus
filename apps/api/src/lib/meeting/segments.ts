@@ -12,6 +12,9 @@
  *            announced, detached, so a slow or failing model call never delays
  *            the agent's response or loses a caption.
  *
+ * @important The rolling summary is advanced the same way: after the captions
+ *            are stored, detached, and never allowed to fail the ingest.
+ *
  * @important A speaker id is trusted only if that user is a current member of
  *            the meeting's workspace. Anything else is stored with a null
  *            speaker and the name as spoken, so a stale or forged id cannot
@@ -20,6 +23,7 @@
 import { prisma } from "@nimbus/db";
 import type { SegmentDTO, SegmentIn } from "@nimbus/types";
 import type { MeetingBroadcaster } from "./lifecycle";
+import { maybeRoll } from "./rollingSummary";
 import { translateSegments } from "./translation";
 
 /** What ingestion did with a batch. */
@@ -126,6 +130,7 @@ export async function ingestSegments(
 
   // Detached: translation is never allowed to slow or fail the ingest response.
   void translateSegments(meeting, inserted, { io: deps.io });
+  if (inserted.length > 0) void maybeRoll(meeting.id);
 
   return {
     accepted: [...new Set(segments.map((segment) => segment.seq))].sort(

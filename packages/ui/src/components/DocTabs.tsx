@@ -6,7 +6,7 @@
  * indicator for `GENERATING` / `generating:*` tabs, a glow highlight for
  * newly AI-created tabs, and hover-revealed close buttons.
  */
-import { Dispatch, SetStateAction, useRef, useState } from "react";
+import { Dispatch, ReactNode, SetStateAction, useRef, useState } from "react";
 
 /** Controlled tab-strip state shared with the parent `DocEditor`. */
 interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
@@ -16,6 +16,8 @@ interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
   setActive: Dispatch<SetStateAction<number>>;
   highlightTabId?: string | null;
   onCloseTab?: (id: string) => void;
+  /** Content pinned to the strip's right edge, e.g. who else is in the document. */
+  trailing?: ReactNode;
 }
 
 /**
@@ -28,6 +30,7 @@ interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
  * @param props.setActive - Selects a tab on click; remapped on reorder.
  * @param props.highlightTabId - Tab id receiving the `animate-border-glow`.
  * @param props.onCloseTab - Close-button handler; hidden when omitted.
+ * @param props.trailing - Optional content pinned right of the (scrollable) tabs.
  */
 export default function DocTabs<
   T extends { id: string; label: string; type?: string },
@@ -38,6 +41,7 @@ export default function DocTabs<
   setActive,
   highlightTabId,
   onCloseTab,
+  trailing,
 }: DocTabsProps<T>) {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
@@ -64,8 +68,8 @@ export default function DocTabs<
 
   return (
     <div className="w-full bg-(--card)/20 backdrop-blur-sm select-none">
-      <div className="border-b border-(--border)">
-        <div className="flex flex-nowrap overflow-x-auto scrollbar-none items-center">
+      <div className="flex items-center border-b border-(--border)">
+        <div className="flex min-w-0 flex-1 flex-nowrap overflow-x-auto scrollbar-none items-center">
           {tabs.map((tab, i) => {
             const isGenerating =
               tab.type === "GENERATING" || tab.id.startsWith("generating:");
@@ -129,6 +133,7 @@ export default function DocTabs<
             );
           })}
         </div>
+        {trailing ? <div className="shrink-0 px-3">{trailing}</div> : null}
       </div>
     </div>
   );

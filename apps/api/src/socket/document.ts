@@ -5,28 +5,77 @@
  * to room peers, debounced persistence (5s), and eviction when the last
  * socket leaves.
  *
+ * Cursor and selection presence rides alongside as y-protocols awareness. The
+ * server keeps one `Awareness` per live document (never a participant itself),
+ * applies each socket's update after rewriting the identity inside it from the
+ * session, relays it to the room, replays everyone's state to a newcomer, and
+ * removes exactly the client ids a socket owned when it leaves or drops.
+ *
+ * Every snapshot also stores the document's plain text (`searchText`), which
+ * feeds keyword search. A document whose AI seed has not been consumed yet keeps
+ * the text it was created with, since the editor has not written it into the
+ * Yjs tree.
+ *
  * AI-seeded `initialContent` is injected via the doc's metadata map on join,
  * but the database column is cleared only once a snapshot proves the client
  * consumed the seed — nulling it at join time opens a window where a client
  * that never applies the template loses the document outright.
  *
- * @important The `docs` Map is process-local — horizontal scaling needs a
- *            shared Yjs store (or sticky sessions) or edits split by replica.
+ * @important The `docs` Map and the presence map beside it are process-local —
+ *            horizontal scaling needs a shared Yjs store (or sticky sessions)
+ *            or edits split by replica. Presence has the same limit: peers on
+ *            another replica see broadcasts through the Redis adapter, but a
+ *            newcomer is only replayed the states held by its own replica.
  *
  * @important Eviction must re-check room membership *after* any awaited
  *            snapshot. A rejoin that lands during the await has already
  *            re-registered the room, and deleting the map entry afterwards
  *            would leave a live socket with no doc — every later update is
  *            then dropped silently. `evictDocument` is the only sanctioned
- *            way to remove an entry.
+ *            way to remove an entry. It also destroys the document's
+ *            `Awareness` (which owns a timer). Presence is created in
+ *            `doc:join` only after the last await, so the re-check stays valid.
+ *
+ * @important Awareness is never trusted: updates are accepted only from a
+ *            socket in the document's room, capped at 64 KB and rate-limited,
+ *            rebuilt from an allow-list with the identity stamped from the
+ *            session, and may only touch client ids that socket (or another
+ *            session of the same user) owns.
  */
 import * as Y from "yjs";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+  removeAwarenessStates,
+} from "y-protocols/awareness";
 import { Server, Socket } from "socket.io";
 import { prisma } from "@nimbus/db";
+import {
+  MAX_AWARENESS_BYTES,
+  MAX_AWARENESS_ENTRIES,
+  decodeAwarenessEntries,
+  encodeAwarenessEntries,
+  sanitizeAwarenessState,
+} from "../lib/awareness";
+import { createRateLimiter } from "../lib/rateLimiter";
+import { extractYjsText } from "../lib/documentText";
 import { isRoomEmpty } from "./roomState";
 
 /** In-memory Yjs docs keyed by document id (see module note on scaling). */
 export const docs = new Map<string, Y.Doc>();
+
+/** Who owns an awareness client id, so only they can change or remove it. */
+type ClientOwner = { socketId: string; userId: string };
+
+/** Live presence for one document: the awareness and who owns each client id. */
+type DocPresence = { awareness: Awareness; owners: Map<number, ClientOwner> };
+
+/** In-memory presence keyed by document id (see module note on scaling). */
+export const presence = new Map<string, DocPresence>();
+
+/** Awareness updates one socket may send per second before extras are dropped. */
+const AWARENESS_PER_SECOND = 60;
 
 /**
  * Documents whose AI seed has been published but not yet observed as consumed
@@ -39,6 +88,67 @@ const seededDocs = new Set<string>();
 const saveTimers = new Map<string, NodeJS.Timeout>();
 
 const DOC_ROOM = (docId: string) => `doc:${docId}`;
+
+/**
+ * Returns the document's presence, creating it on first use.
+ *
+ * The awareness belongs to a throwaway `Y.Doc` and its own local state is
+ * cleared, so the server never appears as a collaborator in what it replays.
+ * When it expires a silent client's state itself, the removal is broadcast
+ * here because no socket handler is on the stack to do it.
+ */
+const getPresence = (io: Server, docId: string): DocPresence => {
+  const existing = presence.get(docId);
+  if (existing) return existing;
+
+  const awareness = new Awareness(new Y.Doc());
+  awareness.setLocalState(null);
+  const created: DocPresence = { awareness, owners: new Map() };
+
+  awareness.on(
+    "update",
+    ({ removed }: { removed: number[] }, origin: unknown) => {
+      if (origin !== "timeout" || removed.length === 0) return;
+      for (const id of removed) created.owners.delete(id);
+      io.to(DOC_ROOM(docId)).emit(
+        "doc:awareness",
+        docId,
+        Array.from(encodeAwarenessUpdate(awareness, removed)),
+      );
+    },
+  );
+
+  presence.set(docId, created);
+  return created;
+};
+
+/**
+ * Removes every client id a socket owns in a document and tells the room.
+ *
+ * Does nothing when the document has no presence or the socket owns nothing.
+ *
+ * @param socket - The leaving socket; its own copy of the removal is excluded.
+ * @param docId - Document whose presence to clean.
+ */
+const releasePresence = (socket: Socket, docId: string) => {
+  const entry = presence.get(docId);
+  if (!entry) return;
+
+  const ids = [...entry.owners]
+    .filter(([, owner]) => owner.socketId === socket.id)
+    .map(([clientId]) => clientId);
+  if (ids.length === 0) return;
+
+  removeAwarenessStates(entry.awareness, ids, "leave");
+  for (const id of ids) entry.owners.delete(id);
+  socket
+    .to(DOC_ROOM(docId))
+    .emit(
+      "doc:awareness",
+      docId,
+      Array.from(encodeAwarenessUpdate(entry.awareness, ids)),
+    );
+};
 
 /**
  * Loads (or lazily hydrates) the shared Yjs doc for an id.
@@ -91,11 +201,15 @@ const saveSnapshot = async (docId: string) => {
   if (!doc) return;
 
   const state = Y.encodeStateAsUpdate(doc);
+  const text = extractYjsText(doc);
 
   try {
     await prisma.document.update({
       where: { id: docId },
-      data: { yjsState: Buffer.from(state) },
+      data: {
+        yjsState: Buffer.from(state),
+        ...(text || !seededDocs.has(docId) ? { searchText: text || null } : {}),
+      },
     });
 
     await clearSeedIfConsumed(docId, doc);
@@ -122,6 +236,22 @@ export const evictDocument = (docId: string) => {
   }
   docs.delete(docId);
   seededDocs.delete(docId);
+  presence.get(docId)?.awareness.destroy();
+  presence.delete(docId);
+};
+
+/**
+ * Writes a pending debounced save now, so a read of the row sees the live
+ * document. Does nothing when no save is pending.
+ *
+ * @param docId - Document to flush.
+ */
+export const flushDocument = async (docId: string) => {
+  const timer = saveTimers.get(docId);
+  if (!timer) return;
+  clearTimeout(timer);
+  saveTimers.delete(docId);
+  await saveSnapshot(docId);
 };
 
 /** Resets the 5s persist timer — rapid edits collapse into one DB write. */
@@ -141,10 +271,13 @@ const debouncedSave = (docId: string) => {
  *
  * `doc:join` membership-gates, injects one-shot AI content, and replays full
  * state; `doc:update` applies + relays + debounce-saves; `doc:leave` /
- * `disconnecting` snapshot + evict when the room drains.
+ * `disconnecting` snapshot + evict when the room drains; `doc:awareness`
+ * validates, sanitises, applies and relays a cursor update, and leaving or
+ * disconnecting removes the socket's cursors for everyone else.
  */
 export const registerDocumentHandlers = (io: Server, socket: Socket) => {
   const user = socket.data.user;
+  const withinAwarenessBudget = createRateLimiter(AWARENESS_PER_SECOND, 1000);
 
   socket.on("doc:join", async (docId: string) => {
     try {
@@ -186,6 +319,20 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
       const state = Y.encodeStateAsUpdate(doc);
       socket.emit("doc:state", Array.from(state));
 
+      // Replay everyone else's cursor so a newcomer does not see an empty room
+      // until each peer next moves.
+      const { awareness, owners } = getPresence(io, docId);
+      const others = [...awareness.getStates().keys()].filter(
+        (id) => owners.get(id)?.socketId !== socket.id,
+      );
+      if (others.length > 0) {
+        socket.emit(
+          "doc:awareness",
+          docId,
+          Array.from(encodeAwarenessUpdate(awareness, others)),
+        );
+      }
+
       console.log(`${user.name} joined doc: ${docId}`);
     } catch (error) {
       console.error("Error joining doc:", error);
@@ -220,6 +367,83 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
     }
   });
 
+  socket.on("doc:awareness", async (docId: string, update: number[]) => {
+    try {
+      // Same gate as `doc:update`: only a socket that passed the membership
+      // check in `doc:join` is in the room.
+      if (typeof docId !== "string" || !socket.rooms.has(DOC_ROOM(docId))) {
+        return socket.emit("doc:error", "Not joined to document");
+      }
+
+      if (!Array.isArray(update) || update.length > MAX_AWARENESS_BYTES) {
+        return socket.emit("doc:error", "Awareness update too large");
+      }
+
+      // A burst beyond the budget is dropped, not errored: the next update
+      // carries the latest cursor anyway.
+      if (!withinAwarenessBudget()) return;
+
+      const entries = decodeAwarenessEntries(Uint8Array.from(update));
+      if (!entries) {
+        return socket.emit("doc:error", "Malformed awareness update");
+      }
+
+      // Presence for a document nobody can load (deleted mid-session) has no home.
+      if (!docs.has(docId) && !(await getDoc(docId))) {
+        return socket.emit("doc:error", "Document not found");
+      }
+
+      // The await above can span a leave; re-check before touching shared state.
+      if (!socket.rooms.has(DOC_ROOM(docId))) return;
+
+      const { awareness, owners } = getPresence(io, docId);
+
+      // Another session of the same user may take a client id over (a
+      // reconnect can arrive before the old socket's disconnect is noticed),
+      // but never a different user's.
+      for (const entry of entries) {
+        const owner = owners.get(entry.clientId);
+        if (owner && owner.userId !== user.id) {
+          return socket.emit("doc:error", "Awareness client id in use");
+        }
+      }
+      const held = [...owners.values()].filter(
+        (o) => o.socketId === socket.id,
+      ).length;
+      const claiming = entries.filter(
+        (e) => owners.get(e.clientId)?.socketId !== socket.id,
+      ).length;
+      if (held + claiming > MAX_AWARENESS_ENTRIES) {
+        return socket.emit("doc:error", "Too many awareness clients");
+      }
+
+      const clean = entries.map((entry) => ({
+        ...entry,
+        state: entry.state ? sanitizeAwarenessState(entry.state, user) : null,
+      }));
+      const encoded = encodeAwarenessEntries(clean);
+      applyAwarenessUpdate(awareness, encoded, socket.id);
+
+      // Ownership follows what the awareness accepted: a stale clock is ignored
+      // by it, and recording an owner for a state that was never stored would
+      // leave a client id with nothing to remove.
+      for (const entry of clean) {
+        if (entry.state && awareness.getStates().has(entry.clientId)) {
+          owners.set(entry.clientId, { socketId: socket.id, userId: user.id });
+        } else if (!entry.state) {
+          owners.delete(entry.clientId);
+        }
+      }
+
+      socket
+        .to(DOC_ROOM(docId))
+        .emit("doc:awareness", docId, Array.from(encoded));
+    } catch (error) {
+      console.error("Error applying awareness:", error);
+      socket.emit("doc:error", "Something went wrong");
+    }
+  });
+
   // Evict only when the room is truly empty — otherwise remaining peers keep
   // editing the live doc and the leaver's departure must not snapshot-race them.
   //
@@ -230,6 +454,7 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
     try {
       socket.leave(DOC_ROOM(docId));
       const room = DOC_ROOM(docId);
+      releasePresence(socket, docId);
 
       if (isRoomEmpty(io, room, socket)) {
         await saveSnapshot(docId);
@@ -247,6 +472,12 @@ export const registerDocumentHandlers = (io: Server, socket: Socket) => {
 
   socket.on("disconnecting", async () => {
     try {
+      // Synchronous and first: the departing cursor must vanish for peers even
+      // if a snapshot below is slow or fails.
+      for (const room of socket.rooms) {
+        if (room.startsWith("doc:")) releasePresence(socket, room.slice(4));
+      }
+
       for (const room of socket.rooms) {
         if (!room.startsWith("doc:")) continue;
         const docId = room.replace("doc:", "");

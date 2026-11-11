@@ -9,6 +9,7 @@ describe("@nimbus/utils barrel", () => {
     expect(Object.keys(barrel).sort()).toEqual([
       "CAPTION_LANGUAGES",
       "DIAGRAM_PALETTE",
+      "PRESENCE_PALETTE",
       "buildExcalidrawFromDiagram",
       "captionLanguageLabel",
       "estimateCostUsd",
@@ -20,6 +21,7 @@ describe("@nimbus/utils barrel", () => {
       "normalizeCaptionLanguage",
       "parseDiagramPayload",
       "parseDiagramRecord",
+      "presenceColor",
       "selectModelForFeature",
       "timeAgo",
     ]);

@@ -16,6 +16,7 @@ export {
 export { estimateCostUsd, type TokenUsage, type CostUsage } from "./ai/cost";
 export { generateSlug } from "./slugGenerator";
 export { timeAgo } from "./timeAgo";
+export { PRESENCE_PALETTE, presenceColor } from "./presenceColor";
 export {
   extractJsonObject,
   parseDiagramPayload,

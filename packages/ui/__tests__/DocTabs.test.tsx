@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import DocTabs from "../src/components/DocTabs";
 import { cleanupDom, click, dragEvent, queryAll, render } from "./testUtils";
@@ -21,10 +21,12 @@ function Harness({
   initial = THREE,
   highlightTabId,
   onCloseTab,
+  trailing,
 }: {
   initial?: Tab[];
   highlightTabId?: string | null;
   onCloseTab?: (id: string) => void;
+  trailing?: ReactNode;
 }) {
   const [tabs, setTabs] = useState<Tab[]>(initial);
   const [active, setActive] = useState(0);
@@ -36,6 +38,7 @@ function Harness({
       setActive={setActive}
       highlightTabId={highlightTabId}
       onCloseTab={onCloseTab}
+      trailing={trailing}
     />
   );
 }
@@ -48,7 +51,10 @@ const rowOrder = (container: HTMLElement) =>
   rows(container).map((row) => row.querySelector("span.truncate")!.textContent);
 
 const activeRow = (container: HTMLElement) =>
-  rows(container).find((row) => row.className.includes("border-(--primary) text-(--foreground)"))
+  rows(container)
+    .find((row) =>
+      row.className.includes("border-(--primary) text-(--foreground)"),
+    )
     ?.querySelector("span.truncate")?.textContent ?? null;
 
 const drag = (container: HTMLElement, from: number, to: number) => {
@@ -69,6 +75,21 @@ describe("DocTabs", () => {
     const { container } = render(<Harness />);
     click(rows(container)[2]!);
     expect(activeRow(container)).toBe("Gamma");
+  });
+
+  it("renders trailing content beside the tabs, outside the draggable rows", () => {
+    const { container } = render(
+      <Harness trailing={<span data-testid="here">Ada</span>} />,
+    );
+    const trailing = container.querySelector("[data-testid=here]")!;
+    expect(trailing.textContent).toBe("Ada");
+    expect(trailing.closest("div[draggable]")).toBeNull();
+    expect(rowOrder(container)).toEqual(["Alpha", "Beta", "Gamma"]);
+  });
+
+  it("renders no trailing slot when none is given", () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelector(".shrink-0")).toBeNull();
   });
 
   it("hides the close button when no close handler is supplied", () => {

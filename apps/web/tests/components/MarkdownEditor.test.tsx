@@ -15,7 +15,13 @@ import "./testUtils";
 import { act, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import * as Y from "yjs";
+import { presenceColor } from "@nimbus/utils";
 import { editorViewCtx } from "@milkdown/kit/core";
 import { MarkdownEditor } from "../../components/MarkdownEditor";
 
@@ -70,7 +76,9 @@ vi.mock("@milkdown/react", async () => {
 
       return {
         loading: false,
-        get: () => ({ action: (run: (ctx: { get: typeof get }) => void) => run({ get }) }),
+        get: () => ({
+          action: (run: (ctx: { get: typeof get }) => void) => run({ get }),
+        }),
       };
     },
   };
@@ -99,10 +107,10 @@ vi.mock("../../lib/socket", () => ({ socket }));
 const documentId = "cm_document_00000000000001";
 
 /** Replays a server event to every listener the component registered. */
-function serverEvent(event: string, payload: unknown) {
+function serverEvent(event: string, ...payload: unknown[]) {
   const handlers = socket.listeners.get(event) ?? [];
   act(() => {
-    handlers.forEach((handler) => handler(payload));
+    handlers.forEach((handler) => handler(...payload));
   });
 }
 
@@ -293,5 +301,207 @@ describe("MarkdownEditor", () => {
     });
 
     expect(emitCount("doc:join")).toBe(2);
+  });
+});
+
+describe("MarkdownEditor presence", () => {
+  const me = { id: "u_me", name: "Me Myself", image: null };
+
+  /** Awareness bytes as another browser's editor would send them. */
+  const remoteUpdate = (user: Record<string, unknown>, extra = {}) => {
+    const remote = new Awareness(new Y.Doc());
+    remote.setLocalState({ user, ...extra });
+    return {
+      clientId: remote.clientID,
+      bytes: Array.from(encodeAwarenessUpdate(remote, [remote.clientID])),
+    };
+  };
+
+  /** The `doc:awareness` emissions as `[docId, update]` pairs. */
+  const awarenessEmits = () =>
+    socket.emit.mock.calls
+      .filter(([name]) => name === "doc:awareness")
+      .map(([, id, update]) => [id as string, update as number[]] as const);
+
+  /** Decodes what a `doc:awareness` emission carried. */
+  const decode = (update: number[]) => {
+    const probe = new Awareness(new Y.Doc());
+    applyAwarenessUpdate(probe, Uint8Array.from(update), "test");
+    return [...probe.getStates()].find(([id]) => id !== probe.clientID)?.[1];
+  };
+
+  it("hands the collab service an awareness instance", () => {
+    render(<MarkdownEditor documentId={documentId} user={me} />);
+
+    serverEvent("doc:state", emptyState());
+
+    expect(collabService.setAwareness).toHaveBeenCalledWith(
+      expect.any(Awareness),
+    );
+  });
+
+  it("publishes the local user's name and colour once the room is joined", () => {
+    render(<MarkdownEditor documentId={documentId} user={me} />);
+    expect(awarenessEmits()).toHaveLength(0);
+
+    serverEvent("doc:state", emptyState());
+
+    const emits = awarenessEmits();
+    expect(emits).toHaveLength(1);
+    const [id, update] = emits[0]!;
+    expect(id).toBe(documentId);
+    expect(decode(update)?.user).toEqual({
+      userId: "u_me",
+      name: "Me Myself",
+      color: presenceColor("u_me"),
+      image: null,
+    });
+  });
+
+  it("publishes again after a reconnect, which lands on a fresh server socket", () => {
+    render(<MarkdownEditor documentId={documentId} user={me} />);
+    serverEvent("doc:state", emptyState());
+    expect(awarenessEmits()).toHaveLength(1);
+
+    serverEvent("connect", undefined);
+    serverEvent("doc:state", emptyState());
+
+    expect(awarenessEmits()).toHaveLength(2);
+  });
+
+  it("publishes cursor changes made after joining", () => {
+    render(<MarkdownEditor documentId={documentId} user={me} />);
+    serverEvent("doc:state", emptyState());
+    const before = awarenessEmits().length;
+
+    // The cursor plugin writes the selection into the awareness it was given.
+    const awareness = collabService.setAwareness.mock.calls[0]![0] as Awareness;
+    act(() => {
+      awareness.setLocalStateField("cursor", { anchor: {}, head: {} });
+    });
+
+    expect(awarenessEmits()).toHaveLength(before + 1);
+    expect(decode(awarenessEmits().at(-1)![1])?.cursor).toEqual({
+      anchor: {},
+      head: {},
+    });
+  });
+
+  it("reports other people from remote awareness, excluding the user's own tabs", () => {
+    const onPeersChange = vi.fn();
+    render(
+      <MarkdownEditor
+        documentId={documentId}
+        user={me}
+        onPeersChange={onPeersChange}
+      />,
+    );
+    serverEvent("doc:state", emptyState());
+
+    const ada = remoteUpdate({
+      userId: "u_ada",
+      name: "Ada",
+      color: "#34d399",
+    });
+    const myOtherTab = remoteUpdate({ userId: "u_me", name: "Me Myself" });
+    serverEvent("doc:awareness", documentId, ada.bytes);
+    serverEvent("doc:awareness", documentId, myOtherTab.bytes);
+
+    expect(onPeersChange).toHaveBeenLastCalledWith([
+      { userId: "u_ada", name: "Ada", color: "#34d399", image: null },
+    ]);
+  });
+
+  it("drops a person from the list when their awareness is removed", () => {
+    const onPeersChange = vi.fn();
+    render(
+      <MarkdownEditor
+        documentId={documentId}
+        user={me}
+        onPeersChange={onPeersChange}
+      />,
+    );
+    serverEvent("doc:state", emptyState());
+
+    const remote = new Awareness(new Y.Doc());
+    remote.setLocalState({ user: { userId: "u_ada", name: "Ada" } });
+    const id = remote.clientID;
+    serverEvent(
+      "doc:awareness",
+      documentId,
+      Array.from(encodeAwarenessUpdate(remote, [id])),
+    );
+    expect(onPeersChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ userId: "u_ada" }),
+    ]);
+
+    remote.setLocalState(null);
+    serverEvent(
+      "doc:awareness",
+      documentId,
+      Array.from(encodeAwarenessUpdate(remote, [id])),
+    );
+
+    expect(onPeersChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("ignores awareness addressed to another document", () => {
+    const onPeersChange = vi.fn();
+    render(
+      <MarkdownEditor
+        documentId={documentId}
+        user={me}
+        onPeersChange={onPeersChange}
+      />,
+    );
+    serverEvent("doc:state", emptyState());
+    onPeersChange.mockClear();
+
+    const ada = remoteUpdate({ userId: "u_ada", name: "Ada" });
+    serverEvent("doc:awareness", "cm_document_someone_else", ada.bytes);
+
+    expect(onPeersChange).not.toHaveBeenCalled();
+  });
+
+  it("does not echo awareness it received back to the server", () => {
+    render(<MarkdownEditor documentId={documentId} user={me} />);
+    serverEvent("doc:state", emptyState());
+    const before = awarenessEmits().length;
+
+    const ada = remoteUpdate({ userId: "u_ada", name: "Ada" });
+    serverEvent("doc:awareness", documentId, ada.bytes);
+
+    expect(awarenessEmits()).toHaveLength(before);
+  });
+
+  it("still syncs, with no local identity, when no user is given", () => {
+    render(<MarkdownEditor documentId={documentId} />);
+    serverEvent("doc:state", emptyState());
+
+    expect(collabService.connect).toHaveBeenCalledTimes(1);
+    expect(decode(awarenessEmits()[0]![1])?.user).toBeUndefined();
+  });
+
+  it("clears the list and stops listening on unmount, without a late awareness send", () => {
+    const onPeersChange = vi.fn();
+    const { unmount } = render(
+      <MarkdownEditor
+        documentId={documentId}
+        user={me}
+        onPeersChange={onPeersChange}
+      />,
+    );
+    serverEvent("doc:state", emptyState());
+    const before = awarenessEmits().length;
+
+    unmount();
+
+    expect(onPeersChange).toHaveBeenLastCalledWith([]);
+    expect(socket.off.mock.calls.map(([event]) => event)).toContain(
+      "doc:awareness",
+    );
+    // Destroying the awareness clears its local state; that must not be sent
+    // to a room the socket has just left.
+    expect(awarenessEmits()).toHaveLength(before);
   });
 });

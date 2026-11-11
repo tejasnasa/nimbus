@@ -22,6 +22,19 @@ import "@milkdown/theme-nord/style.css";
  * → bind the collab plugin (seeding AI `initialContent` as a template when
  * present) → local edits emit `doc:update`, remote updates apply silently.
  *
+ * Presence: the `Awareness` is published over `doc:awareness` once the room is
+ * joined (and again after every rejoin, since a reconnect lands on a fresh
+ * socket the server knows nothing about) and remote updates are applied with
+ * origin `"socket"`. Milkdown's collab plugin draws the other people's cursors
+ * and selections from it; the list of other people is reported up through
+ * `onPeersChange` for the header avatars.
+ *
+ * @important Presence is process-local on the server (see `socket/document.ts`)
+ *            and best-effort here: a lost awareness update only means a stale
+ *            cursor until the next one, never a lost edit. Local awareness must
+ *            never be sent back for updates applied from the socket — the origin
+ *            check is what stops two tabs echoing each other forever.
+ *
  * @important The editor is read-only until the collaboration binding is live.
  *            Binding renders the Y.Doc into the view and REPLACES whatever the
  *            view already held, so an editor that accepted input before it
@@ -39,15 +52,31 @@ import "@milkdown/theme-nord/style.css";
  *            subtree. The accessor is held in a ref instead.
  */
 import { memo, useEffect, useRef } from "react";
-import { Awareness } from "y-protocols/awareness";
+import {
+  Awareness,
+  applyAwarenessUpdate,
+  encodeAwarenessUpdate,
+} from "y-protocols/awareness";
 import * as Y from "yjs";
+import {
+  localAwarenessUser,
+  peersFromAwareness,
+  type LocalPresenceUser,
+  type PresencePeer,
+} from "../lib/presence";
 import { socket } from "../lib/socket";
 
 /**
  * @param documentId - Document cuid (socket room + Yjs session key).
+ * @param user - Signed-in user, published as this tab's cursor identity. Without
+ *               it the editor still syncs but shows no local name or colour.
+ * @param onPeersChange - Called with the other people in the document whenever
+ *               that list changes, and with `[]` when the editor unmounts.
  */
 interface MarkdownEditorProps {
   documentId: string;
+  user?: LocalPresenceUser;
+  onPeersChange?: (peers: PresencePeer[]) => void;
 }
 
 interface MilkdownEditorProps extends MarkdownEditorProps {
@@ -60,10 +89,11 @@ interface MilkdownEditorProps extends MarkdownEditorProps {
  */
 const STATE_RETRY_MS = 2_000;
 
-
 const MilkdownEditor = memo(function MilkdownEditor({
   documentId,
   containerRef,
+  user,
+  onPeersChange,
 }: MilkdownEditorProps) {
   const { get, loading } = useEditor((root) =>
     Editor.make()
@@ -129,6 +159,15 @@ const MilkdownEditor = memo(function MilkdownEditor({
     getEditorRef.current = get;
   }, [get]);
 
+  // Mirrored into refs for the same reason as `get`: the session effect must
+  // not restart because the parent re-rendered with a new callback or user.
+  const userRef = useRef(user);
+  const onPeersChangeRef = useRef(onPeersChange);
+  useEffect(() => {
+    userRef.current = user;
+    onPeersChangeRef.current = onPeersChange;
+  }, [user, onPeersChange]);
+
   const collabConnectedRef = useRef(false);
   const stateAppliedRef = useRef(false);
 
@@ -163,6 +202,46 @@ const MilkdownEditor = memo(function MilkdownEditor({
 
     const doc = new Y.Doc();
     const awareness = new Awareness(doc);
+    const self = userRef.current;
+    if (self) awareness.setLocalStateField("user", localAwarenessUser(self));
+
+    // Sends this tab's own awareness state. Called after every (re)join, because
+    // the server forgets a socket's presence when it disconnects.
+    const announce = () => {
+      socket.emit(
+        "doc:awareness",
+        documentId,
+        Array.from(encodeAwarenessUpdate(awareness, [doc.clientID])),
+      );
+    };
+
+    const reportPeers = () => {
+      onPeersChangeRef.current?.(
+        peersFromAwareness(
+          awareness.getStates() as Map<number, Record<string, unknown>>,
+          doc.clientID,
+          userRef.current?.id,
+        ),
+      );
+    };
+
+    const onAwarenessUpdate = (
+      {
+        added,
+        updated,
+        removed,
+      }: { added: number[]; updated: number[]; removed: number[] },
+      origin: unknown,
+    ) => {
+      reportPeers();
+
+      // Only this tab's own changes go out. Updates applied from the socket
+      // carry origin "socket" and other clients' timeouts do not touch our id.
+      if (origin === "socket" || !stateAppliedRef.current) return;
+      if (![...added, ...updated, ...removed].includes(doc.clientID)) return;
+      announce();
+    };
+    awareness.on("update", onAwarenessUpdate);
 
     // Seeds AI content into an already-bound session. Skipped when the document
     // already has content: a rejoin can deliver the template after a peer (or
@@ -224,6 +303,12 @@ const MilkdownEditor = memo(function MilkdownEditor({
       Y.applyUpdate(doc, Uint8Array.from(state), "socket");
       stateAppliedRef.current = true;
       tryConnectCollab();
+      announce();
+    };
+
+    const handleAwareness = (id: string, update: number[]) => {
+      if (id !== documentId) return;
+      applyAwarenessUpdate(awareness, Uint8Array.from(update), "socket");
     };
 
     const handleUpdate = (update: number[]) => {
@@ -244,6 +329,7 @@ const MilkdownEditor = memo(function MilkdownEditor({
 
     socket.on("doc:state", handleState);
     socket.on("doc:update", handleUpdate);
+    socket.on("doc:awareness", handleAwareness);
     socket.on("connect", handleConnect);
     socket.on("doc:error", handleError);
 
@@ -270,6 +356,7 @@ const MilkdownEditor = memo(function MilkdownEditor({
       window.clearTimeout(stateRetryTimer);
       socket.off("doc:state", handleState);
       socket.off("doc:update", handleUpdate);
+      socket.off("doc:awareness", handleAwareness);
       socket.off("connect", handleConnect);
       socket.off("doc:error", handleError);
       doc.off("update", onDocUpdate);
@@ -285,7 +372,11 @@ const MilkdownEditor = memo(function MilkdownEditor({
       }
 
       socket.emit("doc:leave", documentId);
+      // Detached first: destroying the awareness clears its local state, and
+      // that update must not be sent to a room this socket has just left.
+      awareness.off("update", onAwarenessUpdate);
       awareness.destroy();
+      onPeersChangeRef.current?.([]);
       doc.destroy();
       collabConnectedRef.current = false;
       stateAppliedRef.current = false;
@@ -306,13 +397,20 @@ const MilkdownEditor = memo(function MilkdownEditor({
  */
 export const MarkdownEditor = memo(function MarkdownEditor({
   documentId,
+  user,
+  onPeersChange,
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   return (
     <MilkdownProvider>
       <div ref={containerRef} className="h-full overflow-y-auto p-1 milkdown">
-        <MilkdownEditor documentId={documentId} containerRef={containerRef} />
+        <MilkdownEditor
+          documentId={documentId}
+          containerRef={containerRef}
+          user={user}
+          onPeersChange={onPeersChange}
+        />
       </div>
     </MilkdownProvider>
   );

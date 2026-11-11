@@ -667,3 +667,41 @@ html {
 .milkdown table tr[data-is-header="true"] td p {
   color: white !important;
 }
+
+/* ═══ Remote cursors (y-prosemirror) ═══
+ * The cursor plugin builds the caret and its name label with inline colours
+ * taken from the collaborator's presence colour and leaves the geometry to the
+ * page. The colours are light enough for the dark surface, so the label uses the
+ * app background for its text. The caret never takes pointer events: it sits
+ * inside the text and must not intercept clicks meant for it. */
+.milkdown .ProseMirror-yjs-cursor {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  border-right: 0;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.milkdown .ProseMirror-yjs-cursor > div {
+  position: absolute;
+  top: -1.45em;
+  left: -2px;
+  z-index: 20;
+  padding: 0 0.35em;
+  border-radius: 0.25rem 0.25rem 0.25rem 0;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--background);
+  user-select: none;
+}
+
+/* The selection tint is set inline by the plugin (colour plus alpha); the class
+ * only keeps it from picking up the theme's own selection background. */
+.milkdown .ProseMirror-yjs-selection {
+  border-radius: 2px;
+}

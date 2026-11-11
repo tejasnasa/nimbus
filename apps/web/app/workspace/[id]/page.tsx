@@ -12,6 +12,7 @@ import { DocEditorRefProvider } from "../../../components/DocEditorRefContext";
 import VoiceDock from "../../../components/VoiceDock";
 import VoiceOverlay from "../../../components/VoiceOverlay";
 import WorkspaceSettingsButton from "../../../components/WorkspaceSettingsButton";
+import { WorkspaceSettingsProvider } from "../../../components/WorkspaceSettingsContext";
 import { authClient } from "../../../lib/auth-client";
 /**
  * @module web/app/workspace/[id]/page
@@ -19,7 +20,7 @@ import { authClient } from "../../../lib/auth-client";
  * and documents in parallel-by-await, then composes the two-pane layout —
  * Chat sidebar (settings gear + messages) beside `DocEditor` — inside
  * `VoiceProvider` (call room + identity) + `MeetingProvider` (assistant meeting) + `DocEditorRefProvider` (add-tab
- * bridge), with a global `VoiceOverlay` and the floating `VoiceDock` call card. AI status is fetched alongside so the
+ * bridge) + `WorkspaceSettingsProvider` (the one settings dialog, openable on any tab from the gear, the chat banner and the call card), with a global `VoiceOverlay` and the floating `VoiceDock` call card. AI status is fetched alongside so the
  * chat composer renders in the right enabled/disabled state on first paint.
  * Guarded by `proxy.ts`.
  */
@@ -56,47 +57,54 @@ export default async function Workspace({
     >
       <MeetingProvider workspaceId={workspaceData.id}>
         <DocEditorRefProvider>
-          <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden relative">
-            <VoiceOverlay />
-            <VoiceDock />
-            <section className="w-90 flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
-              <div className="flex justify-between items-center p-4 pb-2">
-                <div className="flex items-start gap-2">
-                  <Link
-                    href="/"
-                    className="flex items-center font-semibold text-lg group"
-                  >
-                    <div className="flex size-9 items-center justify-center rounded-lg text-(--primary-foreground) group-hover:scale-110 transition-transform duration-300">
-                      <Cloud />
-                    </div>
-                  </Link>
-                  <h1 className="text-2xl ml-2 font-semibold tracking-tight">
-                    {workspaceData.name}
-                  </h1>
+          <WorkspaceSettingsProvider
+            workspace={workspaceData}
+            documents={documents}
+            initialAiStatus={initialAiStatus}
+            userId={session!.user.id}
+          >
+            <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden relative">
+              <VoiceOverlay />
+              <VoiceDock />
+              <section className="w-90 flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
+                <div className="flex justify-between items-center p-4 pb-2">
+                  <div className="flex items-start gap-2">
+                    <Link
+                      href="/"
+                      className="flex items-center font-semibold text-lg group"
+                    >
+                      <div className="flex size-9 items-center justify-center rounded-lg text-(--primary-foreground) group-hover:scale-110 transition-transform duration-300">
+                        <Cloud />
+                      </div>
+                    </Link>
+                    <h1 className="text-2xl ml-2 font-semibold tracking-tight">
+                      {workspaceData.name}
+                    </h1>
+                  </div>
+                  <WorkspaceSettingsButton />
                 </div>
-                <WorkspaceSettingsButton
-                  workspace={workspaceData}
-                  documents={documents}
-                  initialAiStatus={initialAiStatus}
-                  userId={session!.user.id}
-                />
-              </div>
-              <div className="text-xs text-(--muted-foreground) px-4 pb-3 leading-relaxed">
-                {workspaceData.description}
-              </div>
-              <div className="flex-1 min-h-0 px-2 pb-2">
-                <Chat
-                  userId={session!.user?.id}
-                  messages={messages}
-                  wsid={workspaceData.id}
-                  documents={documents}
-                  workspaceData={workspaceData}
-                  initialAiStatus={initialAiStatus}
-                />
-              </div>
-            </section>
-            <DocEditor documents={documents} />
-          </main>
+                <div className="text-xs text-(--muted-foreground) px-4 pb-3 leading-relaxed">
+                  {workspaceData.description}
+                </div>
+                <div className="flex-1 min-h-0 px-2 pb-2">
+                  <Chat
+                    userId={session!.user?.id}
+                    messages={messages}
+                    wsid={workspaceData.id}
+                    initialAiStatus={initialAiStatus}
+                  />
+                </div>
+              </section>
+              <DocEditor
+                documents={documents}
+                user={{
+                  id: session!.user.id,
+                  name: session!.user.name,
+                  image: session!.user.image ?? null,
+                }}
+              />
+            </main>
+          </WorkspaceSettingsProvider>
         </DocEditorRefProvider>
       </MeetingProvider>
     </VoiceProvider>

@@ -1,11 +1,14 @@
 import { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type {
+  ActionItemsChangedDTO,
   AssistantState,
   MeetingDTO,
   MeetingEndReason,
   SegmentDTO,
 } from "../api/meeting";
+import type { DocumentSummaryDTO } from "../api/document";
 import { Message } from "../api/message";
+import type { PointerTool, PresenceUser } from "./presence";
 import type { VoiceUser } from "./voice";
 
 /**
@@ -49,12 +52,31 @@ export type ClientToServerEvents = {
     elements: readonly OrderedExcalidrawElement[];
     initialized?: boolean;
   }) => void;
+  /**
+   * Where this user's pointer is on a canvas, in scene coordinates. Sent at
+   * most ~20 times a second and never persisted. The server relays it to the
+   * room stamped with the sender's identity; any identity fields a client adds
+   * are ignored.
+   */
+  "canvas:pointer": (data: {
+    canvasId: string;
+    x: number;
+    y: number;
+    tool?: PointerTool;
+    button?: "up" | "down";
+    selectedElementIds?: string[];
+  }) => void;
 
   // ── Markdown docs (Yjs binary updates) ──
   /** Join a doc room; server replies with `doc:state`. */
   "doc:join": (docId: string) => void;
   /** Push a binary Yjs update (`Array.from(Y.encodeStateAsUpdate)` delta). */
   "doc:update": (docId: string, update: number[]) => void;
+  /**
+   * Push a y-protocols awareness update (`encodeAwarenessUpdate`) carrying the
+   * sender's cursor, selection and display name. Refused above 64 KB.
+   */
+  "doc:awareness": (docId: string, update: number[]) => void;
   "doc:leave": (docId: string) => void;
 
   // ── Meetings ──
@@ -104,13 +126,54 @@ export type ServerToClientEvents = {
   }) => void;
   /** Canvas operation rejected (e.g. invalid or conflicting update). */
   "canvas:error": (message: string) => void;
+  /**
+   * Another member's pointer on a canvas. `socketId` is the sender's socket,
+   * which is the key Excalidraw wants for a collaborator; `user` is stamped by
+   * the server from the authenticated session.
+   */
+  "canvas:pointer": (data: {
+    canvasId: string;
+    socketId: string;
+    user: PresenceUser;
+    x: number;
+    y: number;
+    tool?: PointerTool;
+    button?: "up" | "down";
+    selectedElementIds?: string[];
+  }) => void;
+  /** A member's socket left a canvas room; drop their pointer. */
+  "canvas:pointer-leave": (data: {
+    canvasId: string;
+    socketId: string;
+  }) => void;
 
   // ── Markdown docs ──
   /** Initial Yjs state on join, as a binary update encoded as `number[]`. */
   "doc:state": (update: number[]) => void;
   /** Remote Yjs update to apply locally with origin `"socket"`. */
   "doc:update": (update: number[]) => void;
+  /**
+   * Awareness for a document, as a y-protocols update. On join the joiner gets
+   * every present collaborator's state in one update; afterwards it carries
+   * peers' changes and, as a null-state entry, the removal of a collaborator
+   * who left or disconnected. Apply with `applyAwarenessUpdate`.
+   */
+  "doc:awareness": (docId: string, update: number[]) => void;
   "doc:error": (message: string) => void;
+  /**
+   * A document was created in the workspace, by a member, NimbusBot or a
+   * meeting's notes. Also sent for documents that arrive by `doc:ai:complete`
+   * or `meeting:notes-ready`, so clients must treat it as idempotent by id.
+   */
+  "document:created": (data: { document: DocumentSummaryDTO }) => void;
+  /** A document's title changed. */
+  "document:renamed": (data: { documentId: string; title: string }) => void;
+  /** A document was deleted; open tabs on it should say so. */
+  /** `deletedById` lets the deleter's own tabs close instead of warning. */
+  "document:deleted": (data: {
+    documentId: string;
+    deletedById: string;
+  }) => void;
 
   // ── AI generation (NimbusBot) ──
   /** Bot started generating a document; clients show a GENERATING tab. */
@@ -128,6 +191,11 @@ export type ServerToClientEvents = {
     canvasData?: readonly OrderedExcalidrawElement[];
   }) => void;
   "doc:ai:error": (data: { message: string }) => void;
+  /**
+   * NimbusBot is working on a reply to a mention (`typing: true`) or has
+   * finished, failed or handed over to document generation (`typing: false`).
+   */
+  "bot:typing": (data: { workspaceId: string; typing: boolean }) => void;
   /**
    * The triggering user's AI request was refused (entitlement), not failed.
    * Sent ONLY to the asking socket; never broadcast, because the reason is
@@ -176,4 +244,13 @@ export type ServerToClientEvents = {
     language: string;
     text: string;
   }) => void;
+  /** The notes for an ended meeting were written into a document. */
+  "meeting:notes-ready": (data: {
+    meetingId: string;
+    documentId: string;
+  }) => void;
+  /** Action items changed; see ActionItemsChangedDTO for how to apply it. */
+  "meeting:action-items": (data: ActionItemsChangedDTO) => void;
+  /** The meeting was deleted; open views should drop it. */
+  "meeting:deleted": (data: { meetingId: string }) => void;
 };

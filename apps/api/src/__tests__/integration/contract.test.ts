@@ -47,7 +47,10 @@ const ROUTE_CONTRACT = [
   ["get", "/api/messages/:wsid"],
   ["post", "/api/document/create"],
   ["get", "/api/document/workspace/:workspaceId"],
+  ["get", "/api/document/search"],
   ["get", "/api/document/:docId"],
+  ["get", "/api/document/:docId/export"],
+  ["patch", "/api/document/:docId"],
   ["delete", "/api/document/:docId"],
   ["post", "/api/voice/token"],
   ["get", "/api/voice/:workspaceId/roster"],
@@ -77,7 +80,9 @@ describe("contract: REST routes", () => {
             ? await request(app).post(url).send({})
             : method === "put"
               ? await request(app).put(url).send({})
-              : await request(app).delete(url).send({});
+              : method === "patch"
+                ? await request(app).patch(url).send({})
+                : await request(app).delete(url).send({});
 
       // Anonymous callers get 401 from authCheck. A route that stopped being
       // mounted would 404 instead — which is what this catches.
@@ -119,8 +124,10 @@ describe("contract: socket events", () => {
     "canvas:join",
     "canvas:leave",
     "canvas:update",
+    "canvas:pointer",
     "doc:join",
     "doc:update",
+    "doc:awareness",
     "doc:leave",
     "meeting:caption-language",
   ];
@@ -181,16 +188,24 @@ describe("contract: server→client socket events", () => {
     "canvas:state",
     "canvas:update",
     "canvas:error",
+    "canvas:pointer",
+    "canvas:pointer-leave",
     // ── Markdown docs ──
     "doc:state",
     "doc:update",
+    "doc:awareness",
     "doc:error",
     // ── AI generation (NimbusBot) ──
     "doc:ai:start",
     "doc:ai:thinking",
     "doc:ai:complete",
     "doc:ai:error",
+    "bot:typing",
     "ai:refused",
+    // ── Document lifecycle ──
+    "document:created",
+    "document:renamed",
+    "document:deleted",
     // ── Voice ──
     "voice:roster",
     // ── Meetings (the in-call assistant) ──
@@ -200,6 +215,9 @@ describe("contract: server→client socket events", () => {
     "meeting:speaking",
     "meeting:segment",
     "meeting:translation",
+    "meeting:notes-ready",
+    "meeting:action-items",
+    "meeting:deleted",
   ];
 
   it("declares exactly the documented server→client events", () => {

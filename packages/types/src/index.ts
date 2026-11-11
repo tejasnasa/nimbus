@@ -37,7 +37,13 @@ export {
   contactSchema,
   type ContactCategory,
 } from "./validations/contact";
-export { documentSchema } from "./validations/document";
+export {
+  DOCUMENT_SEARCH_MAX,
+  DOCUMENT_TITLE_MAX,
+  documentRenameSchema,
+  documentSchema,
+  documentSearchQuerySchema,
+} from "./validations/document";
 export { forgotSchema, loginSchema, resetSchema } from "./validations/login";
 export {
   chatImageSignatureQuerySchema,
@@ -46,14 +52,26 @@ export {
   messageSendSchema,
 } from "./validations/message";
 export {
+  ACTION_ITEM_PAGE_MAX,
+  ACTION_ITEM_TEXT_MAX,
+  actionItemListQuerySchema,
+  actionItemPatchSchema,
   assistantStartSchema,
   captionLanguageSchema,
   liveMeetingQuerySchema,
   MEETING_PAGE_MAX,
   meetingListQuerySchema,
+  meetingSearchQuerySchema,
   SEGMENT_PAGE_MAX,
   segmentsQuerySchema,
 } from "./validations/meeting";
+export {
+  MEETING_ITEM_MAX,
+  MEETING_SUMMARY_MAX,
+  MEETING_TITLE_MAX,
+  MeetingSummarySchema,
+  type MeetingSummary,
+} from "./validations/meetingSummary";
 export { signupSchema } from "./validations/signup";
 export { voiceTokenSchema } from "./validations/voice";
 export {
@@ -106,9 +124,19 @@ export type {
 } from "./api/agent";
 export { AGENT_WAKE_NAMES } from "./api/agent";
 export type {
+  ActionItemDTO,
+  ActionItemListDTO,
+  ActionItemsChangedDTO,
+  ActionItemStatus,
   AssistantRefusalDTO,
   AssistantState,
+  CatchUpDTO,
+  DecisionDTO,
   LiveMeetingDTO,
+  MeetingDetailDTO,
+  MeetingParticipantDTO,
+  SegmentSearchDTO,
+  SegmentSearchHitDTO,
   MeetingDTO,
   MeetingEndReason,
   MeetingListDTO,
@@ -118,6 +146,12 @@ export type {
   SegmentDTO,
   SegmentPageDTO,
 } from "./api/meeting";
+export type {
+  DocumentExportDTO,
+  DocumentSearchDTO,
+  DocumentSearchHitDTO,
+  DocumentSummaryDTO,
+} from "./api/document";
 export type { Message } from "./api/message";
 export type { Member, Workspace } from "./api/workspaces";
 
@@ -126,6 +160,7 @@ export type {
   ServerToClientEvents,
 } from "./socket/socketEvents";
 
+export type { PointerTool, PresenceUser } from "./socket/presence";
 export type { VoiceUser } from "./socket/voice";
 
 export type { BotResult } from "./api/bot";

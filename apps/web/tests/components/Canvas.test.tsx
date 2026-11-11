@@ -254,3 +254,373 @@ describe("Canvas", () => {
     expect(excalidraw.props?.viewModeEnabled).toBe(true);
   });
 });
+
+describe("Canvas presence", () => {
+  const me = { id: "u_me", name: "Me Myself", image: null };
+
+  const ada = {
+    userId: "u_ada",
+    name: "Ada",
+    color: "#34d399",
+    image: null,
+  };
+
+  /** A relayed pointer, shaped like the server's `canvas:pointer`. */
+  const pointer = (over: Record<string, unknown> = {}) => ({
+    canvasId: documentId,
+    socketId: "sock-ada",
+    user: ada,
+    x: 10,
+    y: 20,
+    ...over,
+  });
+
+  /** Gives the component an Excalidraw API that records `updateScene` calls. */
+  function attachApi() {
+    const api = { updateScene: vi.fn() };
+    act(() => {
+      (excalidraw.props?.excalidrawAPI as (api: unknown) => void)(api);
+    });
+    return api;
+  }
+
+  /** Collaborator maps passed to `updateScene`, in order. */
+  const sceneCollaborators = (api: { updateScene: ReturnType<typeof vi.fn> }) =>
+    api.updateScene.mock.calls
+      .map(([scene]) => scene as { collaborators?: Map<string, unknown> })
+      .filter((scene) => scene.collaborators)
+      .map((scene) => scene.collaborators!);
+
+  /** Emitted `canvas:pointer` payloads, in order. */
+  const pointerEmits = () =>
+    socket.emit.mock.calls
+      .filter(([event]) => event === "canvas:pointer")
+      .map(([, payload]) => payload as Record<string, unknown>);
+
+  /** Reports a local pointer move the way Excalidraw does. */
+  const movePointer = (x: number, y: number, button: "up" | "down" = "up") => {
+    act(() => {
+      (excalidraw.props?.onPointerUpdate as (p: unknown) => void)({
+        pointer: { x, y, tool: "pointer" },
+        button,
+      });
+    });
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  describe("sending the local pointer", () => {
+    it("emits the pointer with the current selection", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} user={me} />);
+      landState();
+      act(() => {
+        (excalidraw.props?.onChange as (e: unknown, a: unknown) => void)([], {
+          selectedElementIds: { "el-1": true, "el-2": true },
+        });
+      });
+
+      movePointer(5, 6, "down");
+
+      expect(pointerEmits()).toEqual([
+        {
+          canvasId: documentId,
+          x: 5,
+          y: 6,
+          tool: "pointer",
+          button: "down",
+          selectedElementIds: ["el-1", "el-2"],
+        },
+      ]);
+    });
+
+    it("sends nothing before the authoritative state has landed", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+
+      movePointer(1, 1);
+
+      expect(pointerEmits()).toHaveLength(0);
+    });
+
+    it("throttles a burst to about 20 a second and keeps the latest position", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      landState();
+
+      for (let i = 1; i <= 10; i++) movePointer(i, i);
+      expect(pointerEmits()).toHaveLength(1);
+      expect(pointerEmits()[0]).toMatchObject({ x: 1, y: 1 });
+
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+
+      expect(pointerEmits()).toHaveLength(2);
+      expect(pointerEmits()[1]).toMatchObject({ x: 10, y: 10 });
+    });
+
+    it("sends nothing once the canvas has been left", () => {
+      const { unmount } = render(
+        <Canvas initialElements={[]} documentId={documentId} />,
+      );
+      landState();
+      movePointer(1, 1);
+      movePointer(2, 2);
+      const onPointerUpdate = excalidraw.props?.onPointerUpdate as (
+        p: unknown,
+      ) => void;
+
+      unmount();
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      onPointerUpdate({
+        pointer: { x: 3, y: 3, tool: "pointer" },
+        button: "up",
+      });
+
+      // The trailing call for (2, 2) was cancelled and the throttle detached.
+      expect(pointerEmits()).toHaveLength(1);
+    });
+  });
+
+  describe("drawing other people's pointers", () => {
+    it("builds Excalidraw collaborators from pointer events", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} user={me} />);
+      const api = attachApi();
+
+      serverEvent(
+        "canvas:pointer",
+        pointer({ tool: "laser", button: "down", selectedElementIds: ["a"] }),
+      );
+
+      const [collaborators] = sceneCollaborators(api).slice(-1);
+      expect(collaborators?.get("sock-ada")).toMatchObject({
+        username: "Ada",
+        id: "u_ada",
+        socketId: "sock-ada",
+        button: "down",
+        pointer: { x: 10, y: 20, tool: "laser" },
+        selectedElementIds: { a: true },
+        color: { background: "#34d399" },
+      });
+    });
+
+    it("keeps one collaborator per socket and moves it", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+
+      serverEvent("canvas:pointer", pointer());
+      serverEvent("canvas:pointer", pointer({ x: 99, y: 98 }));
+      serverEvent(
+        "canvas:pointer",
+        pointer({
+          socketId: "sock-grace",
+          user: { ...ada, userId: "u_grace", name: "Grace" },
+        }),
+      );
+
+      const latest = sceneCollaborators(api).at(-1)!;
+      expect([...latest.keys()].sort()).toEqual(["sock-ada", "sock-grace"]);
+      expect(latest.get("sock-ada")).toMatchObject({
+        pointer: { x: 99, y: 98 },
+      });
+    });
+
+    it("ignores pointers for another canvas", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+
+      serverEvent("canvas:pointer", pointer({ canvasId: "somewhere-else" }));
+
+      expect(sceneCollaborators(api)).toHaveLength(0);
+    });
+
+    it("drops a collaborator that has been silent for ten seconds", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+      serverEvent("canvas:pointer", pointer());
+
+      act(() => {
+        vi.advanceTimersByTime(8_000);
+      });
+      expect(sceneCollaborators(api).at(-1)?.size).toBe(1);
+
+      act(() => {
+        vi.advanceTimersByTime(4_000);
+      });
+      expect(sceneCollaborators(api).at(-1)?.size).toBe(0);
+    });
+
+    it("keeps a collaborator that keeps moving", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+
+      for (let i = 0; i < 4; i++) {
+        serverEvent("canvas:pointer", pointer({ x: i }));
+        act(() => {
+          vi.advanceTimersByTime(6_000);
+        });
+      }
+
+      expect(sceneCollaborators(api).at(-1)?.size).toBe(1);
+    });
+
+    it("removes a collaborator when the server says they left", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+      serverEvent("canvas:pointer", pointer());
+
+      serverEvent("canvas:pointer-leave", {
+        canvasId: documentId,
+        socketId: "sock-ada",
+      });
+
+      expect(sceneCollaborators(api).at(-1)?.size).toBe(0);
+    });
+
+    it("ignores a leave for another canvas", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      const api = attachApi();
+      serverEvent("canvas:pointer", pointer());
+      const before = sceneCollaborators(api).length;
+
+      serverEvent("canvas:pointer-leave", {
+        canvasId: "somewhere-else",
+        socketId: "sock-ada",
+      });
+
+      expect(sceneCollaborators(api)).toHaveLength(before);
+    });
+
+    it("stops listening for pointers on unmount", () => {
+      const { unmount } = render(
+        <Canvas initialElements={[]} documentId={documentId} />,
+      );
+
+      unmount();
+
+      const unsubscribed = socket.off.mock.calls.map(([event]) => event);
+      expect(unsubscribed).toEqual(
+        expect.arrayContaining(["canvas:pointer", "canvas:pointer-leave"]),
+      );
+    });
+  });
+
+  describe("reporting who is on the canvas", () => {
+    it("lists other people once, by user, and not the signed-in user", () => {
+      const onPeersChange = vi.fn();
+      render(
+        <Canvas
+          initialElements={[]}
+          documentId={documentId}
+          user={me}
+          onPeersChange={onPeersChange}
+        />,
+      );
+
+      serverEvent("canvas:pointer", pointer());
+      serverEvent("canvas:pointer", pointer({ socketId: "sock-ada-2" }));
+      serverEvent(
+        "canvas:pointer",
+        pointer({
+          socketId: "sock-me",
+          user: { ...ada, userId: "u_me", name: "Me Myself" },
+        }),
+      );
+
+      expect(onPeersChange).toHaveBeenLastCalledWith([
+        { userId: "u_ada", name: "Ada", color: "#34d399", image: null },
+      ]);
+    });
+
+    it("keeps a quiet person listed after their pointer fades, until they leave", () => {
+      const onPeersChange = vi.fn();
+      render(
+        <Canvas
+          initialElements={[]}
+          documentId={documentId}
+          onPeersChange={onPeersChange}
+        />,
+      );
+      attachApi();
+      serverEvent("canvas:pointer", pointer());
+
+      act(() => {
+        vi.advanceTimersByTime(12_000);
+      });
+      expect(onPeersChange).toHaveBeenLastCalledWith([
+        expect.objectContaining({ userId: "u_ada" }),
+      ]);
+
+      serverEvent("canvas:pointer-leave", {
+        canvasId: documentId,
+        socketId: "sock-ada",
+      });
+      expect(onPeersChange).toHaveBeenLastCalledWith([]);
+    });
+
+    it("clears the list on unmount", () => {
+      const onPeersChange = vi.fn();
+      const { unmount } = render(
+        <Canvas
+          initialElements={[]}
+          documentId={documentId}
+          onPeersChange={onPeersChange}
+        />,
+      );
+      serverEvent("canvas:pointer", pointer());
+
+      unmount();
+
+      expect(onPeersChange).toHaveBeenLastCalledWith([]);
+    });
+  });
+
+  describe("telling pointers apart from edits", () => {
+    it("does not re-send the canvas when only a collaborator changed", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      landState([element("a")]);
+      settleRemoteGuard();
+
+      // Excalidraw calls onChange for the collaborator update too.
+      draw([element("a")]);
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(canvasUpdates()).toHaveLength(0);
+    });
+
+    it("still sends a real edit", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      landState([element("a")]);
+      settleRemoteGuard();
+
+      draw([element("a"), element("b")]);
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+
+      expect(canvasUpdates()).toHaveLength(1);
+    });
+
+    it("does not send back what a peer just sent", () => {
+      render(<Canvas initialElements={[]} documentId={documentId} />);
+      landState();
+      serverEvent("canvas:update", {
+        documentId,
+        elements: [element("peer")],
+      });
+      settleRemoteGuard();
+
+      draw([element("peer")]);
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(canvasUpdates()).toHaveLength(0);
+    });
+  });
+});

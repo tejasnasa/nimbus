@@ -7,15 +7,25 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { ClientDocument } from "../api/document";
+import type { DocumentSummaryDTO } from "@nimbus/types";
+import { toClientDocument } from "../hooks/useLiveDocuments";
+import { fetchDocument } from "../lib/documentApi";
+import {
+  samePeers,
+  type LocalPresenceUser,
+  type PresencePeer,
+} from "../lib/presence";
 import { socket } from "../lib/socket";
 import { AIGenerationState, AiGenOverlay } from "./AiGenOverlay";
 import Canvas from "./Canvas";
 import { useDocEditorRef } from "./DocEditorRefContext";
 import { MarkdownEditor } from "./MarkdownEditor";
+import PresenceAvatars from "./PresenceAvatars";
 
 /**
  * @module web/components/DocEditor
@@ -23,8 +33,26 @@ import { MarkdownEditor } from "./MarkdownEditor";
  * `Canvas`/`MarkdownEditor`, plus the NimbusBot AI flow. `doc:ai:start`
  * swaps in a GENERATING pseudo-tab with `AiGenOverlay`; `doc:ai:thinking`
  * streams reasoning tokens; `doc:ai:complete` replaces the pseudo-tab with
- * the real document after 500ms; `doc:ai:error` surfaces dismissal. Exposes
- * `addTab` to siblings (e.g. Chat) via `DocEditorRefContext`.
+ * the real document after 500ms; `doc:ai:error` surfaces dismissal. When a
+ * meeting's notes are written (`meeting:notes-ready`) the notes document is
+ * added as a tab in the background, highlighted but without taking the
+ * selection from whatever someone is editing. `document:created` adds a tab,
+ * `document:renamed` retitles one, and `document:deleted` replaces the editor of
+ * a tab that is open on it with a "This document was deleted" notice (the tab
+ * stays until closed, so nobody is left typing into a document that is gone).
+ * The person who deleted it needs no warning, so their own tab just closes.
+ * Exposes `addTab` to siblings (e.g. Chat) via `DocEditorRefContext`.
+ *
+ * Presence: the open editor reports who else is in its document (markdown
+ * awareness, or the canvas pointers seen so far) and the tab strip shows them as
+ * avatars, never including the signed-in user. Presence belongs to the open
+ * tab only; switching tabs remounts the editor, which clears the list before
+ * the next one fills it.
+ *
+ * @important Every document event is applied idempotently by id.
+ *            `document:created` is also sent for documents that arrive through
+ *            `doc:ai:complete` or `meeting:notes-ready`, in either order, and
+ *            `replaceGeneratingTab` never leaves two tabs on one document.
  */
 /** Placeholder tab shown while NimbusBot generates a document. */
 type GeneratingTab = {
@@ -94,11 +122,15 @@ const withTabs = (
  * Tabbed editor over the workspace's documents.
  *
  * @param props.documents - Initial tabs (first tab active).
+ * @param props.user - Signed-in user; published as this tab's cursor identity and
+ *                     excluded from the "also editing" avatars.
  */
 export default function DocEditor({
   documents,
+  user,
 }: {
   documents: ClientDocument[];
+  user?: LocalPresenceUser;
 }) {
   const [state, setState] = useState<EditorState>(() => ({
     tabs: documents,
@@ -106,11 +138,30 @@ export default function DocEditor({
   }));
   const { tabs, active } = state;
   const [highlightTabId, setHighlightTabId] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [aiGenerating, setAiGenerating] = useState<AIGenerationState | null>(
     null,
   );
   const aiGeneratingRef = useRef<AIGenerationState | null>(null);
   const addTabRef = useDocEditorRef();
+
+  const userId = user?.id;
+  const userName = user?.name;
+  const userImage = user?.image;
+  // Stable identity: the editors take it through refs but are memoised on it.
+  const presenceUser = useMemo<LocalPresenceUser | undefined>(
+    () =>
+      userId && userName
+        ? { id: userId, name: userName, image: userImage ?? null }
+        : undefined,
+    [userId, userName, userImage],
+  );
+  const [peers, setPeers] = useState<PresencePeer[]>([]);
+  const updatePeers = useCallback((next: PresencePeer[]) => {
+    setPeers((prev) => (samePeers(prev, next) ? prev : next));
+  }, []);
 
   useEffect(() => {
     aiGeneratingRef.current = aiGenerating;
@@ -125,12 +176,15 @@ export default function DocEditor({
 
   // Adapters so `DocTabs` keeps its plain tabs/setter surface while the two
   // values live in a single state object.
-  const setTabs = useCallback<Dispatch<SetStateAction<EditorTab[]>>>((value) => {
-    setState((prev) => ({
-      tabs: typeof value === "function" ? value(prev.tabs) : value,
-      active: prev.active,
-    }));
-  }, []);
+  const setTabs = useCallback<Dispatch<SetStateAction<EditorTab[]>>>(
+    (value) => {
+      setState((prev) => ({
+        tabs: typeof value === "function" ? value(prev.tabs) : value,
+        active: prev.active,
+      }));
+    },
+    [],
+  );
 
   const setActive = useCallback<Dispatch<SetStateAction<number>>>((value) => {
     setState((prev) => ({
@@ -172,16 +226,25 @@ export default function DocEditor({
           (tab) => isGeneratingTab(tab) && tab.id === generatingTabId,
         );
 
-        if (generatingIndex < 0) {
-          const existingIndex = prev.tabs.findIndex(
-            (tab) => !isGeneratingTab(tab) && tab.id === nextDoc.id,
-          );
+        const existingIndex = prev.tabs.findIndex(
+          (tab) => !isGeneratingTab(tab) && tab.id === nextDoc.id,
+        );
 
+        if (generatingIndex < 0) {
           if (existingIndex >= 0) {
             return { tabs: prev.tabs, active: existingIndex };
           }
 
           return { tabs: [...prev.tabs, nextDoc], active: prev.tabs.length };
+        }
+
+        // The announcement of a new document can land before the generation
+        // finishes; keep that tab and drop the placeholder rather than showing
+        // the document twice.
+        if (existingIndex >= 0) {
+          const nextTabs = prev.tabs.filter((_, i) => i !== generatingIndex);
+          const keptIndex = nextTabs.findIndex((tab) => tab.id === nextDoc.id);
+          return { tabs: nextTabs, active: keptIndex };
         }
 
         const nextTabs = [...prev.tabs];
@@ -322,6 +385,82 @@ export default function DocEditor({
     };
   }, [replaceGeneratingTab, setHighlightForTab]);
 
+  // The notes document is created on the server, so no tab exists for it yet.
+  // It is appended without moving the selection: the people on the call are
+  // usually mid-edit when the notes land.
+  useEffect(() => {
+    let active = true;
+    async function onNotesReady(data: {
+      meetingId: string;
+      documentId: string;
+    }) {
+      const doc = await fetchDocument(data.documentId);
+      if (!active || !doc) return;
+      setState((prev) =>
+        prev.tabs.some((tab) => !isGeneratingTab(tab) && tab.id === doc.id)
+          ? prev
+          : { tabs: [...prev.tabs, doc], active: prev.active },
+      );
+      setHighlightForTab(doc.id);
+    }
+    socket.on("meeting:notes-ready", onNotesReady);
+    return () => {
+      active = false;
+      socket.off("meeting:notes-ready", onNotesReady);
+    };
+  }, [setHighlightForTab]);
+
+  // Document lifecycle announcements from other members (and from the server,
+  // for generated documents and notes). A new document is appended without
+  // taking the selection; its content arrives through the editor's own sync.
+  useEffect(() => {
+    const onCreated = (data: { document: DocumentSummaryDTO }) => {
+      const doc = toClientDocument(data.document);
+      setState((prev) =>
+        prev.tabs.some((tab) => !isGeneratingTab(tab) && tab.id === doc.id)
+          ? prev
+          : { tabs: [...prev.tabs, doc], active: prev.active },
+      );
+      setHighlightForTab(doc.id);
+    };
+    const onRenamed = (data: { documentId: string; title: string }) => {
+      setState((prev) =>
+        prev.tabs.some(
+          (tab) =>
+            !isGeneratingTab(tab) &&
+            tab.id === data.documentId &&
+            tab.label !== data.title,
+        )
+          ? {
+              tabs: prev.tabs.map((tab) =>
+                !isGeneratingTab(tab) && tab.id === data.documentId
+                  ? { ...tab, label: data.title }
+                  : tab,
+              ),
+              active: prev.active,
+            }
+          : prev,
+      );
+    };
+    const onDeleted = (data: { documentId: string; deletedById: string }) => {
+      if (data.deletedById === userId) {
+        closeTab(data.documentId);
+        return;
+      }
+      setDeletedIds((prev) =>
+        prev.has(data.documentId) ? prev : new Set(prev).add(data.documentId),
+      );
+    };
+    socket.on("document:created", onCreated);
+    socket.on("document:renamed", onRenamed);
+    socket.on("document:deleted", onDeleted);
+    return () => {
+      socket.off("document:created", onCreated);
+      socket.off("document:renamed", onRenamed);
+      socket.off("document:deleted", onDeleted);
+    };
+  }, [setHighlightForTab, closeTab, userId]);
+
   const dismissGenerationError = useCallback(() => {
     const prev = aiGeneratingRef.current;
     if (!prev) return;
@@ -343,6 +482,11 @@ export default function DocEditor({
         setActive={setActive}
         highlightTabId={highlightTabId}
         onCloseTab={closeTab}
+        trailing={
+          isGeneratingTab(current) || deletedIds.has(current.id) ? null : (
+            <PresenceAvatars peers={peers} />
+          )
+        }
       />
 
       <div className="min-h-0 flex-1">
@@ -353,17 +497,49 @@ export default function DocEditor({
           />
         )}
 
-        {!isGeneratingTab(current) && current.type === "CANVAS" && (
-          <Canvas
-            key={current.id}
-            initialElements={current.elements}
-            documentId={current.id}
-          />
+        {!isGeneratingTab(current) && deletedIds.has(current.id) && (
+          <div
+            role="alert"
+            data-testid="document-deleted"
+            className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
+          >
+            <p className="text-base font-medium">This document was deleted</p>
+            <p className="max-w-sm text-sm text-(--muted-foreground)">
+              Someone removed &ldquo;{current.label}&rdquo; from the workspace.
+              Anything typed since is not saved.
+            </p>
+            <button
+              type="button"
+              onClick={() => closeTab(current.id)}
+              className="rounded-xl border border-(--border) px-3 py-1.5 text-sm hover:bg-(--muted) hover:cursor-pointer"
+            >
+              Close tab
+            </button>
+          </div>
         )}
 
-        {!isGeneratingTab(current) && current.type === "MARKDOWN" && (
-          <MarkdownEditor key={current.id} documentId={current.id} />
-        )}
+        {!isGeneratingTab(current) &&
+          !deletedIds.has(current.id) &&
+          current.type === "CANVAS" && (
+            <Canvas
+              key={current.id}
+              initialElements={current.elements}
+              documentId={current.id}
+              user={presenceUser}
+              onPeersChange={updatePeers}
+            />
+          )}
+
+        {!isGeneratingTab(current) &&
+          !deletedIds.has(current.id) &&
+          current.type === "MARKDOWN" && (
+            <MarkdownEditor
+              key={current.id}
+              documentId={current.id}
+              user={presenceUser}
+              onPeersChange={updatePeers}
+            />
+          )}
       </div>
     </section>
   );

@@ -7,6 +7,7 @@
  *            without the assistant creates no row. At most one meeting per
  *            workspace is `LIVE` at a time.
  */
+import type { MeetingSummary } from "../validations/meetingSummary";
 import type { AiVoiceUnavailableReason } from "./ai";
 
 /** Lifecycle of a meeting. `SUMMARIZED` and `FAILED` are set after it ends. */
@@ -63,6 +64,8 @@ export type MeetingDTO = {
   budgetSeconds: number | null;
   /** Highest transcript sequence number stored so far. */
   lastSeq: number;
+  /** The title the notes gave the meeting. Null until they are written. */
+  title?: string | null;
 };
 
 /** One caption: a transcribed utterance. */
@@ -111,6 +114,10 @@ export type MeetingSummaryDTO = MeetingDTO & {
   startedByName: string | null;
   /** Transcript segments stored for the meeting. */
   segmentCount: number;
+  /** The title the notes gave the meeting; null until they are written. */
+  title: string | null;
+  /** The notes document, once written. */
+  notesDocumentId: string | null;
 };
 
 /** `GET /api/meetings?workspaceId=`: newest first, cursor-paged. */
@@ -118,4 +125,123 @@ export type MeetingListDTO = {
   meetings: MeetingSummaryDTO[];
   /** Pass back as `cursor` for the next page; null on the last one. */
   nextCursor: string | null;
+};
+
+/** Whether an action item still needs doing. */
+export type ActionItemStatus = "OPEN" | "DONE";
+
+/** A task from a meeting, or added to the workspace directly. */
+export type ActionItemDTO = {
+  id: string;
+  workspaceId: string;
+  /** The meeting it came from; null when that meeting was deleted. */
+  meetingId: string | null;
+  /** Title of that meeting, when it has one. */
+  meetingTitle: string | null;
+  text: string;
+  /** The responsible member, when the spoken name matched exactly one. */
+  ownerUserId: string | null;
+  /**
+   * Who to show as the owner: the linked member's current name, otherwise the
+   * name as spoken, otherwise null.
+   */
+  ownerName: string | null;
+  /** Calendar date as `YYYY-MM-DD`, or null. */
+  dueDate: string | null;
+  status: ActionItemStatus;
+  /** Sequence number of the transcript segment it was taken from, if cited. */
+  sourceSeq: number | null;
+  createdById: string | null;
+  /** ISO timestamps. */
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+};
+
+/** A decision the notes recorded. */
+export type DecisionDTO = {
+  id: string;
+  meetingId: string;
+  text: string;
+  /** Sequence number of the transcript segment it was taken from, if cited. */
+  sourceSeq: number | null;
+};
+
+/** Someone who spoke in a meeting. */
+export type MeetingParticipantDTO = {
+  /** Null when the spoken name matched no current member. */
+  userId: string | null;
+  name: string;
+};
+
+/** `GET /api/meetings/:meetingId`. */
+export type MeetingDetailDTO = MeetingDTO & {
+  title: string | null;
+  startedByName: string | null;
+  segmentCount: number;
+  /** The notes, parsed; null until they are written. */
+  summary: MeetingSummary | null;
+  decisions: DecisionDTO[];
+  actionItems: ActionItemDTO[];
+  /** Distinct speakers, in the order they first spoke. */
+  participants: MeetingParticipantDTO[];
+  notesDocumentId: string | null;
+  /** Curated reason the notes could not be written, when status is `FAILED`. */
+  failureReason: string | null;
+};
+
+/** `GET /api/meetings/:meetingId/catch-up`. */
+export type CatchUpDTO = {
+  /** Bullet-point summary of the meeting so far; null when nothing was said yet. */
+  summary: string | null;
+  /** Highest transcript sequence number the summary covers. */
+  upToSeq: number;
+  /** ISO timestamp the summary was written; null when there is none. */
+  generatedAt: string | null;
+  /** Whole minutes since the meeting started (until it ended, if it has). */
+  minutesElapsed: number;
+};
+
+/** `GET /api/action-items`: cursor-paged. */
+export type ActionItemListDTO = {
+  items: ActionItemDTO[];
+  /** Pass back as `cursor`; null on the last page. */
+  nextCursor: string | null;
+};
+
+/** One keyword match in a meeting transcript. */
+export type SegmentSearchHitDTO = {
+  meetingId: string;
+  meetingTitle: string | null;
+  /** ISO timestamp. */
+  meetingStartedAt: string;
+  segmentId: string;
+  seq: number;
+  speakerName: string;
+  startMs: number;
+  /**
+   * An excerpt of the caption with the matched words wrapped in `<mark>` and
+   * `</mark>`. Everything else is raw transcript text, not HTML: render it as
+   * text and treat only those two tags as markup.
+   */
+  snippet: string;
+};
+
+/** `GET /api/meetings/search`. */
+export type SegmentSearchDTO = {
+  hits: SegmentSearchHitDTO[];
+};
+
+/**
+ * Payload of the `meeting:action-items` event.
+ *
+ * With a `meetingId`, `items` is the meeting's complete current set and
+ * replaces whatever the client holds for it. With `meetingId: null` (an item
+ * whose meeting is gone), `items` holds only the changed item: merge it by id.
+ * `removedIds` lists items that were deleted.
+ */
+export type ActionItemsChangedDTO = {
+  meetingId: string | null;
+  items: ActionItemDTO[];
+  removedIds: string[];
 };

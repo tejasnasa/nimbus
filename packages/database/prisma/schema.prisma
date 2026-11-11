@@ -38,6 +38,8 @@ model User {
   aiCalls        AiCall[]
   meetingsStarted Meeting[]
   transcriptSegments TranscriptSegment[]
+  actionItemsOwned ActionItem[] @relation("ActionItemOwner")
+  actionItemsCreated ActionItem[] @relation("ActionItemCreator")
 
   @@unique([email])
   @@map("user")
@@ -118,6 +120,8 @@ model Workspace {
   aiSettings    WorkspaceAiSettings?
   aiCalls       AiCall[]
   meetings      Meeting[]
+  actionItems   ActionItem[]
+  decisions     Decision[]
 }
 
 /// Join table linking a User to a Workspace with an RBAC role.
@@ -170,10 +174,21 @@ model Document {
   yjsState    Bytes?
   /// One-shot AI-generated markdown seed; consumed (cleared) on first doc:join.
   initialContent String?
+  /// Plain text of the document body (paragraphs and labels), rewritten whenever
+  /// the content is persisted. It exists only to feed `search`.
+  searchText  String?
+  /// `to_tsvector('simple', searchText || ' ' || title)`, a stored generated column
+  /// with a GIN index. Both are created in raw SQL in the migration; the `@default`
+  /// only mirrors the generation expression so Prisma sees no drift.
+  /// Never written by the application.
+  search      Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, ((COALESCE(\"searchText\", ''::text) || ' '::text) || title))"))
 
   workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  /// The meeting whose notes this document holds, if it is a meeting's notes.
+  notesOf     Meeting?
 
   @@index([workspaceId])
+  @@index([search], type: Gin)
 }
 
 /// A user's encrypted API key for one AI provider (BYOK).
@@ -373,9 +388,29 @@ model Meeting {
   budgetSeconds Int?
   /// Highest transcript sequence number stored so far.
   lastSeq       Int           @default(0)
+  /// Set when the notes are written: the title the summary gave the meeting.
+  title         String?
+  /// Running bullet-point summary kept up to date while the meeting is live;
+  /// what "catch me up" returns.
+  rollingSummary    String?
+  /// Highest transcript sequence number the rolling summary covers.
+  rollingSummarySeq Int       @default(0)
+  rollingSummaryAt  DateTime?
+  /// The notes, as a `MeetingSummarySchema` object, stored after validation.
+  summary       Json?
+  /// How many times writing the notes has been attempted. Recovery gives up at three.
+  summaryAttempts Int         @default(0)
+  /// Why the last attempt at the notes failed; cleared when one succeeds.
+  failureReason String?
+  /// The markdown document the notes were written into. Unique: one document
+  /// belongs to at most one meeting. Deleting the document leaves the meeting.
+  notesDocumentId String?     @unique
   workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   startedBy     User?         @relation(fields: [startedById], references: [id], onDelete: SetNull)
+  notesDocument Document?     @relation(fields: [notesDocumentId], references: [id], onDelete: SetNull)
   segments      TranscriptSegment[]
+  actionItems   ActionItem[]
+  decisions     Decision[]
   aiCalls       AiCall[]
 
   @@index([workspaceId, startedAt])
@@ -399,12 +434,18 @@ model TranscriptSegment {
   /// Language the transcriber reported, when it reported one.
   language      String?
   createdAt     DateTime @default(now())
+  /// `to_tsvector('simple', text)`, a stored generated column with a GIN index.
+  /// Both are created in raw SQL in the migration; the `@default` only mirrors
+  /// the generation expression so Prisma sees no drift.
+  /// Never written by the application.
+  search        Unsupported("tsvector")? @default(dbgenerated("to_tsvector('simple'::regconfig, text)"))
   meeting       Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   speaker       User?    @relation(fields: [speakerUserId], references: [id], onDelete: SetNull)
   translations  SegmentTranslation[]
 
   @@unique([meetingId, seq])
   @@index([meetingId, startMs])
+  @@index([search], type: Gin)
   @@map("transcript_segment")
 }
 
@@ -420,6 +461,54 @@ model SegmentTranslation {
 
   @@id([segmentId, language])
   @@map("segment_translation")
+}
+
+/// A task that came out of a meeting, or was added to the workspace by hand.
+model ActionItem {
+  id              String           @id @default(cuid())
+  workspaceId     String
+  /// The meeting it came from. Kept when the meeting is deleted.
+  meetingId       String?
+  text            String
+  /// The member responsible, when the spoken name matched exactly one member.
+  ownerUserId     String?
+  /// The owner as spoken, kept when it matched no member or more than one.
+  ownerName       String?
+  dueDate         DateTime?
+  status          ActionItemStatus @default(OPEN)
+  /// The transcript segment the item was taken from, when the model cited one.
+  sourceSegmentId String?
+  /// Who made the item; null for items the notes produced.
+  createdById     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  completedAt     DateTime?
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  meeting         Meeting?         @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  owner           User?            @relation("ActionItemOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy       User?            @relation("ActionItemCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([ownerUserId])
+  @@index([meetingId])
+  @@map("action_item")
+}
+
+/// A decision the notes recorded for a meeting.
+model Decision {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  meetingId       String
+  text            String
+  /// The transcript segment the decision was taken from, when cited.
+  sourceSegmentId String?
+  createdAt       DateTime  @default(now())
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  meeting         Meeting   @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([meetingId])
+  @@map("decision")
 }
 
 /// Role-based access control levels for workspace membership.
@@ -474,9 +563,10 @@ enum MeetingStatus {
   LIVE
   /// The assistant left or was stopped.
   ENDED
-  /// Notes were produced after the meeting ended.
+  /// The notes are done (or the meeting was too short to need any).
   SUMMARIZED
-  /// The assistant could not be started.
+  /// The assistant could not be started, or the notes could not be produced
+  /// (`Meeting.failureReason` says which); the transcript is kept either way.
   FAILED
 }
 
@@ -490,4 +580,12 @@ enum AiCallStatus {
   REFUSED
   /// The caller aborted the call.
   CANCELLED
+}
+
+/// Whether an action item still needs doing.
+enum ActionItemStatus {
+  /// Not done yet.
+  OPEN
+  /// Done; `ActionItem.completedAt` says when.
+  DONE
 }

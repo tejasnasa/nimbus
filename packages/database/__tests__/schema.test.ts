@@ -79,6 +79,8 @@ const MODELS = [
   "Meeting",
   "TranscriptSegment",
   "SegmentTranslation",
+  "ActionItem",
+  "Decision",
 ] as const;
 
 describe("schema.prisma — datasource and generator", () => {
@@ -142,6 +144,7 @@ describe("schema.prisma — enums", () => {
       (m) => m[1],
     );
     expect(enums.sort()).toEqual([
+      "ActionItemStatus",
       "AiCallSource",
       "AiCallStatus",
       "AiFeature",
@@ -243,6 +246,16 @@ describe("schema.prisma — Document", () => {
     expect(initialContent.optional).toBe(true);
   });
 
+  it("keeps the search text nullable and declares the generated search column with a GIN index", () => {
+    const searchText = field("Document", "searchText");
+    expect(searchText.type).toBe("String");
+    expect(searchText.optional).toBe(true);
+    expect(field("Document", "search").type).toBe('Unsupported("tsvector")');
+    expect(declarations("model", "Document").join("\n")).toContain(
+      "@@index([search], type: Gin)",
+    );
+  });
+
   it("defaults new documents to CANVAS", () => {
     const type = field("Document", "type");
     expect(type.type).toBe("DocumentType");
@@ -309,6 +322,9 @@ describe("schema.prisma — User, Message and relations", () => {
     ["Meeting", "workspaceId"],
     ["TranscriptSegment", "meetingId"],
     ["SegmentTranslation", "segmentId"],
+    ["ActionItem", "workspaceId"],
+    ["Decision", "workspaceId"],
+    ["Decision", "meetingId"],
   ] as const)("%s.%s cascades on delete", (model, name) => {
     const relation = declarations("model", model).find((line) =>
       line.includes(`fields: [${name}]`),
@@ -406,6 +422,10 @@ describe("schema.prisma — workspace AI tables", () => {
     ["AiCall", "userId"],
     ["Meeting", "startedById"],
     ["TranscriptSegment", "speakerUserId"],
+    ["Meeting", "notesDocumentId"],
+    ["ActionItem", "meetingId"],
+    ["ActionItem", "ownerUserId"],
+    ["ActionItem", "createdById"],
   ] as const)(
     "%s.%s survives the user: it is set null, not cascaded",
     (model, name) => {
@@ -437,8 +457,8 @@ describe("schema.prisma — workspace AI tables", () => {
   });
 
   it("never gives a credential a plaintext column", () => {
-    const names = declarations("model", "WorkspaceAiCredential").map((line) =>
-      line.trim().split(/\s+/)[0],
+    const names = declarations("model", "WorkspaceAiCredential").map(
+      (line) => line.trim().split(/\s+/)[0],
     );
     for (const forbidden of ["apiKey", "key", "secret", "plaintext"]) {
       expect(names).not.toContain(forbidden);
@@ -451,5 +471,38 @@ describe("schema.prisma — workspace AI tables", () => {
       "@default(0)",
     );
     expect(() => declarations("model", "AiCredential")).not.toThrow();
+  });
+});
+
+describe("schema.prisma — meeting notes", () => {
+  it("keeps one notes document per meeting", () => {
+    const column = field("Meeting", "notesDocumentId");
+    expect(column.optional).toBe(true);
+    expect(column.attributes).toContain("@unique");
+  });
+
+  it("counts attempts from zero and tracks the rolling summary position", () => {
+    expect(field("Meeting", "summaryAttempts").attributes).toContain(
+      "@default(0)",
+    );
+    expect(field("Meeting", "rollingSummarySeq").attributes).toContain(
+      "@default(0)",
+    );
+  });
+
+  it("declares the transcript search column and its GIN index", () => {
+    expect(field("TranscriptSegment", "search").type).toBe(
+      'Unsupported("tsvector")',
+    );
+    expect(declarations("model", "TranscriptSegment").join("\n")).toContain(
+      "@@index([search], type: Gin)",
+    );
+  });
+
+  it("defaults action items to OPEN", () => {
+    expect(declarations("enum", "ActionItemStatus")).toEqual(["OPEN", "DONE"]);
+    expect(field("ActionItem", "status").attributes).toContain(
+      "@default(OPEN)",
+    );
   });
 });

@@ -20,11 +20,7 @@
  * disable the composer, because the free tier's chat path is unlimited.
  */
 import "./testUtils";
-import type {
-  AiWorkspaceStatusDTO,
-  Message,
-  Workspace,
-} from "@nimbus/types";
+import type { AiWorkspaceStatusDTO, Message, Workspace } from "@nimbus/types";
 import { http } from "msw";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -33,6 +29,7 @@ import Chat from "../../components/Chat";
 import type { ClientDocument } from "../../api/document";
 import { BACKEND_URL, ok } from "../msw/handlers";
 import { server } from "../msw/server";
+import { WorkspaceSettingsProvider } from "../../components/WorkspaceSettingsContext";
 import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
 import { aiStatus, aiStatusChatOff } from "../msw/aiFixtures";
 
@@ -147,25 +144,26 @@ function renderChat(props: {
 }) {
   return render(
     <DocEditorRefProvider>
-      <Chat
-        userId="user-1"
-        messages={props.messages ?? BASE_MESSAGES}
-        wsid="ws-1"
+      <WorkspaceSettingsProvider
+        workspace={WORKSPACE}
         documents={DOCUMENTS}
-        workspaceData={WORKSPACE}
         initialAiStatus={props.initialAiStatus}
-      />
+        userId="user-1"
+      >
+        <Chat
+          userId="user-1"
+          messages={props.messages ?? BASE_MESSAGES}
+          wsid="ws-1"
+          initialAiStatus={props.initialAiStatus}
+        />
+      </WorkspaceSettingsProvider>
     </DocEditorRefProvider>,
   );
 }
 
 describe("Chat composer", () => {
   it("is fully interactive when chat is enabled", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(ENABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(ENABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
@@ -189,11 +187,7 @@ describe("Chat composer", () => {
   });
 
   it("is disabled with a CTA when chat is unavailable", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(DISABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(DISABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
@@ -224,11 +218,7 @@ describe("Chat composer", () => {
     // composer must remain interactive even when documents are refused. The
     // server sends a targeted `ai:refused` for documents; the chat panel
     // only listens for chat-feature refusals.
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(ENABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(ENABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
@@ -249,11 +239,7 @@ describe("Chat composer", () => {
   });
 
   it("surfaces a chat-feature refusal as an inline error", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(ENABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(ENABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
@@ -272,11 +258,7 @@ describe("Chat composer", () => {
   });
 
   it("dismisses the workspace error when the user clicks the X button", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(ENABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(ENABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: ENABLED_CHAT_STATUS });
 
@@ -296,31 +278,29 @@ describe("Chat composer", () => {
   });
 
   it("renders message bubbles for the history", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(ENABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(ENABLED_CHAT_STATUS))));
 
     const user = userEvent.setup();
     render(
-      <Chat
-        userId="user-1"
-        messages={[
-          {
-            id: "m-1",
-            userId: "user-2",
-            workspaceId: "ws-1",
-            name: "Grace Hopper",
-            content: "Hello!",
-            createdAt: new Date("2026-01-01T00:00:00.000Z"),
-          },
-        ]}
-        wsid="ws-1"
-        documents={DOCUMENTS}
-        workspaceData={WORKSPACE}
-        initialAiStatus={ENABLED_CHAT_STATUS}
-      />,
+      <DocEditorRefProvider>
+        <WorkspaceSettingsProvider workspace={WORKSPACE} documents={DOCUMENTS}>
+          <Chat
+            userId="user-1"
+            messages={[
+              {
+                id: "m-1",
+                userId: "user-2",
+                workspaceId: "ws-1",
+                name: "Grace Hopper",
+                content: "Hello!",
+                createdAt: new Date("2026-01-01T00:00:00.000Z"),
+              },
+            ]}
+            wsid="ws-1"
+            initialAiStatus={ENABLED_CHAT_STATUS}
+          />
+        </WorkspaceSettingsProvider>
+      </DocEditorRefProvider>,
     );
 
     // The peer's message renders as ChatMsgA (left-aligned). The empty-state
@@ -331,11 +311,7 @@ describe("Chat composer", () => {
   });
 
   it("opens the Add API key dialog when the refusal CTA is used", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(DISABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(DISABLED_CHAT_STATUS))));
 
     const user = userEvent.setup();
     renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
@@ -350,11 +326,7 @@ describe("Chat composer", () => {
   });
 
   it("still sends human messages even while the AI is disabled", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(DISABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(DISABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
@@ -370,11 +342,7 @@ describe("Chat composer", () => {
   });
 
   it("refetches AI status when the socket reconnects", async () => {
-    server.use(
-      http.get(STATUS_URL, () =>
-        ok(statusFor(DISABLED_CHAT_STATUS)),
-      ),
-    );
+    server.use(http.get(STATUS_URL, () => ok(statusFor(DISABLED_CHAT_STATUS))));
 
     renderChat({ initialAiStatus: DISABLED_CHAT_STATUS });
 
@@ -480,10 +448,7 @@ describe("Chat composer: roles and the spend cap", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByTestId("ai-refusal-cta"));
-    await user.type(
-      screen.getByLabelText(/API key/i),
-      "sk-test-fake-key-1234",
-    );
+    await user.type(screen.getByLabelText(/API key/i), "sk-test-fake-key-1234");
     await user.click(screen.getByRole("button", { name: /^save/i }));
 
     await waitFor(() =>

@@ -1,7 +1,6 @@
 "use client";
 
-import { AiWorkspaceStatusDTO, Message, Workspace } from "@nimbus/types";
-import AlertDialog from "@nimbus/ui/AlertDialog";
+import { AiWorkspaceStatusDTO, Message } from "@nimbus/types";
 import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
@@ -11,7 +10,6 @@ import PaperclipIcon from "@nimbus/ui/icons/Paperclip";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { timeAgo } from "@nimbus/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ClientDocument } from "../api/document";
 /**
  * @module web/components/Chat
  * @description Workspace chat panel: joins/leaves the workspace room,
@@ -21,12 +19,19 @@ import { ClientDocument } from "../api/document";
  * (`ChatMsgA`); Enter sends, Shift+Enter newlines. Typing indicators are
  * wired through `useTypingIndicator` so the composer emits throttled
  * `typing:start`/`typing:stop` events and renders peers' status as a
- * reserved-height line below the message list.
+ * reserved-height line below the message list; NimbusBot appears there as a
+ * typer while the server's `bot:typing` signal (`useBotTyping`) is on.
  *
  * Images: the paperclip (or a file dropped on the composer) uploads straight to
  * Cloudinary through `useChatImageUpload`, showing a progress chip that can be
  * cancelled; once ready, Send posts the message with its `imageUrl` (the text
  * may be empty). Messages with an image render a thumbnail that opens full size.
+ *
+ * A message from someone else that contains `[label](nimbus-doc:<id>)` (the
+ * notes link NimbusBot posts when a meeting is written up) shows the label as a
+ * button that opens the document through `useOpenDocument`. The workspace
+ * settings dialog is not rendered here: this panel asks the shared
+ * `WorkspaceSettingsProvider` to open it on the AI tab.
  *
  * The composer **disables** when `features.chat.enabled === false` and renders
  * an {@link AiRefusalBanner}. Keys belong to the workspace, so an admin gets an
@@ -46,6 +51,8 @@ import {
   CHAT_IMAGE_ACCEPT,
   useChatImageUpload,
 } from "../hooks/useChatImageUpload";
+import { useOpenDocument } from "../hooks/useOpenDocument";
+import { useBotTyping } from "../hooks/useBotTyping";
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import { useWorkspaceAiStatus } from "../hooks/useWorkspaceAiStatus";
 import { aiApi, workspaceAiPath } from "../lib/aiApi";
@@ -53,14 +60,13 @@ import { socket } from "../lib/socket";
 import AiRefusalBanner from "./AiRefusalBanner";
 import ApiKeyDialog from "./ApiKeyDialog";
 import TypingIndicator from "./TypingIndicator";
-import WorkspaceSettings from "./WorkspaceSettings";
+import ChatMessageText, { hasDocLink } from "./ChatMessageText";
+import { useWorkspaceSettings } from "./WorkspaceSettingsContext";
 
 /**
  * @param props.userId - Current user (determines bubble side).
  * @param props.messages - Server-rendered history; live messages append.
  * @param props.wsid - Workspace cuid (socket room).
- * @param props.documents - Forwarded to the settings dialog.
- * @param props.workspaceData - Workspace the settings dialog edits.
  * @param props.initialAiStatus - Server-fetched workspace AI status so the
  *                                composer renders in the right state before
  *                                `useWorkspaceAiStatus` lands.
@@ -69,15 +75,11 @@ export default function Chat({
   userId,
   messages: initialMessages,
   wsid,
-  documents,
-  workspaceData,
   initialAiStatus,
 }: {
   userId: string;
   messages: Message[];
   wsid: string;
-  documents: ClientDocument[];
-  workspaceData: Workspace;
   initialAiStatus: AiWorkspaceStatusDTO;
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -91,7 +93,8 @@ export default function Chat({
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settings = useWorkspaceSettings();
+  const openDocument = useOpenDocument();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { state: aiState, refresh: refreshAiStatus } =
@@ -114,6 +117,8 @@ export default function Chat({
     wsid,
     currentUserId: userId,
   });
+
+  const botTyping = useBotTyping(wsid);
 
   useEffect(() => {
     if (!wsid) return;
@@ -284,6 +289,14 @@ export default function Chat({
     return { ok: true as const };
   };
 
+  // A link in a message (the meeting notes NimbusBot posts) opens that document
+  // in the editor; a failure is said in the same banner as other room errors.
+  const handleOpenDocument = (documentId: string) => {
+    void openDocument.open(documentId).then((opened) => {
+      if (!opened) setWorkspaceError("That document could not be opened.");
+    });
+  };
+
   const placeholder = chatEnabled
     ? "Type a message..."
     : canManageAi
@@ -321,7 +334,7 @@ export default function Chat({
               <button
                 type="button"
                 onClick={() => {
-                  setSettingsOpen(true);
+                  settings.open("AI");
                   setAiRefusal(null);
                 }}
                 className="hover:cursor-pointer underline"
@@ -369,6 +382,14 @@ export default function Chat({
               name={msg.name}
               image={msg.image || getAvatarForUser(msg.userId)}
               message={msg.content}
+              content={
+                hasDocLink(msg.content) ? (
+                  <ChatMessageText
+                    text={msg.content}
+                    onOpenDocument={handleOpenDocument}
+                  />
+                ) : undefined
+              }
               imageUrl={msg.imageUrl}
               time={timeAgo(msg.createdAt)}
               isOnline={onlineUsers.has(msg.userId)}
@@ -391,12 +412,14 @@ export default function Chat({
             reason={chatStatus.reason}
             canManage={canManageAi}
             onCtaClickAction={() =>
-              capReached ? setSettingsOpen(true) : setAiDialogOpen(true)
+              capReached ? settings.open("AI") : setAiDialogOpen(true)
             }
-            ctaDisabled={aiDialogOpen || settingsOpen}
+            ctaDisabled={aiDialogOpen}
           />
         )}
-        <TypingIndicator names={typingNames} />
+        <TypingIndicator
+          names={botTyping ? [...typingNames, "NimbusBot"] : typingNames}
+        />
         {pendingImage.status !== "idle" && pendingImage.status !== "error" && (
           <div
             data-testid="chat-image-pending"
@@ -536,18 +559,6 @@ export default function Chat({
           onOpenChange={setAiDialogOpen}
           onSave={handleSaveApiKey}
         />
-      )}
-
-      {canManageAi && (
-        <AlertDialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <WorkspaceSettings
-            workspace={workspaceData}
-            documents={documents}
-            initialTab="AI"
-            initialAiStatus={aiStatus}
-            userId={userId}
-          />
-        </AlertDialog>
       )}
     </div>
   );

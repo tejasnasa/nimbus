@@ -14,17 +14,47 @@
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
+const { createMock, searchDocumentsMock, searchSegmentsMock } = vi.hoisted(
+  () => ({
+    createMock: vi.fn(),
+    searchDocumentsMock: vi.fn(),
+    searchSegmentsMock: vi.fn(),
+  }),
+);
+
+// The searches run against the real database. They are wrapped only so a test
+// can make one fail.
+vi.mock("../../lib/documentSearch", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/documentSearch")>();
+  return {
+    ...actual,
+    searchDocuments: (...args: Parameters<typeof actual.searchDocuments>) =>
+      searchDocumentsMock(...args),
+  };
+});
+vi.mock("../../lib/meeting/search", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/meeting/search")>();
+  return {
+    ...actual,
+    searchSegments: (...args: Parameters<typeof actual.searchSegments>) =>
+      searchSegmentsMock(...args),
+  };
+});
 
 import { AI_PROVIDERS, modelById, type AiProviderSpec } from "@nimbus/types";
 import { generateBotResponse } from "../../lib/bot";
 import type { AiClientHandle } from "../../lib/ai/clientFactory";
 import {
   closeTestResources,
+  createDocument,
+  createMeeting,
   createMessage,
   createUser,
   createWorkspace,
   resetDatabase,
+  seedTranscript,
   testPrisma,
 } from "@testhelpers";
 
@@ -375,7 +405,26 @@ describe("lib/bot", () => {
         string,
         unknown
       >;
+      const tools = request.tools as Array<{ name: string }>;
+      expect(tools.map((tool) => tool.name)).toEqual(["search_workspace"]);
+    });
+
+    it("offers no tools at all when neither documents nor search are allowed", async () => {
+      createMock.mockResolvedValue(replyWith("plain"));
+
+      await generateBotResponse({
+        workspaceId,
+        handle: makeTestHandle(),
+        allowDocument: false,
+        allowSearch: false,
+      });
+
+      const request = createMock.mock.calls.at(-1)?.[0] as Record<
+        string,
+        unknown
+      >;
       expect(request.tools).toEqual([]);
+      expect(String(request.instructions)).not.toMatch(/search_workspace/);
     });
 
     it("tells the model that document creation is unavailable", async () => {
@@ -410,8 +459,10 @@ describe("lib/bot", () => {
         unknown
       >;
       const tools = request.tools as Array<Record<string, unknown>>;
-      expect(tools).toHaveLength(1);
-      expect(tools[0]?.name).toBe("create_document");
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "create_document",
+        "search_workspace",
+      ]);
     });
 
     /**
@@ -500,7 +551,9 @@ describe("lib/bot", () => {
 
     type InputItem = {
       role: string;
-      content: string | Array<{ type: string; image_url?: string; detail?: string }>;
+      content:
+        | string
+        | Array<{ type: string; image_url?: string; detail?: string }>;
     };
     const inputSent = () =>
       createMock.mock.calls.at(-1)?.[0]?.input as InputItem[];
@@ -539,7 +592,8 @@ describe("lib/bot", () => {
           workspaceId,
           userId: author.id,
           content: "look",
-          imageUrl: "https://res.cloudinary.com/test/image/upload/v1/nimbus/chat/ws/old.jpg",
+          imageUrl:
+            "https://res.cloudinary.com/test/image/upload/v1/nimbus/chat/ws/old.jpg",
         },
       });
       await createMessage(workspaceId, author.id, "@nimbusbot hello");
@@ -577,14 +631,20 @@ describe("lib/bot", () => {
       const tool = createMock.mock.calls.at(-1)![0].tools[0];
       expect(tool.parameters.properties.fromImage).toMatchObject({
         type: ["boolean", "null"],
-        description: expect.stringContaining("attached image turned into a diagram"),
+        description: expect.stringContaining(
+          "attached image turned into a diagram",
+        ),
       });
       expect(tool.parameters.required).toContain("fromImage");
       expect(tool.parameters.additionalProperties).toBe(false);
     });
 
     it("returns fromImage and forces a canvas when the model asks for it", async () => {
-      await createMessage(workspaceId, (await createUser("G")).id, "diagram it");
+      await createMessage(
+        workspaceId,
+        (await createUser("G")).id,
+        "diagram it",
+      );
       createMock.mockResolvedValue(
         toolCallWith({
           type: "MARKDOWN",
@@ -609,9 +669,18 @@ describe("lib/bot", () => {
     });
 
     it("ignores fromImage when no image is attached", async () => {
-      await createMessage(workspaceId, (await createUser("G")).id, "write notes");
+      await createMessage(
+        workspaceId,
+        (await createUser("G")).id,
+        "write notes",
+      );
       createMock.mockResolvedValue(
-        toolCallWith({ type: "MARKDOWN", label: "N", prompt: "p", fromImage: true }),
+        toolCallWith({
+          type: "MARKDOWN",
+          label: "N",
+          prompt: "p",
+          fromImage: true,
+        }),
       );
 
       const result = await generateBotResponse({
@@ -620,14 +689,22 @@ describe("lib/bot", () => {
         allowDocument: true,
       });
 
-      expect(result).toMatchObject({ kind: "create_document", type: "MARKDOWN" });
+      expect(result).toMatchObject({
+        kind: "create_document",
+        type: "MARKDOWN",
+      });
       expect(result).not.toHaveProperty("fromImage");
     });
 
     it("does not set fromImage when the model sends null", async () => {
       await createMessage(workspaceId, (await createUser("G")).id, "hi");
       createMock.mockResolvedValue(
-        toolCallWith({ type: "CANVAS", label: "N", prompt: "p", fromImage: null }),
+        toolCallWith({
+          type: "CANVAS",
+          label: "N",
+          prompt: "p",
+          fromImage: null,
+        }),
       );
 
       const result = await generateBotResponse({
@@ -642,7 +719,11 @@ describe("lib/bot", () => {
     });
 
     it("tells the model it cannot see an image it was not given", async () => {
-      await createMessage(workspaceId, (await createUser("G")).id, "what is this");
+      await createMessage(
+        workspaceId,
+        (await createUser("G")).id,
+        "what is this",
+      );
 
       await generateBotResponse({
         workspaceId,
@@ -701,5 +782,355 @@ describe("lib/bot", () => {
         process.env.BOT_USERID = original;
       }
     });
+  });
+});
+
+describe("lib/bot search_workspace", () => {
+  let workspaceId: string;
+
+  /** A model response that calls `search_workspace`. */
+  const searchCall = (query: unknown, id = "call_1") => ({
+    output: [
+      {
+        type: "function_call",
+        name: "search_workspace",
+        call_id: id,
+        arguments: typeof query === "string" ? query : JSON.stringify(query),
+      },
+    ],
+    output_text: "",
+  });
+
+  type SentItem = { type?: string; output?: string };
+  type SentRequest = {
+    tool_choice?: string;
+    instructions?: string;
+    input: SentItem[];
+  };
+
+  const lastRequest = () => createMock.mock.calls.at(-1)![0] as SentRequest;
+
+  /** The function call outputs the latest request carried back to the model. */
+  const toolOutputs = () =>
+    lastRequest()
+      .input.filter((item) => item.type === "function_call_output")
+      .map((item) => JSON.parse(item.output as string));
+
+  beforeEach(async () => {
+    await resetDatabase();
+    createMock.mockReset();
+    const actualSearch = await vi.importActual<
+      typeof import("../../lib/documentSearch")
+    >("../../lib/documentSearch");
+    const actualSegmentSearch = await vi.importActual<
+      typeof import("../../lib/meeting/search")
+    >("../../lib/meeting/search");
+    searchDocumentsMock.mockReset();
+    searchSegmentsMock.mockReset();
+    searchDocumentsMock.mockImplementation(actualSearch.searchDocuments);
+    searchSegmentsMock.mockImplementation(actualSegmentSearch.searchSegments);
+
+    const author = await createUser("Ada Lovelace");
+    workspaceId = (await createWorkspace(author.id)).id;
+    await createMessage(
+      workspaceId,
+      author.id,
+      "@nimbusbot where is the plan?",
+    );
+  });
+
+  it("searches once, hands the results back and answers", async () => {
+    const doc = await createDocument(workspaceId, {
+      title: "Launch plan",
+      type: "MARKDOWN",
+      searchText: "The rollout needs a rollback checklist before Friday.",
+    });
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "rollback" }))
+      .mockResolvedValueOnce(replyWith("It is in the launch plan."));
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toEqual({
+      kind: "reply",
+      content: "It is in the launch plan.",
+    });
+    expect(createMock).toHaveBeenCalledTimes(2);
+    const [output] = toolOutputs();
+    expect(output.documents).toHaveLength(1);
+    expect(output.documents[0]).toMatchObject({
+      title: "Launch plan",
+      citation: `[Launch plan](nimbus-doc:${doc.id})`,
+    });
+    expect(output.documents[0].excerpt).toContain("rollback");
+    expect(output.documents[0].excerpt).not.toMatch(/<\/?mark>/);
+    expect(output.meetings).toEqual([]);
+    // Neither request forces an answer: a search is still allowed after one.
+    expect(createMock.mock.calls[0]![0].tool_choice).toBeUndefined();
+    expect(createMock.mock.calls[1]![0].tool_choice).toBeUndefined();
+  });
+
+  it("searches transcripts too, with the meeting date and no marks", async () => {
+    const meeting = await createMeeting(workspaceId, {
+      status: "ENDED",
+      startedAt: new Date("2026-11-03T10:00:00Z"),
+      endedAt: new Date("2026-11-03T10:30:00Z"),
+    });
+    await testPrisma.meeting.update({
+      where: { id: meeting.id },
+      data: { title: "Weekly sync" },
+    });
+    await seedTranscript(meeting.id, [
+      { speakerName: "Priya Shah", text: "We must finish the migration soon." },
+    ]);
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "migration" }))
+      .mockResolvedValueOnce(replyWith("Priya raised it on 3 November."));
+
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: false,
+    });
+
+    const [output] = toolOutputs();
+    expect(output.meetings).toEqual([
+      {
+        meeting: "Weekly sync",
+        date: "2026-11-03",
+        speaker: "Priya Shah",
+        excerpt: expect.stringContaining("migration"),
+      },
+    ]);
+    expect(output.meetings[0].excerpt).not.toMatch(/<\/?mark>/);
+  });
+
+  it("allows two search rounds, then forces an answer", async () => {
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "one" }, "call_1"))
+      .mockResolvedValueOnce(searchCall({ query: "two" }, "call_2"))
+      // A model that ignores `tool_choice: "none"` still gets no third search.
+      .mockResolvedValueOnce({
+        ...searchCall({ query: "three" }, "call_3"),
+        output_text: "Here is what I found.",
+      });
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(createMock).toHaveBeenCalledTimes(3);
+    expect(createMock.mock.calls[1]![0].tool_choice).toBeUndefined();
+    expect(createMock.mock.calls[2]![0].tool_choice).toBe("none");
+    expect(result).toEqual({
+      kind: "reply",
+      content: "Here is what I found.",
+    });
+    expect(searchDocumentsMock).toHaveBeenCalledTimes(2);
+    // Both rounds' results reached the last request, each with its call.
+    expect(toolOutputs()).toHaveLength(2);
+    const input = lastRequest().input;
+    expect(input.filter((item) => item.type === "function_call")).toHaveLength(
+      2,
+    );
+  });
+
+  it("falls back to a plain apology when a forced round returns no text", async () => {
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "a" }))
+      .mockResolvedValueOnce(searchCall({ query: "b" }))
+      .mockResolvedValueOnce(searchCall({ query: "c" }));
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toEqual({
+      kind: "reply",
+      content: "I'm sorry, I couldn't process that.",
+    });
+  });
+
+  it("drops only the half of a search that fails, and still answers", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    searchDocumentsMock.mockRejectedValue(new Error("db down"));
+    const meeting = await createMeeting(workspaceId, { status: "ENDED" });
+    await seedTranscript(meeting.id, [
+      { speakerName: "Tom", text: "The budget is fine." },
+    ]);
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "budget" }))
+      .mockResolvedValueOnce(replyWith("Tom said the budget is fine."));
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toMatchObject({ kind: "reply" });
+    const [output] = toolOutputs();
+    expect(output.documents).toBe("unavailable");
+    expect(output.meetings).toHaveLength(1);
+    errorSpy.mockRestore();
+  });
+
+  it("reports an unavailable search when both halves fail", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    searchDocumentsMock.mockRejectedValue(new Error("db down"));
+    searchSegmentsMock.mockRejectedValue(new Error("db down"));
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "budget" }))
+      .mockResolvedValueOnce(replyWith("I could not search right now."));
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toEqual({
+      kind: "reply",
+      content: "I could not search right now.",
+    });
+    expect(toolOutputs()).toEqual([
+      { error: "Search is unavailable right now." },
+    ]);
+    errorSpy.mockRestore();
+  });
+
+  it("answers an empty or unparseable query with an error and does not search", async () => {
+    createMock
+      .mockResolvedValueOnce(searchCall("not json"))
+      .mockResolvedValueOnce(searchCall({ query: "   " }, "call_2"))
+      .mockResolvedValueOnce(replyWith("done"));
+
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(searchDocumentsMock).not.toHaveBeenCalled();
+    expect(toolOutputs()).toEqual([
+      { error: "A non-empty query is required." },
+      { error: "A non-empty query is required." },
+    ]);
+  });
+
+  it("bounds the query it forwards and makes titles safe to cite", async () => {
+    await createDocument(workspaceId, {
+      title: "Plan [v2]\nfinal",
+      type: "MARKDOWN",
+      searchText: "zebra",
+    });
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "zebra" + "x".repeat(500) }))
+      .mockResolvedValueOnce(replyWith("ok"));
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+    expect(searchDocumentsMock.mock.calls[0]![1]).toHaveLength(200);
+
+    createMock.mockReset();
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "zebra" }))
+      .mockResolvedValueOnce(replyWith("ok"));
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+    const [output] = toolOutputs();
+    expect(output.documents[0].citation).toMatch(
+      /^\[Plan v2 final\]\(nimbus-doc:[A-Za-z0-9]+\)$/,
+    );
+  });
+
+  it("describes when to search and how to cite in the instructions", async () => {
+    createMock.mockResolvedValueOnce(replyWith("hi"));
+
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    const instructions = String(lastRequest().instructions);
+    expect(instructions).toContain("search_workspace");
+    expect(instructions).toContain("nimbus-doc:");
+  });
+
+  it("still creates a document after a search", async () => {
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "roadmap" }))
+      .mockResolvedValueOnce(
+        toolCallWith({ type: "MARKDOWN", label: "Summary", prompt: "p" }),
+      );
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toMatchObject({
+      kind: "create_document",
+      type: "MARKDOWN",
+      label: "Summary",
+    });
+  });
+
+  it("logs every model round to the call log", async () => {
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "one" }))
+      .mockResolvedValueOnce(replyWith("answer"));
+
+    await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+      callMeta: {
+        workspaceId,
+        userId: null,
+        feature: "chat",
+        providerId: "deepseek",
+        modelId: "deepseek-flash",
+        source: "free",
+      },
+    });
+
+    const calls = await testPrisma.aiCall.findMany({ where: { workspaceId } });
+    expect(calls).toHaveLength(2);
+    expect(calls.every((call) => call.status === "OK")).toBe(true);
+  });
+
+  it("degrades to the fallback reply when a later round throws", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    createMock
+      .mockResolvedValueOnce(searchCall({ query: "one" }))
+      .mockRejectedValueOnce(new Error("provider down"));
+
+    const result = await generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: true,
+    });
+
+    expect(result).toEqual({
+      kind: "reply",
+      content: "Something went wrong while thinking. Please try again later.",
+    });
+    errorSpy.mockRestore();
   });
 });

@@ -5,6 +5,10 @@
  * typing…" once the count exceeds two. Reserves a fixed height so the
  * composer does not jump as the line appears and disappears.
  *
+ * The line is a polite live region (`role="status"`), so a screen reader
+ * announces who is typing without interrupting. NimbusBot is passed in as a
+ * name like any other typer.
+ *
  * @important The line is always rendered — when nobody is typing it renders
  *            an empty placeholder the same height, which is what keeps the
  *            composer from shifting. The dots are part of the *message*, not
@@ -30,6 +34,7 @@ export default function TypingIndicator({ names }: { names: string[] }) {
 
   return (
     <div
+      role="status"
       aria-live="polite"
       aria-atomic="true"
       className="h-5 px-2 flex items-center gap-2 text-[11px] text-(--muted-foreground)/70"

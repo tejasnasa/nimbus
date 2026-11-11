@@ -10,6 +10,10 @@
  * `typing:*` relays, and `disconnecting` presence cleanup. Joining a workspace
  * also replays the current call roster (`voice:roster`) to the joiner alone.
  *
+ * While a mention is being answered the room is told the bot is typing
+ * (`bot:typing`); the signal ends with the reply, a refusal, a failure, or the
+ * hand-over to document generation.
+ *
  * A mention that carries an image is answered by a vision model, and the bot
  * may turn the image into a canvas diagram; a workspace that cannot read images
  * falls back to a text-only chat turn and the asker is told why.
@@ -34,12 +38,16 @@ import { prisma } from "@nimbus/db";
 import { messageSendSchema, type BotResult } from "@nimbus/types";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
+import { postBotMessage } from "../lib/botMessage";
 import { generateCanvasDocument } from "../lib/canvasGeneration";
 import { isOwnedChatImageUrl } from "../lib/cloudinary";
 import {
   generateCanvasFromImage,
   IMAGE_UNREADABLE_MESSAGE,
 } from "../lib/imageCanvas";
+import { createBotTyping, type BotTyping } from "../lib/botTyping";
+import { announceDocumentCreated } from "../lib/documentEvents";
+import { searchTextForNew } from "../lib/documentText";
 import { generateMarkdownDocument } from "../lib/markdownGeneration";
 import { presenceService } from "../lib/presence";
 import { voicePresenceService } from "../lib/voicePresence";
@@ -273,6 +281,20 @@ type HandleBotMentionInput = {
  *            emit `ai:refused` to the asking socket only.
  */
 async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
+  const typing = createBotTyping(input.io, input.workspaceId);
+  try {
+    await answerBotMention(input, typing);
+  } finally {
+    // Whatever way the mention ended, the room stops seeing the bot as typing.
+    typing.stop();
+  }
+}
+
+/** The body of {@link handleBotMention}, with the typing signal it drives. */
+async function answerBotMention(
+  input: HandleBotMentionInput,
+  typing: BotTyping,
+): Promise<void> {
   const { io, socket, userId, workspaceId, imageUrl } = input;
 
   // 0. A mention with an image is answered by a vision model. If the workspace
@@ -315,6 +337,7 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
 
   // 3. Generate the bot's reply with the chosen chat handle and the
   //    `allowDocument` flag, so the tool is omitted when no path exists.
+  typing.start();
   const botResult = await generateBotResponse({
     workspaceId,
     handle: chatResolution.handle,
@@ -389,6 +412,8 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
     name: botMessage.user.name,
     image: botMessage.user.image,
   });
+  // The reply is in the room, or a document overlay is about to take over.
+  typing.stop();
 
   if (botResult.kind === "create_document") {
     io.to(workspaceId).emit("doc:ai:start", {
@@ -426,9 +451,11 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
             type: "MARKDOWN",
             workspaceId,
             initialContent: fullContent,
+            searchText: searchTextForNew({ initialContent: fullContent }),
           },
         });
 
+        announceDocumentCreated(io, doc);
         io.to(workspaceId).emit("doc:ai:complete", {
           documentId: doc.id,
           label: doc.title,
@@ -466,9 +493,11 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
             type: "CANVAS",
             workspaceId,
             canvasData,
+            searchText: searchTextForNew({ canvasData }),
           },
         });
 
+        announceDocumentCreated(io, doc);
         io.to(workspaceId).emit("doc:ai:complete", {
           documentId: doc.id,
           label: doc.title,
@@ -501,9 +530,11 @@ async function handleBotMention(input: HandleBotMentionInput): Promise<void> {
             type: "CANVAS",
             workspaceId,
             canvasData,
+            searchText: searchTextForNew({ canvasData }),
           },
         });
 
+        announceDocumentCreated(io, doc);
         io.to(workspaceId).emit("doc:ai:complete", {
           documentId: doc.id,
           label: doc.title,
@@ -559,23 +590,6 @@ const botUserId = () => process.env.BOT_USERID!;
 /** What the asker is told when the workspace has no model that can read images. */
 const IMAGE_UNSUPPORTED_MESSAGE =
   "NimbusBot can't read images with this workspace's current AI setup. Choose a vision-capable model in the workspace's AI settings.";
-
-/** Persists a bot chat message and broadcasts it to the room. */
-async function postBotMessage(
-  io: Server,
-  workspaceId: string,
-  content: string,
-): Promise<void> {
-  const message = await prisma.message.create({
-    data: { content, userId: botUserId(), workspaceId },
-    include: { user: true },
-  });
-  io.to(workspaceId).emit("message:new", {
-    ...message,
-    name: message.user.name,
-    image: message.user.image,
-  });
-}
 
 /** The one place the exhausted-quota refusal copy is written. */
 const FREE_TIER_EXHAUSTED_MESSAGE =

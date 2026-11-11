@@ -15,6 +15,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Chat from "../../components/Chat";
+import { WorkspaceSettingsProvider } from "../../components/WorkspaceSettingsContext";
 import { DocEditorRefProvider } from "../../components/DocEditorRefContext";
 import { aiStatus, aiStatusChatOff } from "../msw/aiFixtures";
 import { server } from "../msw/server";
@@ -121,14 +122,14 @@ const message = (over: Partial<Message> = {}): Message => ({
 function renderChat(opts: { messages?: Message[]; chatOff?: boolean } = {}) {
   return render(
     <DocEditorRefProvider>
-      <Chat
-        userId="user-1"
-        messages={opts.messages ?? []}
-        wsid="ws-1"
-        documents={[]}
-        workspaceData={WORKSPACE}
-        initialAiStatus={opts.chatOff ? aiStatusChatOff() : aiStatus()}
-      />
+      <WorkspaceSettingsProvider workspace={WORKSPACE} documents={[]}>
+        <Chat
+          userId="user-1"
+          messages={opts.messages ?? []}
+          wsid="ws-1"
+          initialAiStatus={opts.chatOff ? aiStatusChatOff() : aiStatus()}
+        />
+      </WorkspaceSettingsProvider>
     </DocEditorRefProvider>,
   );
 }

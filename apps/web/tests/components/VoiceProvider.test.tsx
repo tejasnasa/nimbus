@@ -24,6 +24,7 @@ const lk = vi.hoisted(() => {
     TrackUnmuted: "trackUnmuted",
     TrackPublished: "trackPublished",
     TrackUnpublished: "trackUnpublished",
+    TrackSubscribed: "trackSubscribed",
     LocalTrackPublished: "localTrackPublished",
     LocalTrackUnpublished: "localTrackUnpublished",
     ParticipantMetadataChanged: "participantMetadataChanged",
@@ -55,6 +56,7 @@ const lk = vi.hoisted(() => {
     metadata?: string;
     kind: number = ParticipantKind.STANDARD;
     isMicrophoneEnabled = false;
+    setVolume = vi.fn();
     setMicrophoneEnabled = vi.fn(async (enabled: boolean) => {
       this.isMicrophoneEnabled = enabled;
     });
@@ -596,6 +598,37 @@ describe("VoiceProvider: deafen", () => {
     expect(latest.isDeafened).toBe(false);
     expect(latest.isMuted).toBe(false);
     expect(lk.rendererProps.current.muted).toBe(false);
+  });
+});
+
+describe("VoiceProvider: muting Nimbus", () => {
+  it("silences the assistant on this device only, including one that joins later", async () => {
+    window.localStorage.clear();
+    await mountJoined();
+    const person = new lk.FakeParticipant("user-2", "Grace Hopper");
+    const agent = new lk.FakeParticipant("agent-1", "");
+    agent.kind = lk.ParticipantKind.AGENT;
+    act(() => {
+      room().addRemote(person);
+      room().addRemote(agent);
+    });
+    expect(agent.setVolume).toHaveBeenLastCalledWith(1);
+
+    window.localStorage.setItem(
+      "nimbus:captions:user-1",
+      JSON.stringify({ muteAssistant: true }),
+    );
+    window.dispatchEvent(new StorageEvent("storage", { key: "nimbus:captions:user-1" }));
+    await waitFor(() => expect(agent.setVolume).toHaveBeenLastCalledWith(0));
+
+    const later = new lk.FakeParticipant("agent-2", "");
+    later.kind = lk.ParticipantKind.AGENT;
+    act(() => room().addRemote(later));
+    expect(later.setVolume).toHaveBeenLastCalledWith(0);
+    act(() => room().emit(lk.RoomEvent.TrackSubscribed));
+    expect(agent.setVolume).toHaveBeenLastCalledWith(0);
+    expect(person.setVolume).not.toHaveBeenCalled();
+    window.localStorage.clear();
   });
 });
 

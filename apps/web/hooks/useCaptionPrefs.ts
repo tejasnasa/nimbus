@@ -1,8 +1,8 @@
 /**
  * @module web/hooks/useCaptionPrefs
  * @description How a viewer wants live captions to look (text size, contrast,
- * number of lines) and which language they want to read them in, remembered
- * per user in the browser. Edited from the workspace settings Captions tab and
+ * number of lines), which language they want to read them in, and whether they
+ * hear the assistant's voice, remembered per user in the browser. Edited from the workspace settings Captions tab and
  * read by the captions bar over the call and by the Meetings tab.
  *
  * Every instance of the hook stays in step: a change broadcasts a window event
@@ -32,6 +32,8 @@ export interface CaptionPrefs {
   lines: 3 | 6;
   /** Caption language code to read translations in; null shows the original. */
   language: string | null;
+  /** Silence the assistant's voice for this viewer only; its captions still show. */
+  muteAssistant: boolean;
 }
 
 export const DEFAULT_CAPTION_PREFS: CaptionPrefs = {
@@ -39,6 +41,7 @@ export const DEFAULT_CAPTION_PREFS: CaptionPrefs = {
   highContrast: false,
   lines: 3,
   language: null,
+  muteAssistant: false,
 };
 
 /** Tailwind text size for each caption size. */
@@ -70,6 +73,7 @@ export function readPrefs(key: string): CaptionPrefs {
       highContrast: parsed.highContrast === true,
       lines: parsed.lines === 6 ? 6 : 3,
       language: isCaptionLanguage(parsed.language) ? parsed.language : null,
+      muteAssistant: parsed.muteAssistant === true,
     };
   } catch {
     return DEFAULT_CAPTION_PREFS;

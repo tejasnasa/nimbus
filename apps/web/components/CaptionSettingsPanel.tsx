@@ -5,7 +5,7 @@
  * @description The workspace settings "Captions" tab: how live captions look
  * for this viewer during a call (text size, high contrast, how many lines stay
  * on screen) and the language to read them in, with a preview drawn the way the
- * captions bar will draw it. Changes apply at once, including to a captions bar
+ * captions bar will draw it, plus whether this viewer hears Nimbus's voice. Changes apply at once, including to a captions bar
  * already on screen, which tells the server the new language mid-call.
  *
  * @important The choice belongs to the viewer, not the workspace: it is kept
@@ -120,6 +120,16 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
         arrives you see the original, and hovering or focusing a translated line
         shows what was said.
       </p>
+
+      <label className="flex items-center gap-2 text-sm hover:cursor-pointer">
+        <input
+          type="checkbox"
+          data-testid="caption-mute-assistant"
+          checked={prefs.muteAssistant}
+          onChange={(e) => update({ muteAssistant: e.target.checked })}
+        />
+        Mute Nimbus&apos;s voice for me (its answers still show in captions)
+      </label>
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Preview</h2>

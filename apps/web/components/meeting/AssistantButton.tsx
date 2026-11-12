@@ -24,6 +24,7 @@ const STATE_LABEL: Record<AssistantState, string> = {
   thinking: "Thinking",
   speaking: "Speaking",
   stopped: "Leaving...",
+  "answered-in-chat": "Answered in chat",
 };
 
 const END_COPY: Record<MeetingEndReason, string | null> = {

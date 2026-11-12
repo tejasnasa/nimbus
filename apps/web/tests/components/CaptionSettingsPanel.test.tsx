@@ -97,6 +97,7 @@ describe("CaptionSettingsPanel", () => {
       highContrast: true,
       lines: 6,
       language: null,
+      muteAssistant: false,
     });
     expect(window.localStorage.getItem(prefsKey("u2"))).toBeNull();
   });
@@ -148,6 +149,7 @@ describe("useCaptionPrefs", () => {
         highContrast: false,
         lines: 6,
         language: null,
+        muteAssistant: false,
       }),
     );
     expect(otherUser.result.current.prefs).toEqual(DEFAULT_CAPTION_PREFS);

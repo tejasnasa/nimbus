@@ -21,6 +21,11 @@
  *            tracks that arrive after the user deafened, so there is no
  *            per-track bookkeeping to keep in step.
  *
+ * @important Muting Nimbus's voice (the viewer's `muteAssistant` caption
+ *            preference) sets the volume of agent participants to zero on this
+ *            device only. It is reapplied whenever a participant or track
+ *            arrives, so an assistant that joins later starts silent too.
+ *
  * @important A failed connection or a lost one never throws into React. It
  *            becomes `error` (a curated message) and, for an unexpected drop,
  *            `canRejoin`, which the UI offers as a Rejoin button once LiveKit's
@@ -47,6 +52,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useCaptionPrefs } from "../hooks/useCaptionPrefs";
 import { socket } from "../lib/socket";
 import { fetchVoiceToken } from "../lib/voiceApi";
 
@@ -286,6 +292,27 @@ export function VoiceProvider({
       room.off(RoomEvent.Disconnected, onDisconnected);
     };
   }, [room, refresh, clearCallState]);
+
+  // Silences the assistant on this device when the viewer muted its voice.
+  const { prefs: callPrefs } = useCaptionPrefs(userId);
+  const muteAssistant = callPrefs.muteAssistant;
+  useEffect(() => {
+    const volume = muteAssistant ? 0 : 1;
+    const apply = () => {
+      for (const participant of room.remoteParticipants.values()) {
+        if (participant.kind === ParticipantKind.AGENT) {
+          participant.setVolume(volume);
+        }
+      }
+    };
+    apply();
+    room.on(RoomEvent.ParticipantConnected, apply);
+    room.on(RoomEvent.TrackSubscribed, apply);
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, apply);
+      room.off(RoomEvent.TrackSubscribed, apply);
+    };
+  }, [room, muteAssistant]);
 
   // The server's roster, for the "who is on the call" view before joining.
   useEffect(() => {

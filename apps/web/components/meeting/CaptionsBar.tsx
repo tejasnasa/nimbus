@@ -6,6 +6,9 @@
  * number of lines follow the viewer's choice in the workspace settings Captions
  * tab, and restyle live when that choice changes mid-call.
  *
+ * Lines the assistant spoke are set apart: tinted, italic and marked with
+ * `data-from-assistant`, so a spoken answer never reads as a person's words.
+ *
  * When the viewer picked a caption language, each line shows its translation
  * once it arrives and the original text until then. Hovering or focusing a
  * translated line shows the original beneath it.
@@ -49,10 +52,16 @@ function CaptionLine({
   translation: string | undefined;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
+  const fromAssistant = segment.fromAssistant === true;
+  const voice = fromAssistant ? "italic text-(--primary)" : "";
 
   if (!translation) {
     return (
-      <p data-testid="caption-line">
+      <p
+        data-testid="caption-line"
+        data-from-assistant={fromAssistant || undefined}
+        className={voice}
+      >
         <span className="font-semibold">{segment.speakerName}: </span>
         {segment.text}
       </p>
@@ -62,13 +71,14 @@ function CaptionLine({
   return (
     <p
       data-testid="caption-line"
+      data-from-assistant={fromAssistant || undefined}
       tabIndex={0}
       title={`Original: ${segment.text}`}
       onMouseEnter={() => setShowOriginal(true)}
       onMouseLeave={() => setShowOriginal(false)}
       onFocus={() => setShowOriginal(true)}
       onBlur={() => setShowOriginal(false)}
-      className="rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2"
+      className={`rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 ${voice}`}
     >
       <span className="font-semibold">{segment.speakerName}: </span>
       <span data-testid="caption-translation">{translation}</span>

@@ -5,8 +5,9 @@
  * button, or **Join meeting** when someone is already there;
  * once in, an overlapping avatar stack of the participants (a green ring while
  * someone speaks, a red dot while they are muted, a badge on the assistant),
- * the mute, deafen and leave controls, the assistant's start and stop control
- * and the running transcript. An error from the provider (a refused
+ * the mute, deafen and leave controls, the assistant's start and stop control,
+ * the Ask Nimbus controls while the assistant is in the call, and the running
+ * transcript. An error from the provider (a refused
  * microphone, a failed join) is shown inline, and a dropped call offers
  * **Rejoin**. Rendered inside `VoiceDock`.
  */
@@ -20,6 +21,7 @@ import MicrophoneOff from "@nimbus/ui/icons/MicrophoneOff";
 import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
 import { ConnectionState } from "livekit-client";
 import { useVoice } from "../providers/VoiceProvider";
+import AskNimbus from "./meeting/AskNimbus";
 import AssistantButton from "./meeting/AssistantButton";
 import LiveTranscript from "./meeting/LiveTranscript";
 
@@ -202,6 +204,7 @@ export default function VoiceControls() {
       </div>
 
       <AssistantButton inCall />
+      <AskNimbus />
       <LiveTranscript />
       {errorMessage}
     </div>

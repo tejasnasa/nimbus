@@ -433,6 +433,11 @@ model TranscriptSegment {
   endMs         Int
   /// Language the transcriber reported, when it reported one.
   language      String?
+  /// The speaker was talking to the assistant (wake phrase or Ask button).
+  addressed     Boolean  @default(false)
+  /// The assistant's own spoken reply, stored so the transcript reads as the
+  /// call did. Its speaker is null and its name is the assistant's.
+  fromAssistant Boolean  @default(false)
   createdAt     DateTime @default(now())
   /// `to_tsvector('simple', text)`, a stored generated column with a GIN index.
   /// Both are created in raw SQL in the migration; the `@default` only mirrors

@@ -21,6 +21,7 @@ const segmentInSchema = z.object({
   startMs: z.number().int().min(0),
   endMs: z.number().int().min(0),
   language: z.string().min(2).max(16).optional(),
+  addressed: z.boolean().optional(),
 });
 
 /** Body of `POST /internal/agent/segments`. */
@@ -35,9 +36,10 @@ export const agentStateSchema = z.object({
 });
 
 const usageInSchema = z.object({
-  feature: z.literal("transcription"),
+  feature: z.enum(["transcription", "speech"]),
   model: z.string().min(1).max(200),
-  audioSeconds: z.number().min(0).max(3600),
+  audioSeconds: z.number().min(0).max(3600).optional(),
+  characters: z.number().int().min(0).max(100_000).optional(),
   latencyMs: z.number().min(0).max(600_000),
   status: z.enum(["OK", "ERROR"]),
   errorReason: z.enum(["invalid-key", "provider-error", "timeout"]).optional(),
@@ -46,6 +48,18 @@ const usageInSchema = z.object({
 /** Body of `POST /internal/agent/usage`. */
 export const usageInBodySchema = z.object({
   entries: z.array(usageInSchema).min(1).max(100),
+});
+
+/** Body of `POST /internal/agent/answer`. */
+export const answerSchema = z.object({
+  seq: z.number().int().min(1).max(1_000_000),
+  replySeq: z.number().int().min(1).max(1_000_000),
+  speak: z.boolean(),
+});
+
+/** Body of `POST /internal/agent/notice`. */
+export const noticeSchema = z.object({
+  kind: z.enum(["budget-warning", "budget-ended"]),
 });
 
 /** Body of `POST /internal/agent/ended`. */

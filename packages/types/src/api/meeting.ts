@@ -46,7 +46,9 @@ export type AssistantState =
   | "listening"
   | "thinking"
   | "speaking"
-  | "stopped";
+  | "stopped"
+  /** The last answer was posted to chat because the assistant may not speak. */
+  | "answered-in-chat";
 
 /** A meeting as clients see it. */
 export type MeetingDTO = {
@@ -82,6 +84,10 @@ export type SegmentDTO = {
   startMs: number;
   endMs: number;
   language: string | null;
+  /** The speaker was talking to the assistant. */
+  addressed?: boolean;
+  /** The line is the assistant's own spoken reply. */
+  fromAssistant?: boolean;
   /**
    * The text in the language the request named with `?language=`. Absent
    * unless one was requested; null when that segment has no stored translation.

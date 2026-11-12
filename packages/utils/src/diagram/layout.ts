@@ -1,227 +1,320 @@
 /**
  * @module utils/diagram/layout
- * @description Deterministic placement of a {@link Diagram}'s nodes.
+ * @description Placement and edge routing for a {@link Diagram}.
  *
- * Diagrams with edges get a rank-based layered flow (left-to-right or
- * top-to-bottom); edgeless ones fall back to a row-wrapped grid. Mutates node
- * coordinates in place. Pure: the same diagram always lays out the same way.
+ * Diagrams with edges go through ELK's `layered` algorithm (Sugiyama-style):
+ * layer-sweep crossing minimisation, node-size-aware spacing and orthogonal
+ * edge routing. The nodes arrive already sized from measured labels, so the
+ * planned boxes are the boxes that get drawn. ELK's edge sections come back as
+ * polylines in {@link LaidOutDiagram.routes} for the element builder to draw.
+ * Edgeless diagrams get a grid whose columns and rows are sized from the nodes
+ * themselves, so no cell can be overrun.
+ *
+ * Node coordinates are mutated in place; the returned object is the same
+ * diagram, with `routes` attached. Same input, same output: ELK is
+ * deterministic given fixed options and a fixed random seed, and nodes and
+ * edges are fed to it in the diagram's own order.
+ *
+ * @important Layout must never fail generation. ELK is loaded lazily (keeping
+ *            it out of bundles that only import the barrel), is capped by a
+ *            size limit and a time budget, and any error, timeout or invalid
+ *            result falls back to the synchronous rank-based layout in
+ *            `layoutFallback.ts`, which leaves `routes` unset so the builder
+ *            draws straight connectors. The time budget bounds how long the
+ *            caller waits on a stalled run; ELK itself runs on the calling
+ *            thread, so the size limit is what bounds its blocking time.
  */
-import type {
-  Diagram,
-  DiagramDirection,
-  DiagramEdge,
-  DiagramNode,
-} from "@nimbus/types";
-import { NODE_MIN_HEIGHT, NODE_MIN_WIDTH } from "./parse";
+import type { Diagram, DiagramDirection, DiagramNode } from "@nimbus/types";
+import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api";
+import { layoutDiagramFallback, rectsOverlap } from "./layoutFallback";
 
-/* ═══ Layout (rank-based flow, grid fallback) ═══ */
+export { layoutDiagramFallback, rectsOverlap };
+
+/** A point on the canvas. */
+export type DiagramPoint = { x: number; y: number };
+
+/**
+ * A diagram after layout. `routes[i]` is the polyline for `edges[i]`, from the
+ * source box border to the target box border, or `null` when that edge was not
+ * routed. `routes` is absent when the fallback layout ran.
+ */
+export type LaidOutDiagram = Diagram & {
+  routes?: (DiagramPoint[] | null)[];
+};
+
+/** Tuning knobs for {@link layoutDiagram}. */
+export type LayoutOptions = {
+  /** Overrides the diagram's own direction; `LR` when neither is set. */
+  direction?: DiagramDirection;
+  /** ELK time budget in ms before the fallback takes over. Default 2000. */
+  timeoutMs?: number;
+  /** Largest node count handed to ELK; bigger diagrams use the fallback. */
+  maxElkNodes?: number;
+};
+
 const LAYOUT_START_X = 80;
 const LAYOUT_START_Y = 80;
-const LAYOUT_H_GAP = 220;
-const LAYOUT_V_GAP = 140;
+const DEFAULT_TIMEOUT_MS = 2000;
+const DEFAULT_MAX_ELK_NODES = 400;
+const GRID_GAP_X = 80;
+const GRID_GAP_Y = 70;
 
-/** AABB overlap test with padding. */
-export function rectsOverlap(
-  a: DiagramNode,
-  b: DiagramNode,
-  padX: number,
-  padY: number,
-) {
-  return (
-    a.x < b.x + b.width + padX &&
-    b.x < a.x + a.width + padX &&
-    a.y < b.y + b.height + padY &&
-    b.y < a.y + a.height + padY
-  );
-}
+/** Fixed ELK options. Changing any of them changes every generated layout. */
+const ELK_OPTIONS: Record<string, string> = {
+  "elk.algorithm": "layered",
+  "elk.edgeRouting": "ORTHOGONAL",
+  "elk.padding": "[top=0,left=0,bottom=0,right=0]",
+  "elk.randomSeed": "1",
+  "elk.separateConnectedComponents": "true",
+  "elk.spacing.componentComponent": "70",
+  "elk.spacing.nodeNode": "56",
+  "elk.spacing.edgeNode": "28",
+  "elk.spacing.edgeEdge": "16",
+  "elk.layered.spacing.nodeNodeBetweenLayers": "96",
+  "elk.layered.spacing.edgeNodeBetweenLayers": "28",
+  "elk.layered.spacing.edgeEdgeBetweenLayers": "16",
+  "elk.layered.crossingMinimization.strategy": "LAYER_SWEEP",
+  "elk.layered.thoroughness": "8",
+  "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+  "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
+  "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+};
 
-/**
- * Longest-path layering: each node's rank = 1 + max(predecessor ranks).
- * Bellman-Ford-style relaxation tolerates cycles by settling instead of
- * looping forever.
- *
- * The pass count is the longest path a DAG can have, `n - 1`, rather than the
- * edge count: on a cycle the relaxation never converges, so a larger bound only
- * inflates the ranks further before giving up.
- */
-function assignRanks(nodeIds: string[], edges: DiagramEdge[]) {
-  const rank = new Map(nodeIds.map((id) => [id, 0]));
-  const iterations = Math.max(nodeIds.length - 1, 0);
-
-  for (let i = 0; i < iterations; i++) {
-    let changed = false;
-    for (const edge of edges) {
-      const next = (rank.get(edge.from) ?? 0) + 1;
-      if (next > (rank.get(edge.to) ?? 0)) {
-        rank.set(edge.to, next);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-
-  return rank;
-}
-
-/**
- * Mean center of a node's already-placed predecessors along the cross axis,
- * for crossing reduction: each layer is ordered by it.
- */
-function barycenter(
-  nodeId: string,
-  edges: DiagramEdge[],
-  cross: Map<string, number>,
-) {
-  const neighbors = edges.filter((e) => e.to === nodeId).map((e) => e.from);
-
-  if (neighbors.length === 0) return cross.get(nodeId) ?? 0;
-
-  const sum = neighbors.reduce((acc, id) => acc + (cross.get(id) ?? 0), 0);
-  return sum / neighbors.length;
-}
-
-/** Row-wrapped grid fallback for edgeless diagrams (√n columns). */
-function gridLayout(nodes: DiagramNode[]) {
+/** Grid for edgeless diagrams: columns and rows are as big as their largest node. */
+function measuredGrid(nodes: DiagramNode[]) {
   const cols = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
+  const rows = Math.ceil(nodes.length / cols);
+  const colWidth = new Array<number>(cols).fill(0);
+  const rowHeight = new Array<number>(rows).fill(0);
+
+  nodes.forEach((node, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    colWidth[c] = Math.max(colWidth[c]!, node.width);
+    rowHeight[r] = Math.max(rowHeight[r]!, node.height);
+  });
+
+  const colX: number[] = [];
   let x = LAYOUT_START_X;
+  for (const w of colWidth) {
+    colX.push(x);
+    x += w + GRID_GAP_X;
+  }
+  const rowY: number[] = [];
   let y = LAYOUT_START_Y;
-  let col = 0;
-  let rowMaxH = 0;
-  let rowStartY = LAYOUT_START_Y;
+  for (const h of rowHeight) {
+    rowY.push(y);
+    y += h + GRID_GAP_Y;
+  }
 
-  for (const node of nodes) {
-    node.x = x;
-    node.y = rowStartY;
-    x += node.width + LAYOUT_H_GAP;
-    rowMaxH = Math.max(rowMaxH, node.height);
-    col++;
+  nodes.forEach((node, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    node.x = colX[c]! + (colWidth[c]! - node.width) / 2;
+    node.y = rowY[r]! + (rowHeight[r]! - node.height) / 2;
+  });
+}
 
-    if (col >= cols) {
-      col = 0;
-      x = LAYOUT_START_X;
-      rowStartY += rowMaxH + LAYOUT_V_GAP;
-      rowMaxH = 0;
-    }
+/** Loads the ELK constructor on first use. */
+async function loadElk(): Promise<new () => ELK> {
+  const mod = (await import("elkjs/lib/elk.bundled.js")) as unknown as {
+    default: unknown;
+  };
+  const candidate = mod.default as { default?: unknown };
+  return (candidate.default ?? candidate) as new () => ELK;
+}
+
+/** Runs ELK on `graph`, rejecting if it exceeds `timeoutMs`. */
+async function runElk(graph: ElkNode, timeoutMs: number): Promise<ElkNode> {
+  const Elk = await loadElk();
+  const elk = new Elk();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`ELK exceeded its ${timeoutMs}ms budget`)),
+      timeoutMs,
+    );
+  });
+
+  try {
+    return await Promise.race([elk.layout(graph), budget]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 /**
- * Layered layout: ranks become columns (`LR`) or rows (`TB`), each layer is
- * barycenter-ordered along the cross axis and centered against the tallest
- * (or widest) layer. Wider layers get extra breathing room.
- *
- * Ranks are compressed onto consecutive layers first. A DAG's ranks are always
- * dense, so this is a no-op for the common case, but a cycle leaves gaps — and
- * a layer is allocated per integer rank, so even one gap pushes the whole
- * drawing off the visible canvas.
+ * Moves an end point that sits on a node's bounding-box side onto the shape's
+ * real outline, along the direction the edge arrives from. ELK treats every
+ * node as its bounding rectangle; ellipses and diamonds are narrower than that
+ * away from the side's midpoint, so an unadjusted arrow would stop short.
  */
-function rankBasedLayout(
-  nodes: DiagramNode[],
-  edges: DiagramEdge[],
-  direction: DiagramDirection,
-) {
-  const vertical = direction === "TB";
-  const mainSize = (n: DiagramNode) => (vertical ? n.height : n.width);
-  const crossSize = (n: DiagramNode) => (vertical ? n.width : n.height);
-  const mainMin = vertical ? NODE_MIN_HEIGHT : NODE_MIN_WIDTH;
-  const mainGap = vertical ? LAYOUT_V_GAP : LAYOUT_H_GAP;
-  const place = (n: DiagramNode, main: number, cross: number) => {
-    n.x = vertical ? cross : main;
-    n.y = vertical ? main : cross;
+function snapToOutline(point: DiagramPoint, node: DiagramNode): DiagramPoint {
+  if (node.shape === "rectangle") return point;
+
+  const cx = node.x + node.width / 2;
+  const cy = node.y + node.height / 2;
+  const hw = node.width / 2;
+  const hh = node.height / 2;
+  const onVerticalSide =
+    Math.abs(point.x - cx) / hw > Math.abs(point.y - cy) / hh;
+
+  const reach = (ratio: number) => {
+    const r = Math.min(Math.abs(ratio), 0.98);
+    return node.shape === "ellipse" ? Math.sqrt(1 - r * r) : 1 - r;
   };
 
-  const nodeIds = nodes.map((n) => n.id);
-  const rank = assignRanks(nodeIds, edges);
-
-  const usedRanks = [...new Set(rank.values())].sort((a, b) => a - b);
-  const layerOfRank = new Map(usedRanks.map((r, layer) => [r, layer]));
-  const layers: string[][] = Array.from({ length: usedRanks.length }, () => []);
-
-  for (const id of nodeIds) {
-    // Every id was ranked above, and every rank has a layer.
-    layers[layerOfRank.get(rank.get(id)!)!]!.push(id);
+  if (onVerticalSide) {
+    const dx = Math.sign(point.x - cx) * hw * reach((point.y - cy) / hh);
+    return { x: cx + dx, y: point.y };
   }
+  const dy = Math.sign(point.y - cy) * hh * reach((point.x - cx) / hw);
+  return { x: point.x, y: cy + dy };
+}
 
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const crossCenter = new Map<string, number>();
-
-  const maxLayerWidth = Math.max(...layers.map((l) => l.length), 1);
-  const crossGap = vertical
-    ? maxLayerWidth > 2
-      ? 120
-      : 80
-    : maxLayerWidth > 2
-      ? LAYOUT_V_GAP + 40
-      : LAYOUT_V_GAP;
-
-  let maxStack = 0;
-  for (const layer of layers) {
-    const h = layer.reduce(
-      (sum, id) => sum + crossSize(byId.get(id)!) + crossGap,
-      -crossGap,
-    );
-    maxStack = Math.max(maxStack, h);
-  }
-
-  let main = vertical ? LAYOUT_START_Y : LAYOUT_START_X;
-  const crossStart = vertical ? LAYOUT_START_X : LAYOUT_START_Y;
-
-  for (let r = 0; r < layers.length; r++) {
-    const layer = layers[r]!;
-    const ordered =
-      r === 0
-        ? [...layer].sort((a, b) => {
-            const na = byId.get(a)!;
-            const nb = byId.get(b)!;
-            return vertical
-              ? na.x - nb.x || na.y - nb.y
-              : na.y - nb.y || na.x - nb.x;
-          })
-        : [...layer].sort(
-            (a, b) =>
-              barycenter(a, edges, crossCenter) -
-              barycenter(b, edges, crossCenter),
-          );
-
-    const column = ordered.map((id) => byId.get(id)!).filter(Boolean);
-    const layerExtent = Math.max(...column.map(mainSize), mainMin);
-    const stack = column.reduce(
-      (s, n) => s + crossSize(n) + crossGap,
-      -crossGap,
-    );
-    let cross = crossStart + Math.max(0, (maxStack - stack) / 2);
-
-    for (const node of column) {
-      place(node, main, cross);
-      crossCenter.set(node.id, cross + crossSize(node) / 2);
-      cross += crossSize(node) + crossGap;
-    }
-
-    main += layerExtent + mainGap;
-  }
+function isFinitePoint(p: DiagramPoint | undefined): p is DiagramPoint {
+  return !!p && Number.isFinite(p.x) && Number.isFinite(p.y);
 }
 
 /**
- * Dispatches layout: grid when edgeless, rank-based flow otherwise.
- * Mutates node coordinates in place and returns the same diagram.
- *
- * @param diagram - Validated diagram.
- * @param options - `direction` overrides the diagram's own hint; `LR` when
- *                  neither is set.
+ * Lays the diagram out with ELK and returns positions plus routes without
+ * touching the diagram, so a failure part-way leaves it unmodified.
  */
-export function layoutDiagram(
+async function elkLayout(
   diagram: Diagram,
-  options: { direction?: DiagramDirection } = {},
-): Diagram {
+  direction: DiagramDirection,
+  timeoutMs: number,
+) {
   const { nodes, edges } = diagram;
+  const known = new Set(nodes.map((n) => n.id));
 
-  if (nodes.length === 0) return diagram;
+  const elkEdges: ElkExtendedEdge[] = [];
+  edges.forEach((edge, index) => {
+    if (edge.from === edge.to || !known.has(edge.from) || !known.has(edge.to)) {
+      return;
+    }
+    elkEdges.push({
+      id: `e${index}`,
+      sources: [edge.from],
+      targets: [edge.to],
+    });
+  });
 
-  if (edges.length === 0) {
-    gridLayout(nodes);
-    return diagram;
+  const graph: ElkNode = {
+    id: "root",
+    layoutOptions: {
+      ...ELK_OPTIONS,
+      "elk.direction": direction === "TB" ? "DOWN" : "RIGHT",
+    },
+    children: nodes.map((n) => ({
+      id: n.id,
+      width: n.width,
+      height: n.height,
+    })),
+    edges: elkEdges,
+  };
+
+  const result = await runElk(graph, timeoutMs);
+
+  const placed = new Map<string, DiagramPoint>();
+  for (const child of result.children ?? []) {
+    const p = { x: child.x ?? NaN, y: child.y ?? NaN };
+    if (!isFinitePoint(p)) throw new Error(`ELK left ${child.id} unplaced`);
+    placed.set(child.id, p);
+  }
+  if (placed.size !== nodes.length) {
+    throw new Error("ELK dropped nodes from the layout");
   }
 
-  rankBasedLayout(nodes, edges, options.direction ?? diagram.direction ?? "LR");
-  return diagram;
+  const minX = Math.min(...[...placed.values()].map((p) => p.x));
+  const minY = Math.min(...[...placed.values()].map((p) => p.y));
+  const shiftX = LAYOUT_START_X - minX;
+  const shiftY = LAYOUT_START_Y - minY;
+
+  const positions = new Map<string, DiagramPoint>();
+  for (const [id, p] of placed) {
+    positions.set(id, { x: p.x + shiftX, y: p.y + shiftY });
+  }
+
+  const routes: (DiagramPoint[] | null)[] = edges.map(() => null);
+  for (const edge of result.edges ?? []) {
+    const section = (edge as ElkExtendedEdge).sections?.[0];
+    if (!section) continue;
+    const raw = [
+      section.startPoint,
+      ...(section.bendPoints ?? []),
+      section.endPoint,
+    ];
+    if (!raw.every(isFinitePoint)) throw new Error("ELK returned a bad route");
+    routes[Number(edge.id.slice(1))] = raw.map((p) => ({
+      x: p.x + shiftX,
+      y: p.y + shiftY,
+    }));
+  }
+
+  return { positions, routes };
+}
+
+/**
+ * Lays out a diagram: ELK layered flow with routed edges when it has edges, a
+ * measured grid when it has none, the rank-based fallback if ELK is
+ * unavailable. Mutates node coordinates in place and returns the same diagram.
+ *
+ * @param diagram - Validated diagram, nodes already sized to their labels.
+ * @param options - Direction override and ELK limits.
+ * @returns The diagram, with `routes` set when ELK produced the layout.
+ */
+export async function layoutDiagram(
+  diagram: Diagram,
+  options: LayoutOptions = {},
+): Promise<LaidOutDiagram> {
+  const result: LaidOutDiagram = diagram;
+  result.routes = undefined;
+
+  const { nodes, edges } = diagram;
+  if (nodes.length === 0) return result;
+
+  const direction = options.direction ?? diagram.direction ?? "LR";
+  const ids = new Set(nodes.map((n) => n.id));
+  const routable = edges.some(
+    (e) => e.from !== e.to && ids.has(e.from) && ids.has(e.to),
+  );
+
+  if (!routable) {
+    measuredGrid(nodes);
+    return result;
+  }
+
+  try {
+    if (nodes.length > (options.maxElkNodes ?? DEFAULT_MAX_ELK_NODES)) {
+      throw new Error(`${nodes.length} nodes exceeds the ELK size limit`);
+    }
+    const { positions, routes } = await elkLayout(
+      diagram,
+      direction,
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    );
+
+    for (const node of nodes) {
+      const p = positions.get(node.id)!;
+      node.x = p.x;
+      node.y = p.y;
+    }
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    result.routes = routes.map((route, i) => {
+      if (!route) return null;
+      const edge = edges[i]!;
+      const first = snapToOutline(route[0]!, byId.get(edge.from)!);
+      const last = snapToOutline(route[route.length - 1]!, byId.get(edge.to)!);
+      return [first, ...route.slice(1, -1), last];
+    });
+  } catch (err) {
+    console.warn(
+      "[diagram] ELK layout unavailable, using fallback:",
+      err instanceof Error ? err.message : err,
+    );
+    layoutDiagramFallback(diagram, direction);
+  }
+
+  return result;
 }

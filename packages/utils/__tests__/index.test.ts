@@ -18,12 +18,16 @@ describe("@nimbus/utils barrel", () => {
       "isCaptionLanguage",
       "isOfferedFor",
       "layoutDiagram",
+      "layoutDiagramFallback",
+      "measureLabel",
+      "measureText",
       "normalizeCaptionLanguage",
       "parseDiagramPayload",
       "parseDiagramRecord",
       "presenceColor",
       "selectModelForFeature",
       "timeAgo",
+      "wrapText",
     ]);
   });
 

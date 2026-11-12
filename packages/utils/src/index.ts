@@ -23,7 +23,19 @@ export {
   parseDiagramRecord,
   PALETTE as DIAGRAM_PALETTE,
 } from "./diagram/parse";
-export { layoutDiagram } from "./diagram/layout";
+export {
+  layoutDiagram,
+  layoutDiagramFallback,
+  type DiagramPoint,
+  type LaidOutDiagram,
+  type LayoutOptions,
+} from "./diagram/layout";
+export {
+  measureLabel,
+  measureText,
+  wrapText,
+  type MeasuredLabel,
+} from "./diagram/measure";
 export {
   buildExcalidrawFromDiagram,
   type ExcalidrawBuildOptions,

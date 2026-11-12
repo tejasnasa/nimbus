@@ -3,12 +3,26 @@
  * @description Converts a laid-out {@link Diagram} into Excalidraw elements:
  * a shape plus bound text per node and one elbowed, bound arrow per edge.
  *
+ * Label text elements are sized from the same measurement the node sizing
+ * used (`measure.ts`), centered in the shape's text area, so a label fills its
+ * box exactly as the layout planned. When the layout supplied routes, each
+ * arrow follows its route's bend points and its bindings are derived from where
+ * that route meets the boxes; without routes (fallback layout) arrows are
+ * straight connectors between the facing box sides.
+ *
  * @important Element ids, seeds and timestamps come from an injectable source
  *            ({@link ExcalidrawBuildOptions}); the defaults use `Math.random`
  *            and `Date.now`, so deterministic output is opt-in.
  */
-import type { Diagram, DiagramEdge, DiagramNode } from "@nimbus/types";
-import { LABEL_FONT_SIZE, LABEL_LINE_HEIGHT } from "./parse";
+import type { DiagramEdge, DiagramNode } from "@nimbus/types";
+import type { DiagramPoint, LaidOutDiagram } from "./layout";
+import { measureLabel } from "./measure";
+import {
+  LABEL_FONT_FAMILY,
+  LABEL_FONT_SIZE,
+  LABEL_LINE_HEIGHT,
+  labelArea,
+} from "./parse";
 
 /** Minimal live-shape view used for center/binding calculations. */
 type ExcalidrawShape = {
@@ -101,36 +115,43 @@ function buildShapeElement(
 }
 
 /**
- * Builds the center-aligned bound text (inset 12px) and links it onto the
- * shape's `boundElements` so Excalidraw treats it as container text.
+ * Builds the center-aligned bound text and links it onto the shape's
+ * `boundElements` so Excalidraw treats it as container text. Width is the
+ * shape's text area; height is the measured label height; the element is
+ * centered on the shape.
  */
 function buildBoundTextElement(
   shape: ExcalidrawShape,
-  label: string,
+  node: DiagramNode,
   index: string,
   source: BuildSource,
 ) {
   const textId = source.generateId();
-  const inset = 12;
-  const width = Math.max(24, shape.width - inset * 2);
-  const height = Math.max(24, shape.height - inset * 2);
+  const area = labelArea(node.shape, shape.width, shape.height);
+  const measured = measureLabel(node.label, {
+    fontSize: LABEL_FONT_SIZE,
+    lineHeight: LABEL_LINE_HEIGHT,
+    maxWidth: Infinity,
+  });
+  const width = area.width;
+  const height = measured.height;
 
   const textEl = {
     ...baseFields("text", index, shape.strokeColor, source),
     id: textId,
-    x: shape.x + inset,
-    y: shape.y + inset,
+    x: shape.x + (shape.width - width) / 2,
+    y: shape.y + (shape.height - height) / 2,
     width,
     height,
     backgroundColor: "transparent",
     boundElements: null,
-    text: label,
+    text: node.label,
     fontSize: LABEL_FONT_SIZE,
-    fontFamily: 1,
+    fontFamily: LABEL_FONT_FAMILY,
     textAlign: "center",
     verticalAlign: "middle",
     containerId: shape.id,
-    originalText: label,
+    originalText: node.label,
     autoResize: false,
     lineHeight: LABEL_LINE_HEIGHT,
   };
@@ -257,13 +278,84 @@ function buildConnector(
 
   return arrow;
 }
+/** Normalized 0–1 position of a canvas point within a shape's box. */
+function pointToFixed(
+  shape: ExcalidrawShape,
+  point: DiagramPoint,
+): [number, number] {
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  return [
+    clamp((point.x - shape.x) / shape.width),
+    clamp((point.y - shape.y) / shape.height),
+  ];
+}
+
+/**
+ * Builds an elbowed arrow that follows a routed polyline. The first point is
+ * the arrow's origin and the rest are stored relative to it; the bindings'
+ * fixed points are where the route meets each box, so the arrow keeps the same
+ * attachment when a box is moved.
+ */
+function buildRoutedConnector(
+  fromShape: ExcalidrawShape,
+  toShape: ExcalidrawShape,
+  route: DiagramPoint[],
+  index: string,
+  source: BuildSource,
+) {
+  const origin = route[0]!;
+  const points = route.map(
+    (p) => [p.x - origin.x, p.y - origin.y] as [number, number],
+  );
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+
+  const arrowId = source.generateId();
+  const arrow = {
+    ...baseFields("arrow", index, "#1e1e1e", source),
+    id: arrowId,
+    x: origin.x,
+    y: origin.y,
+    width: Math.max(1, Math.max(...xs) - Math.min(...xs)),
+    height: Math.max(1, Math.max(...ys) - Math.min(...ys)),
+    backgroundColor: "transparent",
+    boundElements: null,
+    elbowed: true,
+    lastCommittedPoint: null,
+    fixedSegments: null,
+    startIsSpecial: null,
+    endIsSpecial: null,
+    points,
+    endArrowhead: "arrow",
+    startArrowhead: null,
+    startBinding: {
+      elementId: fromShape.id,
+      focus: 0,
+      gap: 8,
+      fixedPoint: pointToFixed(fromShape, route[0]!),
+    },
+    endBinding: {
+      elementId: toShape.id,
+      focus: 0,
+      gap: 8,
+      fixedPoint: pointToFixed(toShape, route[route.length - 1]!),
+    },
+  };
+
+  addArrowBinding(fromShape, arrowId);
+  addArrowBinding(toShape, arrowId);
+
+  return arrow;
+}
+
 /**
  * Emits Excalidraw elements: shape + bound text per node, then one elbowed
- * connector per edge (parallel edges fanned via slot indices). Skips edges
+ * connector per edge — following the layout's route when it has one, otherwise
+ * a straight connector (parallel edges fanned via slot indices). Skips edges
  * whose endpoints vanished during validation.
  */
 export function buildExcalidrawFromDiagram(
-  diagram: Diagram,
+  diagram: LaidOutDiagram,
   options: ExcalidrawBuildOptions = {},
 ) {
   const random = options.random ?? Math.random;
@@ -279,7 +371,7 @@ export function buildExcalidrawFromDiagram(
 
   for (const node of diagram.nodes) {
     const shape = buildShapeElement(node, nextIndex(), source);
-    const text = buildBoundTextElement(shape, node.label, nextIndex(), source);
+    const text = buildBoundTextElement(shape, node, nextIndex(), source);
     shapeByNodeId.set(node.id, shape);
     output.push(shape, text);
   }
@@ -291,10 +383,17 @@ export function buildExcalidrawFromDiagram(
     edgesByFrom.set(edge.from, list);
   }
 
-  for (const edge of diagram.edges) {
+  for (const [edgeIndex, edge] of diagram.edges.entries()) {
     const fromShape = shapeByNodeId.get(edge.from);
     const toShape = shapeByNodeId.get(edge.to);
     if (!fromShape || !toShape) continue;
+    const route = diagram.routes?.[edgeIndex];
+    if (route && route.length >= 2) {
+      output.push(
+        buildRoutedConnector(fromShape, toShape, route, nextIndex(), source),
+      );
+      continue;
+    }
     // Grouped from the same list, so the source always has an entry.
     const siblings = edgesByFrom.get(edge.from)!;
     const slotIndex = siblings.indexOf(edge);

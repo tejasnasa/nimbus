@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { measureLabel } from "../../src/diagram/measure";
 import {
   extractJsonObject,
+  LABEL_FONT_SIZE,
+  LABEL_LINE_HEIGHT,
+  labelArea,
+  NODE_MAX_WIDTH,
   parseDiagramPayload,
 } from "../../src/diagram/parse";
 
@@ -322,5 +327,55 @@ describe("extractJsonObject", () => {
 
   it("gives up on a truncated payload it cannot repair", () => {
     expect(extractJsonObject('{"a": ]')).toBeNull();
+  });
+});
+
+describe("label fitting", () => {
+  const size = (shape: string, label: string) => {
+    const diagram = parseDiagramPayload(
+      JSON.stringify({ nodes: [{ id: "n", shape, label }] }),
+    );
+    return diagram.nodes[0]!;
+  };
+
+  it.each(["rectangle", "ellipse", "diamond"] as const)(
+    "fits a long %s label inside the shape's text area",
+    (shape) => {
+      const node = size(shape, "word ".repeat(40));
+      const area = labelArea(shape, node.width, node.height);
+      const m = measureLabel(node.label, {
+        fontSize: LABEL_FONT_SIZE,
+        lineHeight: LABEL_LINE_HEIGHT,
+        maxWidth: Infinity,
+      });
+
+      expect(node.width).toBeLessThanOrEqual(NODE_MAX_WIDTH);
+      expect(m.width).toBeLessThanOrEqual(area.width);
+      expect(m.height).toBeLessThanOrEqual(area.height);
+    },
+  );
+
+  it("gives a diamond more room than a rectangle for the same label", () => {
+    const label = "Is the request authorised for this tenant?";
+
+    expect(size("diamond", label).height).toBeGreaterThan(
+      size("rectangle", label).height,
+    );
+  });
+
+  it("sizes a wide-glyph label wider than the same count of narrow ones", () => {
+    expect(size("rectangle", "日本語日本語日本語").width).toBeGreaterThan(
+      size("rectangle", "iiiiiiiii").width,
+    );
+  });
+
+  it("derives the label area from the shape", () => {
+    expect(labelArea("rectangle", 200, 100)).toEqual({
+      width: 176,
+      height: 76,
+    });
+    expect(labelArea("rectangle", 20, 20)).toEqual({ width: 24, height: 24 });
+    expect(labelArea("diamond", 200, 100)).toEqual({ width: 100, height: 50 });
+    expect(labelArea("ellipse", 200, 100).width).toBeCloseTo(141.42, 1);
   });
 });

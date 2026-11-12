@@ -4,7 +4,9 @@
  *
  * Takes raw model text (fenced, wrapped in prose or truncated), recovers the
  * JSON object, validates it into a {@link Diagram} with safe defaults, and
- * sizes every node to its wrapped label. Pure: no I/O, no environment reads.
+ * sizes every node to its measured, wrapped label (see `measure.ts`: glyph
+ * widths come from the label font's advance table, not a per-character guess).
+ * Pure: no I/O, no environment reads.
  *
  * @important Node ids are made unique in {@link parseDiagramRecord}; the layout
  *            and element builders key every map by id and rely on that.
@@ -15,13 +17,14 @@ import type {
   DiagramEdge,
   DiagramNode,
 } from "@nimbus/types";
+import { measureLabel } from "./measure";
 
 /* ═══ Label metrics & node sizing ═══
- * LABEL_CHAR_WIDTH is a heuristic (~0.68em) for word-wrap estimation; exact
- * text measurement happens client-side in Excalidraw. */
+ * Labels are measured with the Virgil advance table in `measure.ts`;
+ * `LABEL_FONT_FAMILY` is the Excalidraw id of that font. */
 export const LABEL_FONT_SIZE = 16;
 export const LABEL_LINE_HEIGHT = 1.35;
-export const LABEL_CHAR_WIDTH = LABEL_FONT_SIZE * 0.68;
+export const LABEL_FONT_FAMILY = 1;
 export const NODE_H_PADDING = 44;
 export const NODE_V_PADDING = 40;
 export const NODE_MIN_WIDTH = 180;
@@ -322,72 +325,62 @@ export function parseDiagramPayload(raw: string): Diagram {
 }
 
 /**
- * Greedy word-wrap honoring explicit `\n` paragraphs; overlong words are
- * hard-split. Returns at least one line so empty labels still size a node.
+ * How a shape's bounding box relates to the text rectangle it can hold.
+ * `scale` is box size over text size: a rectangle holds text edge to edge, an
+ * ellipse holds the rectangle inscribed in it (1/√2 of each side), a diamond
+ * the one inscribed in it (1/2 of each side). `padX`/`padY` are the breathing
+ * room around the text rectangle.
  */
-function wrapLabelLines(label: string, maxCharsPerLine: number): string[] {
-  const lines: string[] = [];
+const SHAPE_FIT = {
+  rectangle: { scale: 1, padX: NODE_H_PADDING, padY: NODE_V_PADDING },
+  ellipse: { scale: Math.SQRT2, padX: 24, padY: 16 },
+  diamond: { scale: 2, padX: 24, padY: 16 },
+} as const;
 
-  for (const paragraph of label.split(/\n/)) {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) continue;
+/** Inset (px) of a rectangle's label area from its border. */
+const RECT_LABEL_INSET = 12;
 
-    let current = "";
-    for (const word of words) {
-      if (word.length > maxCharsPerLine) {
-        if (current) {
-          lines.push(current);
-          current = "";
-        }
-        for (let i = 0; i < word.length; i += maxCharsPerLine) {
-          lines.push(word.slice(i, i + maxCharsPerLine));
-        }
-        continue;
-      }
-
-      const candidate = current ? `${current} ${word}` : word;
-      if (candidate.length <= maxCharsPerLine) {
-        current = candidate;
-      } else {
-        lines.push(current);
-        current = word;
-      }
-    }
-    if (current) lines.push(current);
+/**
+ * The rectangle a node's label may occupy: the text area inscribed in the
+ * shape, centered on it. The Excalidraw text element is sized to this.
+ *
+ * @param shape - Node shape.
+ * @param width - Node width.
+ * @param height - Node height.
+ * @returns Width and height of the label area.
+ */
+export function labelArea(
+  shape: DiagramNode["shape"],
+  width: number,
+  height: number,
+) {
+  if (shape === "rectangle") {
+    return {
+      width: Math.max(24, width - RECT_LABEL_INSET * 2),
+      height: Math.max(24, height - RECT_LABEL_INSET * 2),
+    };
   }
-
-  return lines.length > 0 ? lines : [label.trim() || " "];
+  const { scale } = SHAPE_FIT[shape];
+  return { width: width / scale, height: height / scale };
 }
 
 /**
- * Resizes each node to its wrapped label, clamped to min/max bounds.
- * Diamonds/ellipses get +8–20% headroom since their bounds clip corners.
+ * Wraps each label to its shape's text width and sizes the node so the
+ * measured label fits the shape's text area, clamped to min/max bounds.
+ * Rewrites `node.label` with the wrap's line breaks.
  */
 export function fitNodesToLabels(nodes: DiagramNode[]) {
-  const maxContentWidth = NODE_MAX_WIDTH - NODE_H_PADDING;
-  const maxCharsPerLine = Math.max(
-    14,
-    Math.floor(maxContentWidth / LABEL_CHAR_WIDTH),
-  );
-
   for (const node of nodes) {
-    const lines = wrapLabelLines(node.label, maxCharsPerLine);
-    node.label = lines.join("\n");
+    const fit = SHAPE_FIT[node.shape];
+    const label = measureLabel(node.label, {
+      fontSize: LABEL_FONT_SIZE,
+      lineHeight: LABEL_LINE_HEIGHT,
+      maxWidth: NODE_MAX_WIDTH / fit.scale - fit.padX - 1,
+    });
+    node.label = label.lines.join("\n");
 
-    const longestLine = Math.max(...lines.map((line) => line.length), 1);
-    const contentWidth = longestLine * LABEL_CHAR_WIDTH;
-    const contentHeight = lines.length * LABEL_FONT_SIZE * LABEL_LINE_HEIGHT;
-
-    let width = Math.ceil(contentWidth + NODE_H_PADDING);
-    let height = Math.ceil(contentHeight + NODE_V_PADDING);
-
-    if (node.shape === "diamond") {
-      width = Math.ceil(width * 1.2);
-      height = Math.ceil(height * 1.15);
-    } else if (node.shape === "ellipse") {
-      width = Math.ceil(width * 1.08);
-      height = Math.ceil(height * 1.08);
-    }
+    const width = Math.ceil((label.width + fit.padX) * fit.scale);
+    const height = Math.ceil((label.height + fit.padY) * fit.scale);
 
     node.width = Math.min(NODE_MAX_WIDTH, Math.max(NODE_MIN_WIDTH, width));
     node.height = Math.max(NODE_MIN_HEIGHT, height);

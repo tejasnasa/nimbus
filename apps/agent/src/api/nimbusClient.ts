@@ -2,7 +2,11 @@
  * @module agent/api/nimbusClient
  * @description The agent's client for the Nimbus API's internal routes:
  * redeeming the dispatch ticket, posting transcript segments, reporting state
- * and usage, and saying goodbye.
+ * and usage, asking for an answer, posting notices, and saying goodbye.
+ *
+ * An answer arrives as `application/x-ndjson`: text deltas, then one `done` or
+ * `error` line. It is read line by line as it streams, so speech can start on
+ * the first sentence.
  *
  * Segments are batched (up to ten, or 300 ms, whichever comes first) and kept
  * in a local outbox until the API confirms them. A failed post is retried with
@@ -23,6 +27,9 @@
  *            headers and never appear in a log line or an error message.
  */
 import type {
+  AgentNoticeKind,
+  AnswerLine,
+  AnswerRequest,
   EndedRequest,
   RedeemResponse,
   SegmentIn,
@@ -50,6 +57,9 @@ export const BACKOFF_MAX_MS = 8000;
 
 /** Per-request timeout, in milliseconds. */
 export const REQUEST_TIMEOUT_MS = 10_000;
+
+/** Longest an answer stream may stay open, in milliseconds. */
+export const ANSWER_TIMEOUT_MS = 30_000;
 
 /** Raised when the API refuses to hand out a session. Says nothing about why. */
 export class RedeemError extends Error {
@@ -303,6 +313,87 @@ export class NimbusClient {
     const reply = await this.exchange<StopResponse>("/usage", { entries }, true);
     this.handleStopReply(reply);
     return reply.kind === "ok";
+  }
+
+  /**
+   * Asks the API to answer an addressed utterance, yielding its lines as they
+   * arrive. Never throws: a failed request or a broken stream ends with an
+   * `error` line, and a cancelled one simply ends.
+   *
+   * @param body - The addressed segment, the reserved reply number, and
+   *               whether the reply will be spoken.
+   * @param signal - Aborts the request and the stream.
+   */
+  async *answer(
+    body: AnswerRequest,
+    signal: AbortSignal,
+  ): AsyncGenerator<AnswerLine> {
+    const failed: AnswerLine = { type: "error", reason: "failed" };
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}/internal/agent/answer`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.secret}`,
+          "content-type": "application/json",
+          ...(this.sessionToken
+            ? { "x-meeting-session": this.sessionToken }
+            : {}),
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(ANSWER_TIMEOUT_MS)]),
+      });
+    } catch {
+      if (!signal.aborted) yield failed;
+      return;
+    }
+    if (res.status === 401) this.signalStop();
+    if (!res.ok || !res.body) {
+      yield failed;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    let finished = false;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffered += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = buffered.indexOf("\n")) >= 0) {
+          const raw = buffered.slice(0, newline).trim();
+          buffered = buffered.slice(newline + 1);
+          if (!raw) continue;
+          let line: AnswerLine;
+          try {
+            line = JSON.parse(raw) as AnswerLine;
+          } catch {
+            continue;
+          }
+          yield line;
+          if (line.type !== "delta") finished = true;
+        }
+      }
+    } catch {
+      // A broken or cancelled stream ends below.
+    } finally {
+      reader.releaseLock();
+    }
+    if (!finished && !signal.aborted) yield failed;
+  }
+
+  /**
+   * Asks the API to post one of the fixed notices to the workspace chat.
+   * Failures are swallowed.
+   *
+   * @param kind - Which notice.
+   */
+  async postNotice(kind: AgentNoticeKind): Promise<void> {
+    const reply = await this.exchange<StopResponse>("/notice", { kind }, true);
+    this.handleStopReply(reply);
   }
 
   /** Tells the API the agent is leaving. Failures are swallowed. */

@@ -79,7 +79,7 @@ export class UtteranceBuffer {
   private readonly rate: number;
   private readonly minSpeech: number;
   private readonly prefix: number;
-  private readonly minSilence: number;
+  private minSilence: number;
   private readonly tailPad: number;
   private readonly max: number;
   private readonly minUtterance: number;
@@ -146,6 +146,16 @@ export class UtteranceBuffer {
     const wanted = event - this.minSpeech - this.prefix;
     this.openFrom = Math.max(oldest, wanted);
     this.leadSamples = Math.max(0, event - this.minSpeech - this.openFrom);
+  }
+
+  /**
+   * Follows a change to the detector's silence duration, so the end of speech
+   * is still cut at the right place.
+   *
+   * @param ms - The new silence duration, in milliseconds.
+   */
+  setMinSilence(ms: number): void {
+    this.minSilence = Math.round((ms * this.rate) / 1000);
   }
 
   /**

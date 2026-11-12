@@ -52,6 +52,12 @@ export interface ListenerInput {
 export interface ParticipantListener {
   /** Stops listening, cutting any open utterance. Safe to call more than once. */
   stop(): Promise<void>;
+  /**
+   * Changes how much silence ends this participant's utterance, in
+   * milliseconds, for this listener only. Used to end a turn quickly while the
+   * person holds the Ask button.
+   */
+  setMinSilence(ms: number): void;
 }
 
 /**
@@ -105,6 +111,15 @@ export function listenToFrames(input: ListenerInput): ParticipantListener {
   void consume().catch(() => undefined);
 
   return {
+    setMinSilence(ms: number) {
+      // The detector's own streams accept per-stream options; the framework's
+      // base type does not declare them, so the call is guarded.
+      const tunable = stream as unknown as {
+        updateOptions?: (opts: { minSilenceDuration: number }) => void;
+      };
+      tunable.updateOptions?.({ minSilenceDuration: ms });
+      buffer.setMinSilence(ms);
+    },
     async stop() {
       if (stopped) return;
       stopped = true;

@@ -4,7 +4,7 @@
  * empty room.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EMPTY_ROOM_MS, MeetingBudget } from "../budget.js";
+import { BUDGET_WARNING_MS, EMPTY_ROOM_MS, MeetingBudget } from "../budget.js";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -130,5 +130,43 @@ describe("MeetingBudget", () => {
     vi.advanceTimersByTime(10 * 60_000);
     expect(onBudget).not.toHaveBeenCalled();
     expect(onEmptyRoom).not.toHaveBeenCalled();
+  });
+
+  it("warns thirty seconds before the budget runs out", () => {
+    const onWarning = vi.fn();
+    const onBudget = vi.fn();
+    new MeetingBudget({
+      remainingMs: 120_000,
+      onBudget,
+      onEmptyRoom: vi.fn(),
+      onWarning,
+    }).start();
+    vi.advanceTimersByTime(120_000 - BUDGET_WARNING_MS - 1);
+    expect(onWarning).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onWarning).toHaveBeenCalledOnce();
+    expect(onBudget).not.toHaveBeenCalled();
+  });
+
+  it("skips the warning when less than thirty seconds are left, and on stop", () => {
+    const short = vi.fn();
+    new MeetingBudget({
+      remainingMs: 20_000,
+      onBudget: vi.fn(),
+      onEmptyRoom: vi.fn(),
+      onWarning: short,
+    }).start();
+    const stopped = vi.fn();
+    const budget = new MeetingBudget({
+      remainingMs: 120_000,
+      onBudget: vi.fn(),
+      onEmptyRoom: vi.fn(),
+      onWarning: stopped,
+    });
+    budget.start();
+    budget.stop();
+    vi.advanceTimersByTime(200_000);
+    expect(short).not.toHaveBeenCalled();
+    expect(stopped).not.toHaveBeenCalled();
   });
 });

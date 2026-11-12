@@ -4,7 +4,8 @@
  *
  * Joins a room only when dispatched by name, trades the dispatch ticket for the
  * session's configuration, then listens to every human audio track separately
- * and posts the transcript to the Nimbus API.
+ * and posts the transcript to the Nimbus API. When the session may speak, it
+ * publishes its own voice track and answers people who address it.
  *
  * @important `agentName` switches the worker to explicit dispatch, so it never
  *            joins a room on its own; the API creates the dispatch and carries
@@ -37,6 +38,7 @@ import { fileURLToPath } from "node:url";
 import { NimbusClient } from "./api/nimbusClient.js";
 import { framesOfTrack } from "./audio/trackFrames.js";
 import { isAllowedProviderUrl, loadConfig } from "./config.js";
+import { publishVoice } from "./output/roomOutput.js";
 import { createMeetingClock } from "./session/clock.js";
 import { VAD_OPTIONS } from "./vadOptions.js";
 import { MeetingSession, type RoomLike } from "./session/meetingSession.js";
@@ -128,6 +130,7 @@ const agent = defineAgent<WorkerUserData>({
         // Leaving the room ends the job; going through `ctx.shutdown` instead
         // would re-enter the shutdown callback registered below and wait on it.
         disconnect: () => ctx.room.disconnect(),
+        openVoice: () => publishVoice(ctx.room.localParticipant!),
         log: (message, fields) => logger.info(fields ?? {}, message),
       },
     );

@@ -119,4 +119,23 @@ describe("listenToFrames", () => {
 
     expect(heard).toHaveLength(0);
   });
+
+  it("accepts a shorter end-of-turn silence for one listener", async () => {
+    const vad = await loadRealVad();
+    const heard: Utterance[] = [];
+    const listener = listenToFrames({
+      frames: paced(toFrames(concat(readFixture("speech.wav"), silence(1)))),
+      vad,
+      clock: frameClock(),
+      handlers: {
+        onSpeechStart: () => undefined,
+        onSpeechEnd: () => undefined,
+        onUtterance: (utterance) => heard.push(utterance),
+      },
+    });
+    listener.setMinSilence(400);
+    await vi.waitFor(() => expect(heard).toHaveLength(1), { timeout: 10_000 });
+    listener.setMinSilence(600);
+    await listener.stop();
+  });
 });

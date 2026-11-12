@@ -1,7 +1,8 @@
 /**
  * @module agent/budget
- * @description The two timers that end a session by themselves: the free-time
- * budget running out, and the room staying empty of people.
+ * @description The timers that end a session by themselves: the free-time
+ * budget running out (with a warning thirty seconds before), and the room
+ * staying empty of people.
  *
  * @important The budget is measured from when the meeting started, not from when
  *            the agent joined. The API charges from the meeting's own
@@ -17,6 +18,9 @@
 /** How long the room may be without a human before the agent leaves. */
 export const EMPTY_ROOM_MS = 60_000;
 
+/** How long before the budget runs out the warning fires. */
+export const BUDGET_WARNING_MS = 30_000;
+
 /** Timer settings and the callbacks they fire. */
 export type BudgetOptions = {
   /** Milliseconds of free time left, or null when there is no limit. */
@@ -24,12 +28,15 @@ export type BudgetOptions = {
   emptyRoomMs?: number;
   onBudget(): void;
   onEmptyRoom(): void;
+  /** Fires {@link BUDGET_WARNING_MS} before the budget runs out, if there is time. */
+  onWarning?(): void;
 };
 
 /** Budget and empty-room timers for one session. */
 export class MeetingBudget {
   private readonly options: BudgetOptions;
   private budgetTimer: ReturnType<typeof setTimeout> | null = null;
+  private warningTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
 
@@ -42,6 +49,12 @@ export class MeetingBudget {
     this.running = true;
     const { remainingMs } = this.options;
     if (remainingMs === null) return;
+    if (this.options.onWarning && remainingMs > BUDGET_WARNING_MS) {
+      this.warningTimer = setTimeout(() => {
+        this.warningTimer = null;
+        if (this.running) this.options.onWarning?.();
+      }, remainingMs - BUDGET_WARNING_MS);
+    }
     this.budgetTimer = setTimeout(
       () => {
         this.budgetTimer = null;
@@ -75,11 +88,13 @@ export class MeetingBudget {
     this.emptyTimer = null;
   }
 
-  /** Cancels both timers. */
+  /** Cancels every timer. */
   stop(): void {
     this.running = false;
     if (this.budgetTimer) clearTimeout(this.budgetTimer);
     this.budgetTimer = null;
+    if (this.warningTimer) clearTimeout(this.warningTimer);
+    this.warningTimer = null;
     this.clearEmpty();
   }
 }

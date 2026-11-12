@@ -15,9 +15,14 @@
  *            short-circuited on `status` before a ping is attempted. Without
  *            this the endpoint hangs rather than reporting unhealthy, which is
  *            strictly worse than having no endpoint at all.
+ *
+ * @important The media server is probed and reported (`checks.livekit`) but
+ *            never decides the status: voice is optional, and a LiveKit outage
+ *            must not mark the API unhealthy and get it restarted for nothing.
  */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
+import { getRoomServiceClient } from "../lib/livekit/client";
 import { pubClient } from "../lib/redis";
 
 /** How long each dependency probe may take before it is reported as down. */
@@ -40,12 +45,18 @@ export interface HealthClients {
     status: string;
     ping(): PromiseLike<string>;
   };
+  /** The media server; a cheap authenticated call proves it answers. */
+  livekit: {
+    listRooms(): PromiseLike<unknown>;
+  };
 }
 
 /** Per-dependency outcomes, keyed for the `checks` field of the payload. */
 export interface HealthChecks {
   database: ProbeResult;
   redis: ProbeResult;
+  /** Reported only; it never changes the overall status. */
+  livekit: ProbeResult;
 }
 
 /**
@@ -88,7 +99,7 @@ const toProbeResult = (settled: PromiseSettledResult<unknown>): ProbeResult =>
       };
 
 /**
- * Probes both dependencies concurrently.
+ * Probes every dependency concurrently.
  *
  * Redis is checked against `status` first: a client that is reconnecting would
  * queue the ping rather than fail it, so the deadline is the only thing that
@@ -119,18 +130,43 @@ export const probeDependencies = async (
           new Error(`redis not ready (status: "${clients.redis.status}")`),
         );
 
-  const [dbSettled, redisSettled] = await Promise.allSettled([database, redis]);
+  const livekit = withDeadline(
+    clients.livekit.listRooms(),
+    "livekit",
+    timeoutMs,
+  );
+
+  const [dbSettled, redisSettled, livekitSettled] = await Promise.allSettled([
+    database,
+    redis,
+    livekit,
+  ]);
 
   return {
     database: toProbeResult(dbSettled),
     redis: toProbeResult(redisSettled),
+    livekit: toProbeResult(livekitSettled),
   };
+};
+
+/**
+ * The media server client for the probe. Unconfigured LiveKit settings become
+ * a failed probe rather than an exception, so health still answers.
+ */
+const livekitProbeClient = (): HealthClients["livekit"] => {
+  try {
+    return getRoomServiceClient();
+  } catch (error) {
+    const reason = error instanceof Error ? error : new Error(String(error));
+    return { listRooms: () => Promise.reject(reason) };
+  }
 };
 
 /**
  * Answers the health probe in the standard response envelope.
  *
- * @returns 200 when both dependencies answered, 503 otherwise. The degraded
+ * @returns 200 when Postgres and Redis answered, 503 otherwise, whatever the
+ *          media server did. The degraded
  *          branch is built with the constructor rather than
  *          `ServerResponse.serviceUnavailable()` because that factory hardcodes
  *          its payload to `null` and cannot carry the per-dependency detail that
@@ -140,6 +176,7 @@ export const getHealth = async () => {
   const checks = await probeDependencies({
     database: prisma,
     redis: pubClient,
+    livekit: livekitProbeClient(),
   });
 
   const payload = {

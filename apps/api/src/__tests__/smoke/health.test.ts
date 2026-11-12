@@ -4,9 +4,24 @@
  * stack (so a genuinely reachable dependency is covered), and the probe's
  * failure modes are driven through injected fakes — a real Redis outage cannot
  * be produced here, and the deadline branch must not cost 1.5s per run.
+ *
+ * The media server's client is wrapped so the route can be shown answering
+ * healthy while LiveKit is down: voice is optional and must not fail health.
  */
 import request from "supertest";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { listRoomsMock } = vi.hoisted(() => ({ listRoomsMock: vi.fn() }));
+
+vi.mock("../../lib/livekit/client", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/livekit/client")>();
+  return {
+    ...actual,
+    getRoomServiceClient: () => ({ listRooms: () => listRoomsMock() }),
+  };
+});
+
 import { createApp } from "../../app";
 import {
   PROBE_TIMEOUT_MS,
@@ -21,11 +36,15 @@ const healthyClients = (
   overrides: {
     database?: Partial<HealthClients["database"]>;
     redis?: Partial<HealthClients["redis"]>;
+    livekit?: Partial<HealthClients["livekit"]>;
   } = {},
 ): HealthClients => ({
   database: { $queryRaw: () => Promise.resolve([{ one: 1 }]), ...overrides.database },
   redis: { status: "ready", ping: () => Promise.resolve("PONG"), ...overrides.redis },
+  livekit: { listRooms: () => Promise.resolve([]), ...overrides.livekit },
 });
+
+afterEach(() => listRoomsMock.mockReset());
 
 describe("api smoke: health route", () => {
   it("answers anonymous callers in the standard envelope", async () => {
@@ -59,13 +78,57 @@ describe("api smoke: health route", () => {
       checks: { database: { ok: true }, redis: { ok: true } },
     });
   });
+
+  it("stays healthy with the media server down, and says so", async () => {
+    listRoomsMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
+    await expect
+      .poll(
+        async () => (await request(app).get("/api/health")).body?.responseObject?.status,
+        { timeout: 10_000, interval: 250 },
+      )
+      .toBe("ok");
+
+    const res = await request(app).get("/api/health");
+
+    expect(res.status).toBe(200);
+    expect(res.body.responseObject.checks.livekit).toEqual({
+      ok: false,
+      error: "connect ECONNREFUSED",
+    });
+  });
 });
 
 describe("api smoke: probeDependencies", () => {
   it("reports healthy when both dependencies answer", async () => {
     const checks = await probeDependencies(healthyClients());
 
-    expect(checks).toEqual({ database: { ok: true }, redis: { ok: true } });
+    expect(checks).toEqual({
+      database: { ok: true },
+      redis: { ok: true },
+      livekit: { ok: true },
+    });
+  });
+
+  it("reports the media server down when it rejects, leaving the others alone", async () => {
+    const checks = await probeDependencies(
+      healthyClients({
+        livekit: { listRooms: () => Promise.reject(new Error("401 unauthorized")) },
+      }),
+    );
+
+    expect(checks.livekit).toEqual({ ok: false, error: "401 unauthorized" });
+    expect(checks.database.ok).toBe(true);
+    expect(checks.redis.ok).toBe(true);
+  });
+
+  it("times out a media server that never answers", async () => {
+    const checks = await probeDependencies(
+      healthyClients({ livekit: { listRooms: () => new Promise(() => {}) } }),
+      20,
+    );
+
+    expect(checks.livekit.ok).toBe(false);
+    expect(checks.livekit.error).toContain("livekit did not respond in 20ms");
   });
 
   it("reports the database down when the query rejects", async () => {

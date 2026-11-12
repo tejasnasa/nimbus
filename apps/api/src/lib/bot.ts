@@ -54,14 +54,35 @@ import { BotResult, normalizeTimeZone } from "@nimbus/types";
 import { withAiCall, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 import { searchDocuments } from "./documentSearch";
+import type { MeetingBroadcaster } from "./meeting/lifecycle";
 import { searchSegments } from "./meeting/search";
+import {
+  availableTools,
+  CHAT_TOOL_NAMES,
+  runMeetingTool,
+  TOOL_DATA_RULE,
+  toolDefinitions,
+  type MeetingToolName,
+} from "./meeting/tools";
 import { buildContextMessage } from "./memory/context";
 import { recall } from "./memory/recall";
 import { understand } from "./memory/understand";
 import { now, runWithClockOverride } from "./time/clock";
 
-/** Most rounds in which the model may search before it must answer. */
+/**
+ * Most rounds in which the model may look things up (search the workspace or
+ * call a meeting tool) before it must answer.
+ */
 export const MAX_SEARCH_ROUNDS = 2;
+
+/**
+ * The meeting tools NimbusBot offers in chat. `search_meetings` is left out:
+ * `search_workspace` already searches transcripts, and two searches over the
+ * same rows only invite the model to run both.
+ */
+const CHAT_MEETING_TOOLS: readonly MeetingToolName[] = CHAT_TOOL_NAMES.filter(
+  (name) => name !== "search_meetings",
+);
 
 /** Hits of each kind a search hands the model. */
 const SEARCH_HITS_PER_KIND = 5;
@@ -84,13 +105,20 @@ export type GenerateBotResponseOptions = {
    */
   allowDocument: boolean;
   /**
-   * Whether the model may search the workspace's documents and transcripts.
-   * Defaults to true; the tool is omitted, and the prompt says nothing of
-   * search, when false.
+   * Whether the model may look things up: search the workspace's documents and
+   * transcripts, and read its meetings, decisions and action items. Defaults to
+   * true; the tools are omitted, and the prompt says nothing of them, when false.
    */
   allowSearch?: boolean;
   /** When given, the model call is written to the workspace call log. */
   callMeta?: AiCallMeta;
+  /**
+   * The asker. Required for `create_action_item`, which credits them as the
+   * item's creator; without it that tool is not offered.
+   */
+  userId?: string;
+  /** Broadcaster for the action item list when the bot adds an item. */
+  io?: MeetingBroadcaster;
   /**
    * An image attached to the triggering message. Sent as an `input_image` part
    * on the latest user message, and the `create_document` tool gains
@@ -206,6 +234,7 @@ async function runSearchTool(
       segments.status === "fulfilled"
         ? segments.value.map((hit) => ({
             meeting: hit.meetingTitle ?? "Untitled meeting",
+            meeting_id: hit.meetingId,
             date: hit.meetingStartedAt.slice(0, 10),
             speaker: hit.speakerName,
             excerpt: stripMarks(hit.snippet),
@@ -290,6 +319,8 @@ async function generateBotResponseAt(
     callMeta,
     imageUrl,
     imageUnreadable = false,
+    userId,
+    io,
   } = options;
   const timeZone = normalizeTimeZone(options.timeZone);
 
@@ -449,7 +480,21 @@ action items with their CURRENT status) and past chat.
           },
         ]
       : [];
-    const tools = [...documentTools, ...searchTools];
+    // Adding an action item needs someone to credit it to, so a caller that
+    // passes no asker gets the read-only tools only.
+    const meetingTools = allowSearch
+      ? availableTools(
+          CHAT_MEETING_TOOLS.filter(
+            (name) => userId !== undefined || name !== "create_action_item",
+          ),
+          {},
+        )
+      : [];
+    const tools = [
+      ...documentTools,
+      ...searchTools,
+      ...toolDefinitions(meetingTools),
+    ];
 
     if (allowSearch) {
       instructions =
@@ -467,6 +512,29 @@ When your answer uses a result, say where it came from. For a document write its
 exactly as given in its "citation" field, for example [Roadmap](nimbus-doc:abc123).
 For a meeting give its title and date in plain words. If nothing relevant was found,
 say so plainly instead of guessing.`;
+    }
+
+    if (meetingTools.length > 0) {
+      const canAdd = meetingTools.some(
+        (tool) => tool.name === "create_action_item",
+      );
+      instructions =
+        instructions +
+        `
+
+MEETINGS: Tools also read this workspace's meeting records: list_meetings (titles,
+dates, ids), get_meeting (one meeting's summary, decisions and action items),
+list_decisions and list_action_items (across meetings, filtered by topic, owner or
+status). Use them for questions about what was decided, who owns what, or what is
+still open, when the recalled history does not already answer it. A meeting_id from
+search_workspace or list_meetings can be passed to get_meeting.${
+          canAdd
+            ? `
+create_action_item adds an action item; use it only when someone explicitly asks you to
+add, track or assign one, and confirm what you added.`
+            : ""
+        }
+${TOOL_DATA_RULE}`;
     }
 
     if (!allowDocument) {
@@ -552,10 +620,13 @@ say so plainly instead of guessing.`;
         }
       }
 
-      const searchCalls = mustAnswer
+      // Every other call is a lookup (or adding an action item) whose result
+      // goes back to the model. An unoffered name still gets an answer, so
+      // each call id has its output in the transcript.
+      const lookupCalls = mustAnswer
         ? []
-        : calls.filter((call) => call.name === "search_workspace");
-      if (searchCalls.length === 0) {
+        : calls.filter((call) => call.name !== "create_document");
+      if (lookupCalls.length === 0) {
         return {
           kind: "reply",
           content:
@@ -566,11 +637,19 @@ say so plainly instead of guessing.`;
       // The model's own output goes back with the results, so each call id has
       // its call in the transcript.
       input.push(...(response.output as unknown[]));
-      for (const call of searchCalls) {
+      for (const call of lookupCalls) {
         input.push({
           type: "function_call_output",
           call_id: call.call_id,
-          output: await runSearchTool(workspaceId, call.arguments),
+          output:
+            call.name === "search_workspace" && allowSearch
+              ? await runSearchTool(workspaceId, call.arguments)
+              : await runMeetingTool(
+                  String(call.name),
+                  call.arguments,
+                  { workspaceId, userId: userId ?? "", io },
+                  { allowed: meetingTools },
+                ),
         });
       }
     }

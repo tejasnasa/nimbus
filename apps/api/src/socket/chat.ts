@@ -360,6 +360,8 @@ async function answerBotMention(
     imageUnreadable,
     timeZone,
     clockOverride,
+    userId,
+    io,
   });
 
   if (botResult.kind === "refused") {

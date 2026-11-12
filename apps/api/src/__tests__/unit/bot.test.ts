@@ -60,6 +60,14 @@ import {
 
 afterAll(closeTestResources);
 
+/** The meeting tools offered in chat when no asker is passed. */
+const READ_MEETING_TOOLS = [
+  "get_meeting",
+  "list_meetings",
+  "list_decisions",
+  "list_action_items",
+];
+
 /** A plain-text reply response, i.e. no tool call. */
 const replyWith = (text: string) => ({
   output: [{ type: "message" }],
@@ -413,7 +421,10 @@ describe("lib/bot", () => {
         unknown
       >;
       const tools = request.tools as Array<{ name: string }>;
-      expect(tools.map((tool) => tool.name)).toEqual(["search_workspace"]);
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "search_workspace",
+        ...READ_MEETING_TOOLS,
+      ]);
     });
 
     it("offers no tools at all when neither documents nor search are allowed", async () => {
@@ -469,6 +480,7 @@ describe("lib/bot", () => {
       expect(tools.map((tool) => tool.name)).toEqual([
         "create_document",
         "search_workspace",
+        ...READ_MEETING_TOOLS,
       ]);
     });
 
@@ -908,6 +920,7 @@ describe("lib/bot search_workspace", () => {
     expect(output.meetings).toEqual([
       {
         meeting: "Weekly sync",
+        meeting_id: meeting.id,
         date: "2026-11-03",
         speaker: "Priya Shah",
         excerpt: expect.stringContaining("migration"),
@@ -1139,5 +1152,178 @@ describe("lib/bot search_workspace", () => {
       content: "Something went wrong while thinking. Please try again later.",
     });
     errorSpy.mockRestore();
+  });
+});
+
+describe("lib/bot meeting tools", () => {
+  let workspaceId: string;
+  let askerId: string;
+
+  /** A model response that calls one tool. */
+  const toolCall = (name: string, args: unknown, id = "call_1") => ({
+    output: [
+      {
+        type: "function_call",
+        name,
+        call_id: id,
+        arguments: JSON.stringify(args),
+      },
+    ],
+    output_text: "",
+  });
+
+  type SentRequest = {
+    tools: Array<{ name: string }>;
+    instructions: string;
+    input: Array<{ type?: string; output?: string }>;
+  };
+  const lastRequest = () => createMock.mock.calls.at(-1)![0] as SentRequest;
+  const lastToolOutput = () =>
+    lastRequest()
+      .input.filter((item) => item.type === "function_call_output")
+      .at(-1)!.output!;
+
+  beforeEach(async () => {
+    await resetDatabase();
+    createMock.mockReset();
+    const asker = await createUser("Ada Lovelace");
+    askerId = asker.id;
+    workspaceId = (await createWorkspace(asker.id)).id;
+    await createMessage(
+      workspaceId,
+      asker.id,
+      "@nimbusbot what did we decide?",
+    );
+  });
+
+  const ask = (options: { userId?: string; allowSearch?: boolean } = {}) =>
+    generateBotResponse({
+      workspaceId,
+      handle: makeTestHandle(),
+      allowDocument: false,
+      ...options,
+    });
+
+  it("offers adding an action item only when the asker is known", async () => {
+    createMock.mockResolvedValue(replyWith("ok"));
+
+    await ask();
+    expect(lastRequest().tools.map((t) => t.name)).not.toContain(
+      "create_action_item",
+    );
+    expect(lastRequest().instructions).not.toMatch(/create_action_item/);
+
+    await ask({ userId: askerId });
+    expect(lastRequest().tools.map((t) => t.name)).toEqual([
+      "search_workspace",
+      ...READ_MEETING_TOOLS,
+      "create_action_item",
+    ]);
+    expect(lastRequest().instructions).toMatch(/MEETINGS:/);
+    expect(lastRequest().instructions).toMatch(/<tool_result>/);
+  });
+
+  it("leaves transcript search to search_workspace, so search_meetings is not offered", async () => {
+    createMock.mockResolvedValue(replyWith("ok"));
+    await ask({ userId: askerId });
+    expect(lastRequest().tools.map((t) => t.name)).not.toContain(
+      "search_meetings",
+    );
+  });
+
+  it("reads a meeting's decisions through get_meeting and answers", async () => {
+    const meeting = await createMeeting(workspaceId, { status: "SUMMARIZED" });
+    await testPrisma.meeting.update({
+      where: { id: meeting.id },
+      data: { title: "Auth review" },
+    });
+    await testPrisma.decision.create({
+      data: { workspaceId, meetingId: meeting.id, text: "Use passkeys" },
+    });
+    createMock
+      .mockResolvedValueOnce(
+        toolCall("get_meeting", { meeting_id: meeting.id }),
+      )
+      .mockResolvedValueOnce(replyWith("You decided to use passkeys."));
+
+    const result = await ask({ userId: askerId });
+
+    expect(result).toEqual({
+      kind: "reply",
+      content: "You decided to use passkeys.",
+    });
+    const output = lastToolOutput();
+    expect(output).toMatch(/^<tool_result name="get_meeting">/);
+    expect(output).toContain("Auth review");
+    expect(output).toContain("Use passkeys");
+  });
+
+  it("cannot read another workspace's meeting", async () => {
+    const other = await createUser("Mallory");
+    const otherWs = (await createWorkspace(other.id)).id;
+    const secret = await createMeeting(otherWs, { status: "SUMMARIZED" });
+    await testPrisma.decision.create({
+      data: { workspaceId: otherWs, meetingId: secret.id, text: "Secret plan" },
+    });
+    createMock
+      .mockResolvedValueOnce(toolCall("get_meeting", { meeting_id: secret.id }))
+      .mockResolvedValueOnce(replyWith("I have no record of that."));
+
+    await ask({ userId: askerId });
+
+    expect(lastToolOutput()).toContain("No meeting with that id");
+    expect(lastToolOutput()).not.toContain("Secret plan");
+  });
+
+  it("adds an action item credited to the asker", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolCall("create_action_item", {
+          text: "Update the changelog",
+          owner_name: "Ada Lovelace",
+          due: "2026-11-20",
+        }),
+      )
+      .mockResolvedValueOnce(replyWith("Added it."));
+
+    await ask({ userId: askerId });
+
+    const items = await testPrisma.actionItem.findMany({
+      where: { workspaceId },
+    });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      text: "Update the changelog",
+      createdById: askerId,
+      ownerUserId: askerId,
+      meetingId: null,
+    });
+    expect(lastToolOutput()).toContain("Update the changelog");
+  });
+
+  it("refuses a tool it did not offer, without running it", async () => {
+    createMock
+      .mockResolvedValueOnce(
+        toolCall("create_action_item", {
+          text: "x",
+          owner_name: null,
+          due: null,
+        }),
+      )
+      .mockResolvedValueOnce(replyWith("I can't add that."));
+
+    await ask();
+
+    expect(lastToolOutput()).toContain("There is no tool by that name.");
+    await expect(
+      testPrisma.actionItem.count({ where: { workspaceId } }),
+    ).resolves.toBe(0);
+  });
+
+  it("offers no meeting tools when lookups are off", async () => {
+    createMock.mockResolvedValue(replyWith("ok"));
+    await ask({ userId: askerId, allowSearch: false });
+    expect(lastRequest().tools).toEqual([]);
+    expect(lastRequest().instructions).not.toMatch(/MEETINGS:/);
   });
 });

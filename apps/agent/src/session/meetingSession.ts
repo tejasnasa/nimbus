@@ -475,16 +475,21 @@ export class MeetingSession {
 
   /**
    * The API has told the call the answer went to chat. That state shows for a
-   * moment, then the assistant reads as listening again.
+   * moment, then the assistant reads as listening again. Speaking-set updates
+   * wait for the hold to end, since every state post carries a state and would
+   * cut the moment short.
    */
   private holdChatState(): void {
     this.assistantState = "listening";
     this.chatStateTimer = setTimeout(() => {
       this.chatStateTimer = null;
       if (this.stopPromise) return;
+      const ids = [...this.speaking].sort();
+      this.lastPostedSpeaking = ids.join(",");
+      this.lastStateAt = Date.now();
       void this.deps.client.postState({
         state: "listening",
-        speakingUserIds: [...this.speaking].sort(),
+        speakingUserIds: ids,
       });
     }, CHAT_STATE_HOLD_MS);
   }
@@ -595,6 +600,9 @@ export class MeetingSession {
     );
     this.stateTimer = setTimeout(() => {
       this.stateTimer = null;
+      // Any post now would replace "answered in chat" before its moment is
+      // up; the post that ends the hold carries the speaking set instead.
+      if (this.chatStateTimer) return;
       const ids = [...this.speaking].sort();
       const key = ids.join(",");
       if (key === this.lastPostedSpeaking) return;

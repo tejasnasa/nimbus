@@ -10,6 +10,10 @@
  * `typing:*` relays, and `disconnecting` presence cleanup. Joining a workspace
  * also replays the current call roster (`voice:roster`) to the joiner alone.
  *
+ * The sender's timezone (and, outside production only, a clock override used
+ * to test date handling) rides on `message:send` and is passed to the bot, so
+ * "on Tuesday" resolves in the sender's own day.
+ *
  * While a mention is being answered the room is told the bot is typing
  * (`bot:typing`); the signal ends with the reply, a refusal, a failure, or the
  * hand-over to document generation.
@@ -151,6 +155,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
       workspaceId: string;
       content: string;
       imageUrl?: string;
+      timeZone?: string;
+      clockOverride?: string;
     }) => {
       try {
         const parsed = messageSendSchema.safeParse(payload);
@@ -207,6 +213,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
               userName: user.name,
               userImage: user.image,
               imageUrl: data.imageUrl,
+              timeZone: data.timeZone,
+              clockOverride: data.clockOverride,
             });
           })().catch((err) => console.error("Bot Reply Error:", err));
         }
@@ -262,6 +270,10 @@ type HandleBotMentionInput = {
   readonly userImage: string | null | undefined;
   /** An image on the triggering message, already checked for ownership. */
   readonly imageUrl?: string;
+  /** The sender's IANA timezone, already validated. */
+  readonly timeZone?: string;
+  /** Test-only clock override; the clock ignores it in production. */
+  readonly clockOverride?: string;
 };
 
 /**
@@ -295,7 +307,8 @@ async function answerBotMention(
   input: HandleBotMentionInput,
   typing: BotTyping,
 ): Promise<void> {
-  const { io, socket, userId, workspaceId, imageUrl } = input;
+  const { io, socket, userId, workspaceId, imageUrl, timeZone, clockOverride } =
+    input;
 
   // 0. A mention with an image is answered by a vision model. If the workspace
   //    cannot read images the turn falls back to chat, and the asker is told
@@ -345,6 +358,8 @@ async function answerBotMention(
     callMeta: chatResolution.meta,
     imageUrl: visionResolution ? imageUrl : undefined,
     imageUnreadable,
+    timeZone,
+    clockOverride,
   });
 
   if (botResult.kind === "refused") {

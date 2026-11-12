@@ -2,6 +2,7 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalPassThroughEnv": [
+    "AGENT_NOW",
     "AI_FREE_VOICE_SECONDS",
     "AI_SPEECH_MODEL",
     "AI_SPEECH_VOICE",

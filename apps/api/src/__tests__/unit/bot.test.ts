@@ -101,11 +101,18 @@ const makeTestHandle = (
   };
 };
 
+/**
+ * The conversation turns of the last request. The first input item is the
+ * per-turn context message (date and recalled history), covered in
+ * `botMemory.test.ts`, so it is set aside here.
+ */
 const historySent = () =>
-  createMock.mock.calls.at(-1)?.[0]?.input as Array<{
-    role: string;
-    content: string;
-  }>;
+  (
+    createMock.mock.calls.at(-1)?.[0]?.input as Array<{
+      role: string;
+      content: string;
+    }>
+  ).slice(1);
 
 describe("lib/bot", () => {
   let workspaceId: string;
@@ -556,7 +563,7 @@ describe("lib/bot", () => {
         | Array<{ type: string; image_url?: string; detail?: string }>;
     };
     const inputSent = () =>
-      createMock.mock.calls.at(-1)?.[0]?.input as InputItem[];
+      (createMock.mock.calls.at(-1)?.[0]?.input as InputItem[]).slice(1);
 
     beforeEach(() => {
       createMock.mockResolvedValue(replyWith("ok"));

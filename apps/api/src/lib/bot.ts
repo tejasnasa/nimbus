@@ -16,6 +16,14 @@
  * `tool_choice: "none"` so an answer comes back whatever the model wanted.
  * Every model round is written to the call log.
  *
+ * Questions about the workspace's past ("what did we decide on Tuesday's
+ * call?", "what did I ask you on Monday?", "is that still the plan?") are
+ * answered from a recalled block, not from the model's imagination: before the
+ * model runs, `memory/understand` resolves dates in the asker's timezone and
+ * `memory/recall` looks up the matching meetings and chat with plain SQL. The
+ * block, with today's date, goes in a context message placed after the fixed
+ * instructions so those stay a cacheable prefix.
+ *
  * A message that carries an image sends it to the model on the latest user
  * message only; earlier images stay in the history as a text marker, so a
  * long conversation never re-sends (or re-pays for) old pictures.
@@ -25,6 +33,11 @@
  *            first will not get a useful answer here — the caller must own the
  *            entitlement decision so a refusal can be claimed, refunded and
  *            announced (or refused) before any chat traffic is posted.
+ *
+ * @important A failed recall never fails the reply either: it degrades to no
+ *            block and is logged by error name only. Every date the bot uses
+ *            comes from `now()` (`time/clock`), which honours a per-request
+ *            override only outside production.
  *
  * @important A failed search never fails the reply: the model is told the
  *            search is unavailable and answers without it. Search results
@@ -37,11 +50,15 @@
  *            point of view, not a failure.
  */
 import { prisma } from "@nimbus/db";
-import { BotResult } from "@nimbus/types";
+import { BotResult, normalizeTimeZone } from "@nimbus/types";
 import { withAiCall, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 import { searchDocuments } from "./documentSearch";
 import { searchSegments } from "./meeting/search";
+import { buildContextMessage } from "./memory/context";
+import { recall } from "./memory/recall";
+import { understand } from "./memory/understand";
+import { now, runWithClockOverride } from "./time/clock";
 
 /** Most rounds in which the model may search before it must answer. */
 export const MAX_SEARCH_ROUNDS = 2;
@@ -86,6 +103,13 @@ export type GenerateBotResponseOptions = {
    * model is told so rather than left to guess, and answers in text.
    */
   imageUnreadable?: boolean;
+  /** The asker's IANA timezone, so "on Tuesday" means their Tuesday. Default UTC. */
+  timeZone?: string;
+  /**
+   * A test-only "now" carried with the message. Ignored in production, where
+   * the real clock always applies.
+   */
+  clockOverride?: string;
 };
 
 /** One turn of history as the Responses API takes it. */
@@ -191,6 +215,49 @@ async function runSearchTool(
 }
 
 /**
+ * Looks up recorded history for the question, or returns no block.
+ *
+ * @returns The recall block; an empty string when nothing applies or recall
+ *          failed. Never throws.
+ */
+async function recallBlockFor(
+  workspaceId: string,
+  messages: Array<{ id: string; content: string; userId: string }>,
+  timeZone: string,
+  at: Date,
+  botUserId: string | undefined,
+): Promise<string> {
+  try {
+    const isBot = (message: { userId: string }) => message.userId === botUserId;
+    // `messages` is chronological here, so search from the newest end: the
+    // question being answered is the latest mention, not the oldest in view.
+    const newestFirst = [...messages].reverse();
+    const asking =
+      newestFirst.find(
+        (message) => !isBot(message) && /@nimbusbot/i.test(message.content),
+      ) ?? newestFirst.find((message) => !isBot(message));
+    if (!asking) return "";
+    const result = await recall(
+      workspaceId,
+      understand(asking.content, at, timeZone),
+      {
+        excludeMessageIds: new Set(messages.map((message) => message.id)),
+        tz: timeZone,
+        now: at,
+        botUserId,
+      },
+    );
+    return result.block;
+  } catch (error) {
+    console.error(
+      "Memory recall failed:",
+      error instanceof Error ? error.name : "unknown",
+    );
+    return "";
+  }
+}
+
+/**
  * Generates the bot's next action for a workspace conversation.
  *
  * @param options - See {@link GenerateBotResponseOptions}. The caller owns the
@@ -206,6 +273,15 @@ async function runSearchTool(
 export async function generateBotResponse(
   options: GenerateBotResponseOptions,
 ): Promise<BotResult> {
+  return runWithClockOverride(options.clockOverride, () =>
+    generateBotResponseAt(options),
+  );
+}
+
+/** The body of {@link generateBotResponse}, run under the request's clock. */
+async function generateBotResponseAt(
+  options: GenerateBotResponseOptions,
+): Promise<BotResult> {
   const {
     workspaceId,
     handle,
@@ -215,6 +291,7 @@ export async function generateBotResponse(
     imageUrl,
     imageUnreadable = false,
   } = options;
+  const timeZone = normalizeTimeZone(options.timeZone);
 
   try {
     const messages = await prisma.message.findMany({
@@ -228,8 +305,9 @@ export async function generateBotResponse(
 
     // Chronological order for the model: newest-first DB rows reversed, bot
     // rows as `assistant`, user rows prefixed so the model sees speaker names.
+    const botUserId = process.env.BOT_USERID;
     const history: HistoryItem[] = messages.reverse().map((msg) => {
-      const isBot = msg.userId === process.env.BOT_USERID;
+      const isBot = msg.userId === botUserId;
       const text = isBot
         ? (msg.content ?? "")
         : `${msg.user.name ?? "User"}: ${msg.content ?? ""}`;
@@ -240,6 +318,15 @@ export async function generateBotResponse(
     });
 
     if (imageUrl) attachImageToLatestUserMessage(history, imageUrl);
+
+    const at = now();
+    const recallBlock = await recallBlockFor(
+      workspaceId,
+      messages,
+      timeZone,
+      at,
+      botUserId,
+    );
 
     let instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
 
@@ -261,7 +348,27 @@ STRICT RULES:
 - Reply to messages which called you using @NimbusBot or something similar.
 - ALWAYS reply in simple text, not markdown. Do not use symbols like ** or # for formatting. The one exception is a document link, written exactly as given to you.
 - Keep your responses helpful, concise, and professional yet friendly.
-- Line breaks are allowed.`;
+- Line breaks are allowed.
+
+MEMORY: The first message of every request is context from the system, not a person.
+It gives today's date and, when relevant, a block of the workspace's recorded history
+with dates in the asker's timezone: meetings (summary, decisions, open questions and
+action items with their CURRENT status) and past chat.
+- Treat that block, together with the messages of this conversation, as the only record
+  of the past. Never claim to remember a meeting, decision or conversation that is not
+  there. Do not invent history.
+- If the block starts with NO_MATCHING_HISTORY or NO_HISTORY_ON_REQUESTED_DATE, say
+  plainly that you have no record of it (unless the messages of this conversation cover
+  it) and ask for details. If it starts with AMBIGUOUS_MATCH, name the candidate
+  meetings with their dates and times and ask which one the user means.
+- Cite the date when you refer to the past, for example "On Tuesday 2026-11-10 the team
+  decided...". Use today's date from the context to say how long ago something was.
+- When asked whether something still holds or has changed, answer as then versus now:
+  changed (the old value with its date, the new value with its date), unchanged, or
+  cannot tell. Use the later meetings listed in the block and the action items' current
+  status; say so when the record does not settle it.
+- A meeting's notes document can be linked like any document: write it exactly as given,
+  for example [Meeting notes](nimbus-doc:abc123).`;
 
     // The tool is offered only when the caller has confirmed a document path
     // exists for this user. Without this, a quota-exhausted user (or a user
@@ -383,7 +490,13 @@ say so plainly instead of guessing.`;
     // second reason: reasoning tokens count against `max_output_tokens`, so a
     // higher level can spend most of this reply's budget before the answer
     // starts. `reasoningKwargs` returns `{}` for a model without `reasoning`.
-    const input: unknown[] = [...history];
+    const input: unknown[] = [
+      {
+        role: "user",
+        content: buildContextMessage({ now: at, tz: timeZone, recallBlock }),
+      },
+      ...history,
+    ];
     for (let round = 0; ; round++) {
       // After the last allowed search the tools stay declared (the transcript
       // holds calls to them) but the model may not call another.

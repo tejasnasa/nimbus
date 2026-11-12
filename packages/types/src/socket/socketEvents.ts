@@ -30,6 +30,10 @@ export type ClientToServerEvents = {
     content: string;
     /** Cloudinary URL of an image in this workspace's chat folder. */
     imageUrl?: string;
+    /** The sender's IANA timezone, so "on Tuesday" resolves in their day. */
+    timeZone?: string;
+    /** Test-only "now" for the bot's clock; the API ignores it in production. */
+    clockOverride?: string;
   }) => void;
   /** Start/stop the user's typing indicator in the room. */
   "typing:start": (workspaceId: string) => void;

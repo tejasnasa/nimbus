@@ -114,6 +114,12 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: required,
   CLOUDINARY_API_SECRET: required,
 
+  // ── Test clock ──
+  // Pins NimbusBot's idea of "now" (an ISO date or timestamp) so date-aware
+  // answers can be exercised against seeded data. Ignored when NODE_ENV is
+  // "production", where the real clock always applies.
+  AGENT_NOW: z.string().optional(),
+
   BETTER_AUTH_API_KEY: z.string().min(1).optional(),
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
 });

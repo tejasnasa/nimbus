@@ -38,8 +38,10 @@ export const CANVAS_MAX_OUTPUT_TOKENS = 16_384;
 /**
  * Builds the system prompt constraining the model to nodes+edges JSON only.
  *
- * Sizing/coordinates are hints — `fitNodesToLabels` + `layoutDiagram`
- * recompute the final geometry, so the prompt asks for flow placement only.
+ * The model supplies structure only: `fitNodesToLabels` sizes the boxes and
+ * `layoutDiagram` (ELK, with a rank-based fallback) places them, so the prompt
+ * asks for nodes in reading order rather than coordinates, which would only be
+ * discarded. Node order is what the layout uses to break ties.
  */
 export function buildCanvasSystemPrompt(title: string) {
   return `You are an expert information architect creating Excalidraw-ready diagrams.
@@ -53,10 +55,6 @@ Return a single JSON object with this exact structure:
       "id": "unique_snake_case_id",
       "shape": "rectangle",
       "label": "Short label shown inside the shape",
-      "x": 100,
-      "y": 100,
-      "width": 200,
-      "height": 80,
       "backgroundColor": "#e8f0fe",
       "strokeColor": "#1e1e1e"
     }
@@ -72,15 +70,13 @@ Rules:
 - "shape" must be rectangle, ellipse, or diamond.
 - Put ALL visible text in "label" on the node. Never emit separate text or arrow elements.
 - "edges" lists logical connections only (from → to node ids). The app draws arrows.
-- Box sizing is automatic from labels; omit width/height in JSON.
-- Place each node with explicit x,y in a clear left-to-right flow (~280px horizontal gap, ~140px vertical gap between row centers).
-- Align parallel branches on the same column x; stack branches vertically with even spacing.
+- Layout and sizing are automatic: never emit x, y, width or height.
+- List nodes in reading order: start to finish along the main flow, with the nodes of parallel branches next to each other in the order they should appear.
 - Keep labels concise; use "\\n" only when a line break is intentional.
 - Use distinct soft background colors from: ${DIAGRAM_PALETTE.join(", ")}.
 - strokeColor "#1e1e1e" unless a highlight needs another color.
 - Every edge "from" and "to" must match an existing node "id".
-- For branching flows, use multiple edges from one node to several targets.
-- Coordinates: canvas origin top-left, x increases right, y increases down.`;
+- For branching flows, use multiple edges from one node to several targets.`;
 }
 /* ═══ Streaming orchestration ═══ */
 /** Pulls the first `output_text` string from a completed Responses API output. */
@@ -226,9 +222,9 @@ ${prompt}`,
             onStatus(
               `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
             );
-            layoutDiagram(diagram);
+            const laidOut = await layoutDiagram(diagram);
             onStatus("Drawing shapes and connectors…");
-            const canvasData = buildExcalidrawFromDiagram(diagram);
+            const canvasData = buildExcalidrawFromDiagram(laidOut);
             if (canvasData.length === 0) {
               throw new Error("Canvas builder produced no elements");
             }
@@ -294,10 +290,10 @@ ${prompt}`,
   onStatus(
     `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
   );
-  layoutDiagram(diagram);
+  const laidOut = await layoutDiagram(diagram);
 
   onStatus("Drawing shapes and connectors…");
-  const canvasData = buildExcalidrawFromDiagram(diagram);
+  const canvasData = buildExcalidrawFromDiagram(laidOut);
 
   if (canvasData.length === 0) {
     throw new Error("Canvas builder produced no elements");

@@ -252,11 +252,11 @@ export async function generateCanvasFromImage(
   onStatus(
     `Layout — ${diagram.nodes.length} nodes, ${diagram.edges.length} edges`,
   );
-  layoutDiagram(diagram);
+  const laidOut = await layoutDiagram(diagram);
 
   onStatus("Drawing shapes and connectors…");
   // A parsed diagram always has at least one node, so this is never empty.
-  const canvasData = buildExcalidrawFromDiagram(diagram);
+  const canvasData = buildExcalidrawFromDiagram(laidOut);
 
   onStatus(`Done — ${canvasData.length} canvas elements`);
   return { kind: "diagram", canvasData, thinking: raw.thinking };

@@ -42,6 +42,7 @@ import {
 const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
 
 import { AI_PROVIDERS, modelById } from "@nimbus/types";
+import { measureLabel } from "@nimbus/utils";
 import { generateCanvasDocument } from "../../lib/canvasGeneration";
 import type { AiClientHandle } from "../../lib/ai/clientFactory";
 
@@ -99,6 +100,22 @@ type Element = {
   version?: number;
   versionNonce?: number;
   [key: string]: unknown;
+};
+
+/** Fails when any two of the given boxes intersect. */
+const expectNoOverlaps = (boxes: Element[]) => {
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      const apart =
+        a.x + a.width <= b.x ||
+        b.x + b.width <= a.x ||
+        a.y + a.height <= b.y ||
+        b.y + b.height <= a.y;
+      expect(apart, `${a.id} overlaps ${b.id}`).toBe(true);
+    }
+  }
 };
 
 const isShape = (el: Element) => el.type !== "text" && el.type !== "arrow";
@@ -281,49 +298,72 @@ describe("lib/canvasGeneration", () => {
       expect(textByShapeId(elements).get(shape!.id)!.text).toBe("A");
     });
 
+    /** The label as Excalidraw will draw it, measured with the shared table. */
+    const measured = (text: string) =>
+      measureLabel(text, {
+        fontSize: 16,
+        lineHeight: 1.35,
+        maxWidth: Infinity,
+      });
+
     it("hard-splits an unbreakable word and clamps the box to the max width", async () => {
       const { elements } = await runPayload({
         nodes: [{ id: "a", label: OVERLONG_WORD }],
       });
 
       const [shape] = shapesOf(elements);
-      // 29 chars per line * 10.88px + 44px padding = 360.5, so the width cap bites.
-      expect(shape!.width).toBe(360);
-      // 3 lines (29/29/2) * 21.6px + 40px padding.
-      expect(shape!.height).toBe(105);
-      expect(textByShapeId(elements).get(shape!.id)!.text).toBe(
-        `${"x".repeat(29)}\n${"x".repeat(29)}\nxx`,
+      const text = textByShapeId(elements).get(shape!.id)!;
+      // The measured line is as wide as the box allows, so the cap bites.
+      expect(shape!.width).toBeGreaterThan(340);
+      expect(shape!.width).toBeLessThanOrEqual(360);
+      expect(text.text!.replaceAll("\n", "")).toBe(OVERLONG_WORD);
+      expect(text.text!.split("\n").length).toBeGreaterThanOrEqual(2);
+      // Padding plus the measured line height decide the box height.
+      expect(shape!.height).toBe(
+        Math.max(88, measured(text.text!).height + 40),
       );
+      // The wrapped label fits the text element it is bound to.
+      expect(measured(text.text!).width).toBeLessThanOrEqual(text.width);
+      expect(measured(text.text!).height).toBeLessThanOrEqual(text.height);
     });
 
     it("wraps on word boundaries and rewrites the label with hard line breaks", async () => {
+      const label =
+        "one two three four five six seven eight nine ten eleven twelve thirteen fourteen";
       const { elements } = await runPayload({
-        nodes: [{ id: "a", label: "one two three four five six seven" }],
+        nodes: [{ id: "a", label }],
       });
 
       const [shape] = shapesOf(elements);
       const text = textByShapeId(elements).get(shape!.id)!;
-      expect(text.text).toBe("one two three four five six\nseven");
-      // Nothing after the break is merged back: 27 chars + padding.
-      expect(shape!.width).toBe(338);
-      // Two lines would be 84px, so the height floor is what decides this box.
-      expect(shape!.height).toBe(88);
-      expect(text.width).toBe(338 - 24);
+      const lines = text.text!.split("\n");
+      expect(lines.length).toBeGreaterThan(1);
+      // Wrapping only replaces spaces with line breaks, never drops a word.
+      expect(lines.join(" ")).toBe(label);
+      // No line is wider than the text element the label is bound to.
+      for (const line of lines) {
+        expect(measured(line).width).toBeLessThanOrEqual(text.width);
+      }
+      expect(shape!.width).toBeLessThanOrEqual(360);
+      expect(text.width).toBe(shape!.width - 24);
     });
 
-    it("gives diamonds and ellipses extra room for their clipped corners", async () => {
+    it("sizes diamonds and ellipses to the text rectangle they can hold", async () => {
       const { elements } = await runPayload(shapeComparison);
       const widths = Object.fromEntries(
         shapesOf(elements).map((shape) => [shape.type, shape.width]),
       );
 
-      // Same 16-char label, so only the shape multiplier differs.
-      expect(widths).toEqual({ rectangle: 219, ellipse: 237, diamond: 263 });
-      // Height stays at the floor for this label, so the multiplier is invisible there.
-      expect(shapesOf(elements).map((shape) => shape.height)).toEqual([
-        88, 88, 88,
-      ]);
+      // Same 16-char label: a diamond holds half its width in text and an
+      // ellipse about 71%, so both need more room than a rectangle.
+      expect(widths.rectangle).toBeLessThan(widths.ellipse!);
+      expect(widths.ellipse).toBeLessThan(widths.diamond!);
       expect(SHARED_LABEL).toHaveLength(16);
+      for (const shape of shapesOf(elements)) {
+        const text = textByShapeId(elements).get(shape.id)!;
+        expect(measured(text.text!).width).toBeLessThanOrEqual(text.width);
+        expect(text.height).toBeLessThanOrEqual(shape.height);
+      }
     });
 
     it("still produces a one-line node for an empty label", async () => {
@@ -340,7 +380,7 @@ describe("lib/canvasGeneration", () => {
   /* ── Layout ─────────────────────────────────────────────────────────────── */
 
   describe("layout", () => {
-    it("falls back to a row-wrapped grid when there are no edges", async () => {
+    it("lays edgeless nodes out on a grid sized from the nodes", async () => {
       const { elements } = await runPayload({
         nodes: [
           { id: "a", label: "A" },
@@ -350,12 +390,12 @@ describe("lib/canvasGeneration", () => {
         ],
       });
 
-      // ceil(sqrt(4)) = 2 columns of 180px boxes, 220px apart, 140px between rows.
+      // ceil(sqrt(4)) = 2 columns of 180px boxes, 80px apart, 70px between rows.
       expect(shapesOf(elements).map((shape) => [shape.x, shape.y])).toEqual([
         [80, 80],
-        [480, 80],
-        [80, 308],
-        [480, 308],
+        [340, 80],
+        [80, 238],
+        [340, 238],
       ]);
     });
 
@@ -365,24 +405,41 @@ describe("lib/canvasGeneration", () => {
       });
 
       expect(shapesOf(elements).map((shape) => shape.x)).toEqual([
-        80, 480, 880, 80, 480,
+        80, 340, 600, 80, 340,
       ]);
     });
 
-    it("ranks a chain into left-to-right columns", async () => {
+    it("keeps wide and tall edgeless nodes from colliding", async () => {
+      const { elements } = await runPayload({
+        nodes: [
+          { id: "a", label: OVERLONG_WORD },
+          { id: "b", label: "B" },
+          { id: "c", label: "word ".repeat(40), shape: "diamond" },
+          { id: "d", label: "D" },
+        ],
+      });
+
+      expectNoOverlaps(shapesOf(elements));
+    });
+
+    it("ranks a chain into left-to-right columns on one line", async () => {
       const { elements, statuses } = await runPayload(simpleFlow);
 
-      const xs = shapesOf(elements).map((shape) => shape.x);
-      expect(xs).toEqual([80, 480, 880, 1280]);
-      // Every column is centred against the tallest one; a 1-node column equals
-      // itself, so the chain sits on the start line.
-      expect(shapesOf(elements).map((shape) => shape.y)).toEqual([
-        80, 80, 80, 80,
-      ]);
+      const shapes = shapesOf(elements);
+      expect(shapes[0]!.x).toBe(80);
+      for (let i = 1; i < shapes.length; i++) {
+        expect(shapes[i]!.x).toBeGreaterThan(
+          shapes[i - 1]!.x + shapes[i - 1]!.width,
+        );
+      }
+      // Every node is centred on the same line.
+      expect(
+        new Set(shapes.map((shape) => shape.y + shape.height / 2)).size,
+      ).toBe(1);
       expect(statuses).toContain("Layout — 4 nodes, 3 edges");
     });
 
-    it("stacks a fan-out in one column and centres the taller column", async () => {
+    it("stacks a fan-out in one column beside its source", async () => {
       const { elements } = await runPayload({
         nodes: [
           { id: "a", label: "A" },
@@ -395,18 +452,18 @@ describe("lib/canvasGeneration", () => {
         ],
       });
 
-      const placed = Object.fromEntries(
-        shapesOf(elements).map((shape, index) => [index, shape]),
-      );
-      // Both targets share the second column...
-      expect([placed[1]!.x, placed[2]!.x]).toEqual([480, 480]);
-      expect([placed[1]!.y, placed[2]!.y]).toEqual([80, 308]);
-      // ...and the lone source is centred against that 316px-tall stack.
-      expect(placed[0]!.y).toBe(194);
-      expect(placed[0]!.x).toBe(80);
+      const [source, upper, lower] = shapesOf(elements);
+      // Both targets share the second column, one above the other...
+      expect(upper!.x).toBe(lower!.x);
+      expect(upper!.x).toBeGreaterThan(source!.x + source!.width);
+      expect(lower!.y).toBeGreaterThanOrEqual(upper!.y + upper!.height + 56);
+      // ...and the source sits within the span of that stack.
+      const centre = source!.y + source!.height / 2;
+      expect(centre).toBeGreaterThanOrEqual(upper!.y);
+      expect(centre).toBeLessThanOrEqual(lower!.y + lower!.height);
     });
 
-    it("adds vertical breathing room once a column holds three or more nodes", async () => {
+    it("keeps a column of three or more nodes apart", async () => {
       const { elements } = await runPayload({
         nodes: [
           { id: "a", label: "A" },
@@ -422,13 +479,19 @@ describe("lib/canvasGeneration", () => {
       });
 
       const [source, ...targets] = shapesOf(elements);
-      // 180px gap instead of 140px for a 3-wide layer.
-      expect(targets.map((shape) => shape.y)).toEqual([80, 348, 616]);
-      // Source centres against the 624px stack.
-      expect(source!.y).toBe(348);
+      expect(new Set(targets.map((shape) => shape.x)).size).toBe(1);
+      for (let i = 1; i < targets.length; i++) {
+        expect(targets[i]!.y).toBeGreaterThanOrEqual(
+          targets[i - 1]!.y + targets[i - 1]!.height + 56,
+        );
+      }
+      expect(source!.y + source!.height / 2).toBeCloseTo(
+        targets[1]!.y + targets[1]!.height / 2,
+        0,
+      );
     });
 
-    it("orders the first column by the model's y hint", async () => {
+    it("orders the first column by the order the model listed the nodes", async () => {
       const { elements } = await runPayload({
         nodes: [
           { id: "first", label: "First", x: 900, y: 500 },
@@ -446,30 +509,27 @@ describe("lib/canvasGeneration", () => {
         .filter((shape) => shape.x === 80)
         .sort((a, b) => a.y - b.y)
         .map((shape) => texts.get(shape.id)!.text);
-      // `second` has the smaller y hint, despite appearing later in the array.
-      expect(firstColumn).toEqual(["Second", "First"]);
+      // Coordinate hints are ignored; list order decides, so layouts are stable.
+      expect(firstColumn).toEqual(["First", "Second"]);
     });
 
-    it("lays out a nine-node, nine-edge flow without collapsing any column", async () => {
+    it("lays out a nine-node, nine-edge flow with every edge routed", async () => {
       const { elements } = await runPayload(nestedFlow);
 
       const shapes = shapesOf(elements);
       expect(shapes).toHaveLength(9);
       expect(arrowsOf(elements)).toHaveLength(9);
-      // Ranks are strictly increasing along every edge, so the flow gets one
-      // column per rank, left to right, and the two nodes sharing the last rank
-      // land in the same column.
-      const xs = shapes.map((shape) => shape.x);
-      expect(xs).toEqual([...xs].sort((a, b) => a - b));
-      expect(new Set(xs).size).toBe(8);
-      expect(xs.at(-1)).toBe(xs.at(-2));
-      // Single-node columns are centred against the tallest one, which is the
-      // last column's pair (316px).
-      expect(shapes[0]!.y).toBe(194);
-      expect([shapes[7]!.y, shapes[8]!.y]).toEqual([80, 308]);
-      // The fan-out from `cache_hit` feeds two different columns, and the merge
-      // into `render` is between them — no branch overlaps its sibling.
-      expect(shapes[4]!.y).toBe(194);
+      const columns = [...new Set(shapes.map((shape) => shape.x))].sort(
+        (a, b) => a - b,
+      );
+      expect(columns.length).toBeGreaterThanOrEqual(7);
+      expect(columns[0]).toBe(80);
+      expectNoOverlaps(shapes);
+      for (const arrow of arrowsOf(elements)) {
+        expect(arrow.points!.length).toBeGreaterThanOrEqual(2);
+      }
+      // Branching edges bend around boxes rather than cutting across them.
+      expect(arrowsOf(elements).some((a) => a.points!.length > 2)).toBe(true);
     });
   });
 
@@ -538,7 +598,7 @@ describe("lib/canvasGeneration", () => {
       }
     });
 
-    it("binds each label to its container with a 12px inset", async () => {
+    it("binds each label to its container, centred in the text area", async () => {
       const { elements } = await runPayload(shapeComparison);
       const texts = textByShapeId(elements);
 
@@ -548,10 +608,6 @@ describe("lib/canvasGeneration", () => {
         expect(shape.boundElements).toEqual([{ id: text.id, type: "text" }]);
         expect(text).toMatchObject({
           containerId: shape.id,
-          x: shape.x + 12,
-          y: shape.y + 12,
-          width: Math.max(24, shape.width - 24),
-          height: Math.max(24, shape.height - 24),
           backgroundColor: "transparent",
           fontSize: 16,
           fontFamily: 1,
@@ -559,8 +615,17 @@ describe("lib/canvasGeneration", () => {
           verticalAlign: "middle",
           autoResize: false,
         });
+        expect(text.x + text.width / 2).toBeCloseTo(shape.x + shape.width / 2);
+        expect(text.y + text.height / 2).toBeCloseTo(
+          shape.y + shape.height / 2,
+        );
+        expect(text.width).toBeLessThanOrEqual(shape.width);
+        expect(text.height).toBeLessThanOrEqual(shape.height);
         expect(text.originalText).toBe(text.text);
       }
+      // A rectangle's text area is the box inset by 12px on each side.
+      const rect = shapesOf(elements).find((s) => s.type === "rectangle")!;
+      expect(texts.get(rect.id)!.width).toBe(rect.width - 24);
     });
 
     it("carries the shape's colours onto its label and arrow defaults", async () => {
@@ -626,10 +691,15 @@ describe("lib/canvasGeneration", () => {
       const texts = textByShapeId(elements);
 
       for (const arrow of arrowsOf(elements)) {
-        const [start, end] = arrow.points!;
-        expect(start).toEqual([0, 0]);
-        expect(arrow.width).toBe(Math.max(1, Math.abs(end![0])));
-        expect(arrow.height).toBe(Math.max(1, Math.abs(end![1])));
+        const xs = arrow.points!.map((point) => point[0]);
+        const ys = arrow.points!.map((point) => point[1]);
+        expect(arrow.points![0]).toEqual([0, 0]);
+        expect(arrow.width).toBe(
+          Math.max(1, Math.max(...xs) - Math.min(...xs)),
+        );
+        expect(arrow.height).toBe(
+          Math.max(1, Math.max(...ys) - Math.min(...ys)),
+        );
         // The arrow starts on the source's edge, not at its centre.
         const from = shapesOf(elements).find(
           (shape) => shape.id === arrow.startBinding!.elementId,
@@ -656,16 +726,14 @@ describe("lib/canvasGeneration", () => {
       const fixedPoints = arrowsOf(elements).map(
         (arrow) => arrow.startBinding!.fixedPoint,
       );
-      // 0.2 / 0.8 along the right edge, so the two arrows leave at different y.
-      expect(fixedPoints).toEqual([
-        [1, 0.2],
-        [1, 0.8],
-      ]);
+      // Both leave by the right edge, at different heights along it.
+      expect(fixedPoints.map(([x]) => x)).toEqual([1, 1]);
+      expect(fixedPoints[0]![1]).not.toBe(fixedPoints[1]![1]);
       const ys = arrowsOf(elements).map((arrow) => arrow.y);
       expect(ys[0]).not.toBe(ys[1]);
     });
 
-    it("binds vertically when the target sits far enough above or below", async () => {
+    it("routes arrows orthogonally and never through a third box", async () => {
       const { elements } = await runPayload({
         nodes: [
           { id: "a", label: "A" },
@@ -677,15 +745,45 @@ describe("lib/canvasGeneration", () => {
           { from: "a", to: "b" },
           { from: "a", to: "c" },
           { from: "a", to: "d" },
+          { from: "b", to: "d" },
         ],
       });
 
-      const arrows = arrowsOf(elements);
-      // The 268px vertical offset outweighs the 400px horizontal one, so the
-      // fixed point moves onto the top/bottom edges (y = 0 and y = 1).
-      expect(arrows[0]!.startBinding!.fixedPoint).toEqual([0.2, 0]);
-      expect(arrows[0]!.endBinding!.fixedPoint).toEqual([0.2, 1]);
-      expect(arrows[2]!.startBinding!.fixedPoint).toEqual([0.8, 1]);
+      const shapes = new Map(shapesOf(elements).map((s) => [s.id, s]));
+      for (const arrow of arrowsOf(elements)) {
+        const abs = arrow.points!.map(
+          ([px, py]) => [arrow.x + px, arrow.y + py] as const,
+        );
+        for (let k = 0; k + 1 < abs.length; k++) {
+          const [p, q] = [abs[k]!, abs[k + 1]!];
+          expect(
+            Math.abs(p[0] - q[0]) < 0.5 || Math.abs(p[1] - q[1]) < 0.5,
+          ).toBe(true);
+          for (const [id, box] of shapes) {
+            if (
+              id === arrow.startBinding!.elementId ||
+              id === arrow.endBinding!.elementId
+            ) {
+              continue;
+            }
+            const inside =
+              Math.max(p[0], q[0]) > box.x + 1 &&
+              Math.min(p[0], q[0]) < box.x + box.width - 1 &&
+              Math.max(p[1], q[1]) > box.y + 1 &&
+              Math.min(p[1], q[1]) < box.y + box.height - 1;
+            expect(inside).toBe(false);
+          }
+        }
+        // Both ends are bound to where the route meets the box.
+        for (const [binding, [px, py]] of [
+          [arrow.startBinding!, abs[0]!],
+          [arrow.endBinding!, abs[abs.length - 1]!],
+        ] as const) {
+          const box = shapes.get(binding.elementId)!;
+          expect(box.x + binding.fixedPoint[0] * box.width).toBeCloseTo(px, 3);
+          expect(box.y + binding.fixedPoint[1] * box.height).toBeCloseTo(py, 3);
+        }
+      }
     });
 
     it("drops edges that are duplicated, self-referencing or dangling", async () => {
@@ -995,11 +1093,9 @@ describe("lib/canvasGeneration", () => {
       // The two `task` nodes share a logical rank, so both belong in the same
       // column — neither escapes the layout pass, and each gets its own arrow.
       const [entry, first, second] = shapesOf(elements);
-      expect(shapesOf(elements).map((shape) => shape.x)).toEqual([
-        80, 480, 480,
-      ]);
       expect(entry!.x).toBe(80);
       expect(first!.x).toBe(second!.x);
+      expect(first!.x).toBeGreaterThan(entry!.x + entry!.width);
       expect(first!.boundElements!.map((b) => b.type)).toEqual([
         "text",
         "arrow",

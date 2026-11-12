@@ -55,6 +55,37 @@ export function buildDiagramPrompt(notes: MeetingSummary): {
   };
 }
 
+/**
+ * Builds the canvas label and prompt for a meeting that is still in progress,
+ * from its rolling summary and its most recent captions, since it has no notes
+ * yet.
+ *
+ * @param input.summary - The rolling summary, if one has been written.
+ * @param input.transcript - Recent captions as `Name: text` lines.
+ * @param input.startedAt - When the meeting started, for the label.
+ */
+export function buildLiveDiagramPrompt(input: {
+  summary: string | null;
+  transcript: string;
+  startedAt: Date;
+}): { label: string; prompt: string } {
+  const parts = [
+    "Draw a diagram of what a team is discussing in a meeting that is still going on. Show the topics and how they relate, and where decisions were made.",
+  ];
+  if (input.summary) parts.push(`Summary so far:\n${input.summary}`);
+  if (input.transcript) parts.push(`Recent discussion:\n${input.transcript}`);
+  const prompt = parts.join("\n\n");
+  const header = parts[0]!;
+  return {
+    label: `Discussion: meeting of ${input.startedAt.toISOString().slice(0, 10)}`,
+    // Keep the newest discussion when the transcript is long.
+    prompt:
+      prompt.length > MAX_PROMPT_CHARS
+        ? `${header}\n\n${prompt.slice(-(MAX_PROMPT_CHARS - header.length - 2))}`
+        : prompt,
+  };
+}
+
 /** Inputs of {@link runMeetingDiagram}. */
 export type RunDiagramInput = {
   io: MeetingBroadcaster | undefined;

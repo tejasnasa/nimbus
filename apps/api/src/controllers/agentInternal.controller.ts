@@ -1,8 +1,9 @@
 /**
  * @module api/controllers/agentInternal
  * @description The handlers behind `/internal/agent/*`: redeeming a ticket,
- * receiving the transcript, relaying the agent's state, recording its provider
- * usage, and accepting its goodbye.
+ * receiving the transcript, relaying the agent's state, answering an addressed
+ * question as a stream, posting the agent's notices to chat, recording its
+ * provider usage, and accepting its goodbye.
  *
  * @important `redeem` returns the only plaintext provider key in any HTTP
  *            response in this codebase. Nothing here logs a request or response
@@ -18,20 +19,26 @@
  *            it has already transcribed on its way out.
  */
 import {
+  AGENT_NOTICE_TEXT,
   agentStateSchema,
+  answerSchema,
   endedSchema,
+  noticeSchema,
   redeemSchema,
   segmentsInSchema,
   ServerResponse,
   usageInBodySchema,
   modelById,
   type AiProviderId,
+  type AnswerLine,
   type MeetingEndReason,
   type RedeemResponse,
   type SegmentsResponse,
   type StopResponse,
 } from "@nimbus/types";
 import { recordAiCall } from "../lib/ai/callLog";
+import { postBotMessage } from "../lib/botMessage";
+import { answer } from "../lib/meeting/assistant";
 import { getProvider } from "../lib/ai/providers";
 import { isOverCap } from "../lib/ai/spendCap";
 import {
@@ -215,7 +222,10 @@ export async function postUsage(
       credentialId: session.credentialId,
       status: entry.status,
       errorReason: entry.errorReason ?? null,
-      usage: { audioSeconds: entry.audioSeconds },
+      usage:
+        entry.feature === "speech"
+          ? { characters: entry.characters ?? 0 }
+          : { audioSeconds: entry.audioSeconds ?? 0 },
       latencyMs: entry.latencyMs,
     });
   }
@@ -224,6 +234,90 @@ export async function postUsage(
   if (!stop && (await isOverCap(meeting.workspaceId))) {
     await endMeeting(meeting.id, "spend-cap", deps);
     stop = true;
+  }
+  return ServerResponse.ok<StopResponse>({ stop });
+}
+
+/** Where an answer stream is written. */
+export type AnswerSink = {
+  /** Starts the stream: status 200 and the NDJSON content type. */
+  open(): void;
+  /** Writes one line. */
+  write(line: AnswerLine): void;
+  /** Aborted when the agent hangs up. */
+  signal: AbortSignal;
+};
+
+/**
+ * Answers an addressed utterance as an `application/x-ndjson` stream.
+ *
+ * @param context - The authenticated session and its meeting.
+ * @param body - The raw request body.
+ * @param sink - Where the lines go.
+ * @param deps.io - Broadcaster for the stored reply or the chat message.
+ * @returns A response to send instead of a stream when the body is invalid;
+ *          null once the stream has been written (the caller ends it).
+ */
+export async function postAnswer(
+  context: AgentContext,
+  body: unknown,
+  sink: AnswerSink,
+  deps: { io?: MeetingBroadcaster } = {},
+) {
+  const parsed = answerSchema.safeParse(body);
+  if (!parsed.success) return ServerResponse.badRequest("Invalid answer request");
+
+  sink.open();
+  const { meeting } = context;
+  if (await shouldStop(meeting)) {
+    sink.write({ type: "error", reason: "stopped" });
+    return null;
+  }
+  await answer({
+    meeting,
+    seq: parsed.data.seq,
+    replySeq: parsed.data.replySeq,
+    speak: parsed.data.speak,
+    signal: sink.signal,
+    emit: (line) => sink.write(line),
+    io: deps.io,
+  });
+  return null;
+}
+
+/**
+ * Posts one of the agent's fixed notices (free time running out, or gone) to
+ * the workspace chat as NimbusBot. The text is chosen here from the notice
+ * kind; the agent never supplies words for chat.
+ *
+ * @param context - The authenticated session and its meeting.
+ * @param body - The raw request body.
+ * @param deps.io - Broadcaster for `message:new`.
+ */
+export async function postNotice(
+  context: AgentContext,
+  body: unknown,
+  deps: { io?: MeetingBroadcaster } = {},
+) {
+  const parsed = noticeSchema.safeParse(body);
+  if (!parsed.success) return ServerResponse.badRequest("Invalid notice");
+
+  const { meeting } = context;
+  const stop = await shouldStop(meeting);
+  try {
+    if (deps.io) {
+      await postBotMessage(
+        deps.io,
+        meeting.workspaceId,
+        AGENT_NOTICE_TEXT[parsed.data.kind],
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[agent] could not post a notice for ${meeting.id}:`,
+      error instanceof Error ? error.name : "unknown error",
+    );
+    return ServerResponse.internalError(null, "Could not post the notice");
   }
   return ServerResponse.ok<StopResponse>({ stop });
 }

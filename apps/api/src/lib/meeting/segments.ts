@@ -15,6 +15,11 @@
  * @important The rolling summary is advanced the same way: after the captions
  *            are stored, detached, and never allowed to fail the ingest.
  *
+ * @important The assistant's own replies are stored here too, under a sequence
+ *            number the agent reserved for them, so they can never collide
+ *            with a caption the agent posts later. They carry no speaker id,
+ *            the name {@link ASSISTANT_SPEAKER_NAME} and `fromAssistant`.
+ *
  * @important A speaker id is trusted only if that user is a current member of
  *            the meeting's workspace. Anything else is stored with a null
  *            speaker and the name as spoken, so a stale or forged id cannot
@@ -25,6 +30,9 @@ import type { SegmentDTO, SegmentIn } from "@nimbus/types";
 import type { MeetingBroadcaster } from "./lifecycle";
 import { maybeRoll } from "./rollingSummary";
 import { translateSegments } from "./translation";
+
+/** The name the assistant's replies are captioned under. */
+export const ASSISTANT_SPEAKER_NAME = "Nimbus";
 
 /** What ingestion did with a batch. */
 export type IngestResult = {
@@ -44,6 +52,8 @@ type StoredSegment = {
   startMs: number;
   endMs: number;
   language: string | null;
+  addressed?: boolean;
+  fromAssistant?: boolean;
 };
 
 /**
@@ -62,6 +72,8 @@ export function toSegmentDTO(row: StoredSegment): SegmentDTO {
     startMs: row.startMs,
     endMs: row.endMs,
     language: row.language,
+    addressed: row.addressed ?? false,
+    fromAssistant: row.fromAssistant ?? false,
   };
 }
 
@@ -110,6 +122,7 @@ export async function ingestSegments(
       startMs: segment.startMs,
       endMs: Math.max(segment.endMs, segment.startMs),
       language: segment.language ?? null,
+      addressed: segment.addressed ?? false,
     })),
     skipDuplicates: true,
   });
@@ -138,4 +151,54 @@ export async function ingestSegments(
     ),
     inserted,
   };
+}
+
+/**
+ * Stores the assistant's spoken reply as a caption and announces it, exactly
+ * like a caption the agent posted: idempotent on the sequence number, moving
+ * `lastSeq` forward, then translated and folded into the rolling summary.
+ *
+ * @param meeting - The meeting the reply belongs to.
+ * @param reply.seq - The sequence number the agent reserved for it.
+ * @param reply.text - What the assistant said.
+ * @param reply.startMs - When it started speaking, from the meeting's start.
+ * @param reply.endMs - When it is expected to finish.
+ * @param deps.io - Broadcaster for `meeting:segment`.
+ * @returns The stored caption, or null when that number was already taken.
+ */
+export async function storeAssistantReply(
+  meeting: { id: string; workspaceId: string },
+  reply: { seq: number; text: string; startMs: number; endMs: number },
+  deps: { io?: MeetingBroadcaster } = {},
+): Promise<SegmentDTO | null> {
+  const created = await prisma.transcriptSegment.createManyAndReturn({
+    data: [
+      {
+        meetingId: meeting.id,
+        seq: reply.seq,
+        speakerUserId: null,
+        speakerName: ASSISTANT_SPEAKER_NAME,
+        text: reply.text,
+        startMs: Math.max(0, Math.round(reply.startMs)),
+        endMs: Math.max(Math.round(reply.endMs), Math.round(reply.startMs), 0),
+        fromAssistant: true,
+      },
+    ],
+    skipDuplicates: true,
+  });
+  await prisma.$executeRaw`
+    UPDATE "Meeting"
+    SET "lastSeq" = GREATEST("lastSeq", ${reply.seq}::int)
+    WHERE "id" = ${meeting.id}
+  `;
+  const row = created[0];
+  if (!row) return null;
+
+  const segment = toSegmentDTO(row);
+  deps.io
+    ?.to(meeting.workspaceId)
+    .emit("meeting:segment", { meetingId: meeting.id, segment });
+  void translateSegments(meeting, [segment], { io: deps.io });
+  void maybeRoll(meeting.id);
+  return segment;
 }

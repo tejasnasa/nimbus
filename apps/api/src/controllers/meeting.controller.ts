@@ -452,8 +452,9 @@ export async function getMeetingDetail(userId: string, meetingId: string) {
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         }),
         actionItemsForMeeting(meetingId),
+        // The assistant's own replies are captions too, but it is not a participant.
         prisma.transcriptSegment.findMany({
-          where: { meetingId },
+          where: { meetingId, fromAssistant: false },
           orderBy: { seq: "asc" },
           distinct: ["speakerUserId", "speakerName"],
           select: { speakerUserId: true, speakerName: true },

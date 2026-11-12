@@ -27,6 +27,33 @@ const seedBotUser = async () => {
   await ensureBotUser(testPrisma);
 };
 
+/** Attempts at the truncate before a deadlock is reported. */
+const TRUNCATE_ATTEMPTS = 5;
+
+/**
+ * Runs the truncate, retrying when Postgres picks it as a deadlock victim.
+ *
+ * Socket handlers run detached, so a test can finish while its handler is still
+ * writing (a refusal's bookkeeping, say). The next test's truncate then waits
+ * on those row locks while the writer waits on the truncate's table locks, and
+ * Postgres aborts one of them. When that is the truncate, it is safe to run
+ * again a moment later, once the writer has finished.
+ */
+const truncateRetryingDeadlocks = async (sql: string) => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await testPrisma.$executeRawUnsafe(sql);
+      return;
+    } catch (error) {
+      const deadlocked = String(
+        (error as { message?: unknown })?.message,
+      ).includes("40P01");
+      if (!deadlocked || attempt >= TRUNCATE_ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+    }
+  }
+};
+
 /**
  * Truncates every application table, resetting identity sequences, then flushes
  * Redis so presence/voice rosters don't leak across tests.
@@ -40,10 +67,8 @@ export const resetDatabase = async () => {
   `;
 
   if (rows.length > 0) {
-    const targets = rows
-      .map((row) => `"public"."${row.tablename}"`)
-      .join(", ");
-    await testPrisma.$executeRawUnsafe(
+    const targets = rows.map((row) => `"public"."${row.tablename}"`).join(", ");
+    await truncateRetryingDeadlocks(
       `TRUNCATE TABLE ${targets} RESTART IDENTITY CASCADE`,
     );
   }

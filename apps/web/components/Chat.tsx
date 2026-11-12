@@ -56,6 +56,7 @@ import { useBotTyping } from "../hooks/useBotTyping";
 import { useTypingIndicator } from "../hooks/useTypingIndicator";
 import { useWorkspaceAiStatus } from "../hooks/useWorkspaceAiStatus";
 import { aiApi, workspaceAiPath } from "../lib/aiApi";
+import { chatTimeContext } from "../lib/chatClock";
 import { socket } from "../lib/socket";
 import AiRefusalBanner from "./AiRefusalBanner";
 import ApiKeyDialog from "./ApiKeyDialog";
@@ -205,6 +206,7 @@ export default function Chat({
       workspaceId: wsid,
       content: content.trim(),
       ...(imageUrl ? { imageUrl } : {}),
+      ...chatTimeContext(),
     });
     setContent("");
     imageUpload.reset();

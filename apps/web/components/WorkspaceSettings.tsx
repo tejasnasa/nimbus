@@ -21,6 +21,7 @@ import {
   CHAT_IMAGE_ACCEPT,
   useChatImageUpload,
 } from "../hooks/useChatImageUpload";
+import { chatTimeContext } from "../lib/chatClock";
 import { socket } from "../lib/socket";
 import { useUpdateWorkspaceSettingsForm } from "../hooks/useUpdateWorkspaceSettingsForm";
 import { useLiveDocuments } from "../hooks/useLiveDocuments";
@@ -114,6 +115,7 @@ export default function WorkspaceSettings({
       workspaceId: workspace.id,
       content: IMAGE_TO_DIAGRAM_MESSAGE,
       imageUrl,
+      ...chatTimeContext(),
     });
     imageUpload.reset();
     document.getElementById("close-doc-dialog")?.click();

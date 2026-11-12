@@ -95,6 +95,7 @@ describe("Add document: from an image", () => {
         workspaceId: workspace.id,
         content: "@nimbusbot turn this into a diagram",
         imageUrl: IMAGE,
+        timeZone: expect.any(String),
       }),
     );
     expect(upload.upload).toHaveBeenCalledTimes(1);

@@ -284,6 +284,7 @@ describe("Chat: attaching an image", () => {
       workspaceId: "ws-1",
       content: "",
       imageUrl: FULL,
+      timeZone: expect.any(String),
     });
     expect(upload.reset).toHaveBeenCalled();
   });
@@ -300,6 +301,7 @@ describe("Chat: attaching an image", () => {
       workspaceId: "ws-1",
       content: "@nimbusbot diagram",
       imageUrl: FULL,
+      timeZone: expect.any(String),
     });
   });
 
@@ -313,7 +315,47 @@ describe("Chat: attaching an image", () => {
     expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
       workspaceId: "ws-1",
       content: "hello",
+      timeZone: expect.any(String),
     });
+  });
+
+  it("sends the viewer's timezone and, outside production, a stored clock override", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("nimbus:agent-now", "2026-11-11");
+    try {
+      renderChat();
+      await user.type(screen.getByTestId("chat-composer"), "@nimbusbot hi");
+      await user.click(screen.getByTestId("chat-send"));
+
+      expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
+        workspaceId: "ws-1",
+        content: "@nimbusbot hi",
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        clockOverride: "2026-11-11",
+      });
+    } finally {
+      localStorage.clear();
+    }
+  });
+
+  it("never sends the clock override in a production build", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("nimbus:agent-now", "2026-11-11");
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      renderChat();
+      await user.type(screen.getByTestId("chat-composer"), "@nimbusbot hi");
+      await user.click(screen.getByTestId("chat-send"));
+
+      expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
+        workspaceId: "ws-1",
+        content: "@nimbusbot hi",
+        timeZone: expect.any(String),
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      localStorage.clear();
+    }
   });
 });
 

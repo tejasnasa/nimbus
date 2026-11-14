@@ -45,6 +45,20 @@ describe("loadConfig", () => {
     expect(config.NIMBUS_API_URL).toBe("http://localhost:3001");
   });
 
+  it("reads an optional load threshold, and leaves it unset by default", () => {
+    const base = {
+      NIMBUS_API_URL: "https://api.example.com",
+      NIMBUS_AGENT_SECRET: SECRET,
+    };
+    expect(loadConfig(base).AGENT_LOAD_THRESHOLD).toBeUndefined();
+    expect(
+      loadConfig({ ...base, AGENT_LOAD_THRESHOLD: "100" }).AGENT_LOAD_THRESHOLD,
+    ).toBe(100);
+    expect(() => loadConfig({ ...base, AGENT_LOAD_THRESHOLD: "-1" })).toThrow(
+      /AGENT_LOAD_THRESHOLD/,
+    );
+  });
+
   it("refuses a short secret, naming the variable but not its value", () => {
     const short = "too-short-secret";
     let message = "";

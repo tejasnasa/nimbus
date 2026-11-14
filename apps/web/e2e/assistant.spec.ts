@@ -39,7 +39,27 @@ test.use({
   },
 });
 
+const API = "http://localhost:3001";
+
 test.describe("in-call assistant", () => {
+  // A failed attempt can leave its meeting live (an agent that never joined is
+  // not timed out), and a retry would then never see "Start Nimbus". End
+  // whatever is live so every attempt starts from an idle call.
+  test.afterEach(async ({ page }) => {
+    const live = await page.request.get(
+      `${API}/api/meetings/live?workspaceId=${e2eState.workspace.id}`,
+    );
+    if (!live.ok()) return;
+    const meeting = (await live.json()).responseObject?.meeting as {
+      id: string;
+    } | null;
+    if (meeting) {
+      await page.request.post(
+        `${API}/api/meetings/${meeting.id}/assistant/stop`,
+      );
+    }
+  });
+
   test("starts, captions what is said for everyone on the call, and stops", async ({
     page,
     memberPage,

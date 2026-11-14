@@ -17,8 +17,9 @@
  * @important The Silero model is loaded once per process in `prewarm`, because
  *            loading it per job would add its start-up time to every meeting.
  *            Each idle process holds its own copy (about 300 MB), which is why
- *            `numIdleProcesses` is 1 and no custom load threshold is set (the
- *            hosting platform ignores one).
+ *            `numIdleProcesses` is 1. A custom load threshold is passed only
+ *            when `AGENT_LOAD_THRESHOLD` is set, for local and CI runs; the
+ *            hosting platform ignores one.
  *
  * @important The voice key from the redeem response lives only in the session's
  *            memory for the length of the meeting. It is never logged.
@@ -142,7 +143,7 @@ const agent = defineAgent<WorkerUserData>({
 export default agent;
 
 // Fail at start-up, naming the variable, rather than at the first dispatch.
-loadConfig();
+const startupConfig = loadConfig();
 
 cli.runApp(
   new ServerOptions({
@@ -151,5 +152,8 @@ cli.runApp(
     // Each idle process holds its own Silero model (about 300 MB), and the
     // default of four would not fit the hosted plan's memory.
     numIdleProcesses: 1,
+    ...(startupConfig.AGENT_LOAD_THRESHOLD !== undefined
+      ? { loadThreshold: startupConfig.AGENT_LOAD_THRESHOLD }
+      : {}),
   }),
 );

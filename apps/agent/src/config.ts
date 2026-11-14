@@ -10,6 +10,13 @@
  *            provider's address and key are not configuration at all: they
  *            arrive per session from the API, which is why this file has no
  *            provider settings.
+ *
+ * @important `AGENT_LOAD_THRESHOLD` exists for local and CI runs only. In
+ *            production mode the agents framework declines every job once the
+ *            host's CPU passes 70%, and a CI runner that also hosts a browser
+ *            and every other service crosses that while idle, so the end-to-end
+ *            suite raises it. LiveKit Cloud ignores a custom threshold, so it
+ *            changes nothing there; leave it unset in deployed environments.
  */
 import { z } from "zod";
 
@@ -20,6 +27,8 @@ const envSchema = z.object({
     .transform((value) => value.replace(/\/+$/, "")),
   NIMBUS_AGENT_SECRET: z.string().min(32),
   NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
+  /** CPU load (0 to 1, or above to never decline) past which jobs are refused. */
+  AGENT_LOAD_THRESHOLD: z.coerce.number().positive().optional(),
 });
 
 /** The worker's validated settings. */

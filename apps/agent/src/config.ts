@@ -11,12 +11,14 @@
  *            arrive per session from the API, which is why this file has no
  *            provider settings.
  *
- * @important `AGENT_LOAD_THRESHOLD` exists for local and CI runs only. In
- *            production mode the agents framework declines every job once the
- *            host's CPU passes 70%, and a CI runner that also hosts a browser
- *            and every other service crosses that while idle, so the end-to-end
- *            suite raises it. LiveKit Cloud ignores a custom threshold, so it
- *            changes nothing there; leave it unset in deployed environments.
+ * @important `AGENT_IGNORE_LOAD` exists for local and CI runs only. The worker
+ *            reports its host's CPU load, and the LiveKit server offers a job
+ *            only to a worker whose load is below its target (0.7 by default).
+ *            A CI runner that also hosts a browser and every other service sits
+ *            above that, so the server turns the meeting away before the worker
+ *            ever sees it, whatever threshold the worker itself uses. With the
+ *            flag set the worker reports no load at all. Leave it unset in
+ *            deployed environments, where load is what spreads jobs.
  */
 import { z } from "zod";
 
@@ -27,8 +29,11 @@ const envSchema = z.object({
     .transform((value) => value.replace(/\/+$/, "")),
   NIMBUS_AGENT_SECRET: z.string().min(32),
   NODE_ENV: z.enum(["development", "test", "production"]).default("production"),
-  /** CPU load (0 to 1, or above to never decline) past which jobs are refused. */
-  AGENT_LOAD_THRESHOLD: z.coerce.number().positive().optional(),
+  /** When "true", the worker reports zero load so it is always offered jobs. */
+  AGENT_IGNORE_LOAD: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
 });
 
 /** The worker's validated settings. */

@@ -129,9 +129,9 @@ export default defineConfig({
         LIVEKIT_API_KEY: "devkey",
         LIVEKIT_API_SECRET: "secret",
         // The runner hosts the browser and every service too, so its CPU sits
-        // above the framework's 70% job-acceptance limit and the worker would
-        // decline the meeting. Never decline here.
-        AGENT_LOAD_THRESHOLD: "100",
+        // above the load at which the LiveKit server stops offering jobs to
+        // the worker. Report no load here.
+        AGENT_IGNORE_LOAD: "true",
         NIMBUS_API_URL: "http://localhost:3001",
         NIMBUS_AGENT_SECRET: testEnvValue("NIMBUS_AGENT_SECRET"),
       },

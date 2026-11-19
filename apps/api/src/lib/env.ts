@@ -87,7 +87,7 @@ const envSchema = z.object({
   AI_VOICE_API_KEY: z.string().optional(),
   AI_VOICE_BASE_URL: z.string().min(1).default("https://openrouter.ai/api/v1"),
   AI_TRANSCRIBE_MODEL: z.string().min(1).default("openai/gpt-transcribe"),
-  AI_SPEECH_MODEL: z.string().min(1).default("fish-audio/drama-3"),
+  AI_SPEECH_MODEL: z.string().min(1).default("heygen/heygen-voice-1-turbo:free"),
   AI_SPEECH_VOICE: z.string().min(1).default("default"),
   AI_FREE_VOICE_SECONDS: z.coerce.number().int().min(0).default(300),
 

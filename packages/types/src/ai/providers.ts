@@ -376,19 +376,9 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         pricing: { perAudioMinute: 0.0045, checkedAt: "2026-11-06" },
       },
       {
-        // Takes no voice and has no voice list in the catalogue. Returns `pcm`
-        // at the rate stated in the response header (44.1 kHz).
-        id: "fish-audio/drama-3",
-        label: "Fish Audio Drama 3",
-        kind: "speech",
-        capabilities: [],
-        effortLevels: [],
-        voices: [AI_DEFAULT_VOICE],
-        audioFormats: ["pcm", "mp3"],
-        pricing: { perMChars: 2, checkedAt: "2026-11-06" },
-      },
-      {
-        // Free fallback. `pcm` only.
+        // `pcm` only. A speech model must take a named voice: the assistant
+        // speaks one sentence per request, and a model that picks its own
+        // speaker each time changes voice from sentence to sentence.
         id: "heygen/heygen-voice-1-turbo:free",
         label: "HeyGen Voice 1 Turbo (free)",
         kind: "speech",
@@ -411,7 +401,7 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
       },
     ],
     defaultTranscriptionModel: "openai/gpt-transcribe",
-    defaultSpeechModel: "fish-audio/drama-3",
+    defaultSpeechModel: "heygen/heygen-voice-1-turbo:free",
     // Key probe and capability probe passed against the Responses API with a
     // live key, measured on a free catalogue model.
     verifiedAt: "2026-11-03",

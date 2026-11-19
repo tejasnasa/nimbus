@@ -45,7 +45,7 @@ describe("selectModelForFeature: kinds", () => {
       [cred("c1", "openrouter", ["speech"])],
       null,
     );
-    expect(result).toMatchObject({ providerId: "openrouter", modelId: "fish-audio/drama-3" });
+    expect(result).toMatchObject({ providerId: "openrouter", modelId: "heygen/heygen-voice-1-turbo:free" });
   });
 
   it("refuses chat for a credential that only verified transcription", () => {

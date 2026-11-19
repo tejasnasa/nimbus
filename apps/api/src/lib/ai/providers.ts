@@ -23,6 +23,7 @@
  *            implementation that will drift.
  */
 import {
+  AI_DEFAULT_VOICE,
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
   meetsRequirements,
@@ -82,6 +83,23 @@ export type FreeVoiceConfig = {
   readonly speechVoice: string;
 };
 
+/** The free tier's speech model when `AI_SPEECH_MODEL` is unset. */
+const FREE_SPEECH_MODEL = "heygen/heygen-voice-1-turbo:free";
+
+/**
+ * The free tier's voice: the configured one, or, when it is unset or says
+ * "default", the speech model's first named voice from the OpenRouter
+ * catalogue. Sending no voice would let the model pick a speaker per request,
+ * and the assistant speaks one sentence per request.
+ *
+ * @param model - The free speech model.
+ * @param configured - `AI_SPEECH_VOICE`.
+ */
+function freeSpeechVoice(model: string, configured: string | undefined): string {
+  if (configured && configured !== AI_DEFAULT_VOICE) return configured;
+  return modelById(AI_PROVIDERS.openrouter, model)?.voices?.[0] ?? AI_DEFAULT_VOICE;
+}
+
 /**
  * Reads the free voice tier from env.
  *
@@ -91,12 +109,13 @@ export type FreeVoiceConfig = {
 export function freeVoiceTier(): FreeVoiceConfig | null {
   const apiKey = process.env.AI_VOICE_API_KEY;
   if (!apiKey) return null;
+  const speechModel = process.env.AI_SPEECH_MODEL || FREE_SPEECH_MODEL;
   return {
     apiKey,
     baseUrl: process.env.AI_VOICE_BASE_URL || "https://openrouter.ai/api/v1",
     transcribeModel: process.env.AI_TRANSCRIBE_MODEL || "openai/gpt-transcribe",
-    speechModel: process.env.AI_SPEECH_MODEL || "fish-audio/drama-3",
-    speechVoice: process.env.AI_SPEECH_VOICE || "default",
+    speechModel,
+    speechVoice: freeSpeechVoice(speechModel, process.env.AI_SPEECH_VOICE),
   };
 }
 

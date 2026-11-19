@@ -130,14 +130,32 @@ describe("planVoice", () => {
     });
   });
 
-  it("uses the single default voice for a model that takes none", async () => {
+  it("uses the default model's first named voice when nothing is saved", async () => {
     await createWorkspaceAiCredential(workspaceId, "openrouter", {
       verifiedKinds: ["transcription", "speech"],
     });
     const r = await planVoice({ workspaceId, userId }, notOver);
     expect(r.ok && r.plan.speech).toEqual({
-      model: "fish-audio/drama-3",
-      voice: "default",
+      model: "heygen/heygen-voice-1-turbo:free",
+      voice: "nadine",
+    });
+  });
+
+  it("replaces a saved model that is no longer offered with the default", async () => {
+    await createWorkspaceAiCredential(workspaceId, "openrouter", {
+      verifiedKinds: ["transcription", "speech"],
+    });
+    await createWorkspaceAiPreference(
+      workspaceId,
+      "SPEECH",
+      "openrouter",
+      "fish-audio/drama-3",
+      { voice: "default" },
+    );
+    const r = await planVoice({ workspaceId, userId }, notOver);
+    expect(r.ok && r.plan.speech).toEqual({
+      model: "heygen/heygen-voice-1-turbo:free",
+      voice: "nadine",
     });
   });
 
@@ -160,8 +178,19 @@ describe("planVoice", () => {
     expect(r.plan).toMatchObject({
       source: "free",
       transcription: { model: "openai/gpt-transcribe" },
-      speech: { model: "fish-audio/drama-3", voice: "default" },
+      speech: { model: "heygen/heygen-voice-1-turbo:free", voice: "nadine" },
     });
+  });
+
+  it("keeps the free tier's configured voice, and resolves \"default\" to a named one", async () => {
+    withFreeTier();
+    process.env.AI_SPEECH_VOICE = "bram";
+    const named = await planVoice({ workspaceId, userId }, notOver);
+    expect(named.ok && named.plan.speech?.voice).toBe("bram");
+
+    process.env.AI_SPEECH_VOICE = "default";
+    const resolved = await planVoice({ workspaceId, userId }, notOver);
+    expect(resolved.ok && resolved.plan.speech?.voice).toBe("nadine");
   });
 
   it("refuses free voice once the user's seconds are spent", async () => {

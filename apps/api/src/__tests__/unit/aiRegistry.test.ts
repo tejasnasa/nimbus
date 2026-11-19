@@ -441,7 +441,7 @@ describe("model kinds", () => {
       "openai/gpt-transcribe",
     );
     expect(defaultModelFor(AI_PROVIDERS.openrouter, "speech")?.id).toBe(
-      "fish-audio/drama-3",
+      "heygen/heygen-voice-1-turbo:free",
     );
   });
 
@@ -475,9 +475,10 @@ describe("voices and audio formats", () => {
     });
   }
 
-  it("models a voiceless provider model with the single default voice", () => {
-    const fish = AI_PROVIDERS.openrouter.models.find((m) => m.id === "fish-audio/drama-3")!;
-    expect(fish.voices).toEqual([AI_DEFAULT_VOICE]);
+  it("offers no speech model that cannot be held to one voice", () => {
+    for (const { model } of speechModels) {
+      expect(model.voices).not.toEqual([AI_DEFAULT_VOICE]);
+    }
   });
 
   it("lists the measured heygen voices and pcm only", () => {

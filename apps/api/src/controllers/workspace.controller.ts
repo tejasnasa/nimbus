@@ -16,6 +16,11 @@
  *            and `deleteWorkspace` disconnect the affected participants from
  *            the workspace's media room, best effort and after the database
  *            change, so a removed member does not stay on a live call.
+ *
+ * @important `removeMember` also takes the removed user's open sockets out of
+ *            the workspace room and its document and canvas rooms (see
+ *            `lib/socketEviction`). Without it they keep receiving captions,
+ *            document announcements and cursors until they reconnect.
  */
 import { prisma } from "@nimbus/db";
 import { ServerResponse } from "@nimbus/types";
@@ -23,6 +28,10 @@ import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 import { destroyChatImages } from "../lib/cloudinary";
 import { removeAllFromCall, removeFromCall } from "../lib/livekit/revocation";
+import {
+  evictUserFromWorkspace,
+  type EvictionServer,
+} from "../lib/socketEviction";
 import { evictCanvas } from "../socket/canvas";
 import { evictDocument } from "../socket/document";
 
@@ -458,11 +467,14 @@ export const updateMemberRole = async (
  * @param wsid - Workspace cuid.
  * @param id - Acting user's ID.
  * @param memberId - Member to remove.
+ * @param deps.io - Socket.IO server, used to take the member's live sockets out
+ *                  of the workspace's rooms; omitted where there is none.
  */
 export const removeMember = async (
   wsid: string,
   id: string,
   memberId: string,
+  deps: { io?: EvictionServer } = {},
 ) => {
   try {
     const workspace = await prisma.workspace.findUnique({
@@ -502,6 +514,7 @@ export const removeMember = async (
     // After the row is gone, so a failure here can only leave a participant
     // connected, never leave a member whose removal did not happen.
     await removeFromCall(wsid, memberId);
+    if (deps.io) await evictUserFromWorkspace(deps.io, wsid, memberId);
 
     return ServerResponse.ok({}, "Member removed");
   } catch (error) {

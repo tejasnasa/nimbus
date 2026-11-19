@@ -12,6 +12,7 @@ import {
   workspaceSchema,
 } from "@nimbus/types";
 import express from "express";
+import type { Server } from "socket.io";
 import validate from "../middleware/validate.middleware";
 import {
   createWorkspace,
@@ -88,7 +89,8 @@ workspaceRouter.delete(
     const { id } = req.user!;
     const { memberId } = req.body;
 
-    const response = await removeMember(wsid, id, memberId);
+    const io = req.app.get("io") as Server | undefined;
+    const response = await removeMember(wsid, id, memberId, { io });
 
     return res.status(response.statusCode).json(response);
   },

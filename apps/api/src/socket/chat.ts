@@ -224,8 +224,12 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
     },
   );
 
-  // Typing relays are ephemeral (never persisted) and exclude the sender via `socket.to`.
+  // Typing relays are ephemeral (never persisted) and exclude the sender via
+  // `socket.to`. Only a socket that is in the workspace room may relay into it:
+  // joining checked membership, and removal takes the socket out again.
   socket.on("typing:start", (workspaceId: string) => {
+    if (typeof workspaceId !== "string" || !socket.rooms.has(workspaceId))
+      return;
     socket.to(workspaceId).emit("typing:start", {
       userId: user.id,
       name: user.name,
@@ -233,6 +237,8 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
   });
 
   socket.on("typing:stop", (workspaceId: string) => {
+    if (typeof workspaceId !== "string" || !socket.rooms.has(workspaceId))
+      return;
     socket.to(workspaceId).emit("typing:stop", {
       userId: user.id,
       name: user.name,

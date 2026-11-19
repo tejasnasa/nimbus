@@ -23,6 +23,12 @@
  *            surfaced through `onStop` exactly once, and a 401 on a session
  *            call is treated the same way, because the session no longer exists.
  *
+ * @important After a stop, only {@link NimbusClient.flush} posts segments: the
+ *            API still accepts them for two minutes after a meeting ends, and
+ *            the utterances queued during shutdown are the last words of the
+ *            call. A 401 is different: the session is gone, so nothing more
+ *            can be delivered and the outbox is abandoned.
+ *
  * @important The shared secret and the session token are sent only in request
  *            headers and never appear in a log line or an error message.
  */
@@ -103,6 +109,7 @@ export class NimbusClient {
   private sending: Promise<void> | null = null;
   private stopHandler: (() => void) | null = null;
   private stopped = false;
+  private unauthorized = false;
 
   constructor(options: NimbusClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
@@ -149,7 +156,10 @@ export class NimbusClient {
       return { kind: "retry" };
     }
 
-    if (res.status === 401) return { kind: "unauthorized" };
+    if (res.status === 401) {
+      if (withSession) this.unauthorized = true;
+      return { kind: "unauthorized" };
+    }
     if (res.status >= 500 || res.status === 429) return { kind: "retry" };
     if (!res.ok) return { kind: "rejected" };
     try {
@@ -191,6 +201,7 @@ export class NimbusClient {
       this.outbox.splice(0, dropped);
       this.warn(`Dropped ${dropped} unsent transcript segment(s): outbox is full`);
     }
+    if (this.stopped) return;
     if (this.outbox.length >= BATCH_SIZE) {
       this.clearBatchTimer();
       this.kick();
@@ -214,6 +225,7 @@ export class NimbusClient {
 
   /** Starts the sender if it is not already running. */
   private kick(): void {
+    if (this.stopped) return;
     if (this.sending) return;
     this.sending = this.sendLoop().then((drained) => {
       this.sending = null;
@@ -253,6 +265,7 @@ export class NimbusClient {
         return true;
       }
       if (reply.kind === "unauthorized") {
+        this.unauthorized = true;
         this.signalStop();
         this.outbox = [];
         return false;
@@ -272,7 +285,9 @@ export class NimbusClient {
   }
 
   /**
-   * Sends everything in the outbox, waiting at most `timeoutMs`.
+   * Sends everything in the outbox, waiting at most `timeoutMs`. Still sends
+   * after the API said to stop, because the last captions are accepted for a
+   * while after the meeting ends; it sends nothing once the session was refused.
    *
    * @returns True if the outbox is empty afterwards.
    */
@@ -280,7 +295,7 @@ export class NimbusClient {
     this.clearBatchTimer();
     const work = (async () => {
       if (this.sending) await this.sending;
-      if (this.outbox.length > 0 && !this.stopped) {
+      if (this.outbox.length > 0 && !this.unauthorized) {
         this.sending = this.sendLoop().then(() => {
           this.sending = null;
         });
@@ -347,7 +362,10 @@ export class NimbusClient {
       if (!signal.aborted) yield failed;
       return;
     }
-    if (res.status === 401) this.signalStop();
+    if (res.status === 401) {
+      this.unauthorized = true;
+      this.signalStop();
+    }
     if (!res.ok || !res.body) {
       yield failed;
       return;

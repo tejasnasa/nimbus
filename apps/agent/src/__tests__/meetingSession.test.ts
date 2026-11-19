@@ -349,4 +349,63 @@ describe("MeetingSession", () => {
     expect(postUsage.mock.calls[1]![0]).toHaveLength(1);
     await session.stop("shutdown");
   });
+
+  it("delivers a usage backlog in chunks of at most the API's limit", async () => {
+    const harness = fakeClient();
+    const postUsage = harness.client.postUsage as unknown as ReturnType<typeof vi.fn>;
+    const session = new MeetingSession(new FakeRoom() as unknown as RoomLike, redeemed(), {
+      vad: await loadRealVad(),
+      client: harness.client,
+      clock: frameClock(),
+      openFrames: () => ({ frames: paced([]), close: async () => undefined }),
+      disconnect: vi.fn(),
+    });
+    const entry: UsageIn = {
+      feature: "transcription",
+      model: "fake",
+      audioSeconds: 2,
+      latencyMs: 100,
+      status: "OK",
+    };
+    (session as unknown as { usage: UsageIn[] }).usage.push(
+      ...Array.from({ length: 250 }, () => ({ ...entry })),
+    );
+
+    await (session as unknown as { reportUsage(): Promise<boolean> }).reportUsage();
+
+    expect(postUsage.mock.calls.map((call) => (call[0] as UsageIn[]).length)).toEqual([
+      100, 100, 50,
+    ]);
+    expect(harness.usage).toHaveLength(250);
+  });
+
+  it("keeps the unsent part of a backlog when a chunk fails, and retries the report once on shutdown", async () => {
+    const harness = fakeClient();
+    const postUsage = harness.client.postUsage as unknown as ReturnType<typeof vi.fn>;
+    postUsage.mockResolvedValueOnce(true).mockResolvedValueOnce(false).mockResolvedValue(true);
+    const session = new MeetingSession(new FakeRoom() as unknown as RoomLike, redeemed(), {
+      vad: await loadRealVad(),
+      client: harness.client,
+      clock: frameClock(),
+      openFrames: () => ({ frames: paced([]), close: async () => undefined }),
+      disconnect: vi.fn(),
+    });
+    const entry: UsageIn = {
+      feature: "transcription",
+      model: "fake",
+      audioSeconds: 2,
+      latencyMs: 100,
+      status: "OK",
+    };
+    const queue = (session as unknown as { usage: UsageIn[] }).usage;
+    queue.push(...Array.from({ length: 250 }, () => ({ ...entry })));
+
+    await session.stop("shutdown");
+
+    // 100 stored, the second chunk failed and was kept, the retry sent the rest.
+    expect(postUsage.mock.calls.map((call) => (call[0] as UsageIn[]).length)).toEqual([
+      100, 100, 100, 50,
+    ]);
+    expect(queue).toHaveLength(0);
+  });
 });

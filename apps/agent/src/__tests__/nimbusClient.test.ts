@@ -279,6 +279,48 @@ describe("segments", () => {
     expect(client.pendingSegments).toBe(0);
   });
 
+  it("still delivers the last captions after a stop reply", async () => {
+    const { client, calls } = setup((call) =>
+      call.url.endsWith("/state") ? envelope({ stop: true }) : acceptAll(call),
+    );
+    const stop = vi.fn();
+    client.onStop(stop);
+
+    await client.postState({ state: "listening", speakingUserIds: [] } as never);
+    client.queueSegment(segment(7));
+    const drained = await client.flush(1000);
+
+    expect(stop).toHaveBeenCalledOnce();
+    expect(drained).toBe(true);
+    const posts = calls.filter((c) => c.url.endsWith("/segments"));
+    expect(posts).toHaveLength(1);
+    expect((posts[0]!.body as { segments: SegmentIn[] }).segments.map((s) => s.seq)).toEqual([7]);
+  });
+
+  it("does not post on its own after a stop, only when flushed", async () => {
+    vi.useFakeTimers();
+    const { client, calls } = setup((call) =>
+      call.url.endsWith("/state") ? envelope({ stop: true }) : acceptAll(call),
+    );
+
+    await client.postState({ state: "listening", speakingUserIds: [] } as never);
+    client.queueSegment(segment(1));
+    await vi.advanceTimersByTimeAsync(BATCH_WINDOW_MS * 5);
+
+    expect(calls.filter((c) => c.url.endsWith("/segments"))).toHaveLength(0);
+    expect(client.pendingSegments).toBe(1);
+  });
+
+  it("sends nothing after the session was refused with a 401", async () => {
+    const { client, calls } = setup(() => envelope(null, 401));
+
+    await client.postState({ state: "listening", speakingUserIds: [] } as never);
+    client.queueSegment(segment(1));
+    await client.flush(1000);
+
+    expect(calls.filter((c) => c.url.endsWith("/segments"))).toHaveLength(0);
+  });
+
   it("flush returns at the timeout even if the API is slow", async () => {
     vi.useFakeTimers();
     const { client } = setup(() => new Promise<Response>(() => undefined));

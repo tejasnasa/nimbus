@@ -1,9 +1,9 @@
 /**
  * @module agent/sharedConstants
  * @description The runtime values the worker takes from `@nimbus/types`: the
- * RPC method names the browser calls, the published voice track's name and the
- * fixed notice texts. Everything else the worker imports from that package is
- * a type and disappears at compile time.
+ * RPC method names the browser calls, the published voice track's name, the
+ * fixed notice texts and the usage batch limit. Everything else the worker
+ * imports from that package is a type and disappears at compile time.
  *
  * @important Import these from here, never directly from `@nimbus/types`.
  *            Run from source (`tsx`, as in development and the E2E suite), the
@@ -25,3 +25,5 @@ export const AGENT_RPC_STOP = source.AGENT_RPC_STOP;
 export const AGENT_VOICE_TRACK = source.AGENT_VOICE_TRACK;
 /** Spoken text of each budget notice, matching what chat shows. */
 export const AGENT_NOTICE_TEXT = source.AGENT_NOTICE_TEXT;
+/** The most usage entries the API accepts in one post. */
+export const USAGE_BATCH_MAX = source.USAGE_BATCH_MAX;

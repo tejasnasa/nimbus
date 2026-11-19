@@ -53,6 +53,7 @@ import type { NimbusClient } from "../api/nimbusClient.js";
 import {
   AGENT_NOTICE_TEXT,
   AGENT_RPC_STOP,
+  USAGE_BATCH_MAX,
 } from "../sharedConstants.js";
 import {
   listenToFrames,
@@ -574,11 +575,23 @@ export class MeetingSession {
     }, wait);
   }
 
-  private async reportUsage(): Promise<void> {
-    if (this.usage.length === 0) return;
-    const batch = this.usage.splice(0, this.usage.length);
-    const stored = await this.deps.client.postUsage(batch);
-    if (!stored) this.usage.unshift(...batch);
+  /**
+   * Posts the queued usage in chunks the API accepts. A chunk the API did not
+   * store goes back to the front of the queue and the rest wait for the next
+   * report, so a backlog after an outage drains instead of being refused whole.
+   *
+   * @returns False when a chunk was not stored.
+   */
+  private async reportUsage(): Promise<boolean> {
+    while (this.usage.length > 0) {
+      const batch = this.usage.splice(0, USAGE_BATCH_MAX);
+      const stored = await this.deps.client.postUsage(batch);
+      if (!stored) {
+        this.usage.unshift(...batch);
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -616,7 +629,7 @@ export class MeetingSession {
     await this.transcriber.flush(FLUSH_TIMEOUT_MS);
     this.transcriber.close();
     await this.deps.client.flush(FLUSH_TIMEOUT_MS);
-    await this.reportUsage();
+    if (!(await this.reportUsage())) await this.reportUsage();
     await this.deps.client.postEnded(END_REASON[reason]);
     await this.voice?.close?.().catch(() => undefined);
     this.voice = null;

@@ -45,9 +45,12 @@ const usageInSchema = z.object({
   errorReason: z.enum(["invalid-key", "provider-error", "timeout"]).optional(),
 });
 
+/** The most entries one `POST /internal/agent/usage` may carry. */
+export const USAGE_BATCH_MAX = 100;
+
 /** Body of `POST /internal/agent/usage`. */
 export const usageInBodySchema = z.object({
-  entries: z.array(usageInSchema).min(1).max(100),
+  entries: z.array(usageInSchema).min(1).max(USAGE_BATCH_MAX),
 });
 
 /** Body of `POST /internal/agent/answer`. */

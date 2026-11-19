@@ -24,8 +24,12 @@ vi.mock("../../lib/livekit/client", async (importOriginal) => {
 
 import { createApp } from "../../app";
 import {
+  getHealth,
+  LIVEKIT_PROBE_TTL_MS,
+  PROBE_ERROR,
   PROBE_TIMEOUT_MS,
   probeDependencies,
+  resetLivekitProbeCache,
   type HealthClients,
 } from "../../controllers/health.controller";
 
@@ -44,7 +48,10 @@ const healthyClients = (
   livekit: { listRooms: () => Promise.resolve([]), ...overrides.livekit },
 });
 
-afterEach(() => listRoomsMock.mockReset());
+afterEach(() => {
+  listRoomsMock.mockReset();
+  resetLivekitProbeCache();
+});
 
 describe("api smoke: health route", () => {
   it("answers anonymous callers in the standard envelope", async () => {
@@ -93,8 +100,46 @@ describe("api smoke: health route", () => {
     expect(res.status).toBe(200);
     expect(res.body.responseObject.checks.livekit).toEqual({
       ok: false,
-      error: "connect ECONNREFUSED",
+      error: PROBE_ERROR.unavailable,
     });
+    expect(JSON.stringify(res.body)).not.toContain("ECONNREFUSED");
+  });
+
+  it("calls the media server once for repeated requests inside the cache window", async () => {
+    listRoomsMock.mockResolvedValue([]);
+
+    await getHealth();
+    await getHealth();
+    await Promise.all([getHealth(), getHealth(), getHealth()]);
+
+    expect(listRoomsMock).toHaveBeenCalledOnce();
+  });
+
+  it("probes the media server again once the cache window has passed", async () => {
+    listRoomsMock.mockResolvedValue([]);
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000);
+    await getHealth();
+
+    now.mockReturnValue(1_000_000 + LIVEKIT_PROBE_TTL_MS - 1);
+    await getHealth();
+    expect(listRoomsMock).toHaveBeenCalledTimes(1);
+
+    now.mockReturnValue(1_000_000 + LIVEKIT_PROBE_TTL_MS);
+    await getHealth();
+    expect(listRoomsMock).toHaveBeenCalledTimes(2);
+    now.mockRestore();
+  });
+
+  it("serves a cached media-server failure without calling it again", async () => {
+    listRoomsMock.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    const first = await getHealth();
+    const second = await getHealth();
+
+    expect(listRoomsMock).toHaveBeenCalledOnce();
+    expect(first.responseObject.checks.livekit.ok).toBe(false);
+    expect(second.responseObject.checks.livekit.ok).toBe(false);
   });
 });
 
@@ -116,7 +161,7 @@ describe("api smoke: probeDependencies", () => {
       }),
     );
 
-    expect(checks.livekit).toEqual({ ok: false, error: "401 unauthorized" });
+    expect(checks.livekit).toEqual({ ok: false, error: PROBE_ERROR.unavailable });
     expect(checks.database.ok).toBe(true);
     expect(checks.redis.ok).toBe(true);
   });
@@ -128,7 +173,7 @@ describe("api smoke: probeDependencies", () => {
     );
 
     expect(checks.livekit.ok).toBe(false);
-    expect(checks.livekit.error).toContain("livekit did not respond in 20ms");
+    expect(checks.livekit.error).toBe(`livekit ${PROBE_ERROR.timeout}`);
   });
 
   it("reports the database down when the query rejects", async () => {
@@ -138,7 +183,7 @@ describe("api smoke: probeDependencies", () => {
       }),
     );
 
-    expect(checks.database).toEqual({ ok: false, error: "ECONNREFUSED" });
+    expect(checks.database).toEqual({ ok: false, error: PROBE_ERROR.unavailable });
     // The probes are independent: one failing must not mask the other.
     expect(checks.redis.ok).toBe(true);
   });
@@ -151,7 +196,8 @@ describe("api smoke: probeDependencies", () => {
     );
 
     expect(checks.redis.ok).toBe(false);
-    expect(checks.redis.error).toContain("reconnecting");
+    expect(checks.redis.error).toBe(`redis ${PROBE_ERROR.notReady}`);
+    expect(checks.redis.error).not.toContain("reconnecting");
     // The point of the short-circuit: a queued ping would never settle.
     expect(ping).not.toHaveBeenCalled();
   });
@@ -163,7 +209,7 @@ describe("api smoke: probeDependencies", () => {
     );
 
     expect(checks.database.ok).toBe(false);
-    expect(checks.database.error).toContain("did not respond in 20ms");
+    expect(checks.database.error).toBe(`database ${PROBE_ERROR.timeout}`);
   });
 
   it("defaults its deadline to PROBE_TIMEOUT_MS", () => {

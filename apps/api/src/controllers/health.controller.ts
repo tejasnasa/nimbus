@@ -16,6 +16,17 @@
  *            this the endpoint hangs rather than reporting unhealthy, which is
  *            strictly worse than having no endpoint at all.
  *
+ * @important Responses never carry a dependency's own error text: this route is
+ *            anonymous and public, and driver messages can name hosts, ports
+ *            and credentials. A failed probe is reported as one of three
+ *            curated phrases ({@link PROBE_ERROR}).
+ *
+ * @important The media-server probe is cached for {@link LIVEKIT_PROBE_TTL_MS}
+ *            (process-local), because every anonymous hit would otherwise make
+ *            an authenticated call to LiveKit. Concurrent requests inside the
+ *            window share one probe. The database and Redis probes are cheap
+ *            and are never cached.
+ *
  * @important The media server is probed and reported (`checks.livekit`) but
  *            never decides the status: voice is optional, and a LiveKit outage
  *            must not mark the API unhealthy and get it restarted for nothing.
@@ -27,6 +38,16 @@ import { pubClient } from "../lib/redis";
 
 /** How long each dependency probe may take before it is reported as down. */
 export const PROBE_TIMEOUT_MS = 1500;
+
+/** How long a media-server probe result is reused, in milliseconds. */
+export const LIVEKIT_PROBE_TTL_MS = 10_000;
+
+/** The only failure descriptions the response may carry. */
+export const PROBE_ERROR = {
+  timeout: "did not respond in time",
+  notReady: "not ready",
+  unavailable: "unavailable",
+} as const;
 
 /** Outcome of one dependency probe. */
 export interface ProbeResult {
@@ -59,6 +80,9 @@ export interface HealthChecks {
   livekit: ProbeResult;
 }
 
+/** A probe's own failure, carrying only a curated description. */
+class ProbeError extends Error {}
+
 /**
  * Rejects if `work` has not settled within {@link PROBE_TIMEOUT_MS}.
  *
@@ -73,7 +97,7 @@ const withDeadline = async <T>(
 
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () => reject(new Error(`${label} did not respond in ${timeoutMs}ms`)),
+      () => reject(new ProbeError(`${label} ${PROBE_ERROR.timeout}`)),
       timeoutMs,
     );
     timer.unref?.();
@@ -86,16 +110,16 @@ const withDeadline = async <T>(
   }
 };
 
-/** Reduces a settled probe to a {@link ProbeResult}, keeping the reason. */
+/** Reduces a settled probe to a {@link ProbeResult} with a curated reason. */
 const toProbeResult = (settled: PromiseSettledResult<unknown>): ProbeResult =>
   settled.status === "fulfilled"
     ? { ok: true }
     : {
         ok: false,
         error:
-          settled.reason instanceof Error
+          settled.reason instanceof ProbeError
             ? settled.reason.message
-            : String(settled.reason),
+            : PROBE_ERROR.unavailable,
       };
 
 /**
@@ -126,9 +150,7 @@ export const probeDependencies = async (
   const redis =
     clients.redis.status === "ready"
       ? withDeadline(clients.redis.ping(), "redis", timeoutMs)
-      : Promise.reject(
-          new Error(`redis not ready (status: "${clients.redis.status}")`),
-        );
+      : Promise.reject(new ProbeError(`redis ${PROBE_ERROR.notReady}`));
 
   const livekit = withDeadline(
     clients.livekit.listRooms(),
@@ -162,6 +184,32 @@ const livekitProbeClient = (): HealthClients["livekit"] => {
   }
 };
 
+let livekitCache: { at: number; probe: Promise<unknown> } | null = null;
+
+/**
+ * Wraps the media server client so repeated health requests share one probe
+ * for {@link LIVEKIT_PROBE_TTL_MS}.
+ *
+ * @param now - The clock in milliseconds.
+ */
+const cachedLivekit = (now: number): HealthClients["livekit"] => ({
+  listRooms: () => {
+    if (!livekitCache || now - livekitCache.at >= LIVEKIT_PROBE_TTL_MS) {
+      const probe = Promise.resolve(livekitProbeClient().listRooms());
+      // Each caller awaits it under its own deadline; this only keeps a
+      // rejection nobody is currently awaiting from surfacing as unhandled.
+      probe.catch(() => undefined);
+      livekitCache = { at: now, probe };
+    }
+    return livekitCache.probe;
+  },
+});
+
+/** Forgets the cached media-server probe. Tests only. */
+export const resetLivekitProbeCache = (): void => {
+  livekitCache = null;
+};
+
 /**
  * Answers the health probe in the standard response envelope.
  *
@@ -176,7 +224,7 @@ export const getHealth = async () => {
   const checks = await probeDependencies({
     database: prisma,
     redis: pubClient,
-    livekit: livekitProbeClient(),
+    livekit: cachedLivekit(Date.now()),
   });
 
   const payload = {

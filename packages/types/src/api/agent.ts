@@ -56,8 +56,8 @@ export type SegmentIn = {
   endMs: number;
   language?: string;
   /**
-   * The speaker was talking to the assistant: by wake phrase, inside the window
-   * a bare wake word opens, or while holding the Ask button.
+   * The speaker was talking to the assistant: by wake phrase, or inside the
+   * window a bare wake word opens.
    */
   addressed?: boolean;
 };
@@ -151,14 +151,8 @@ export type EndedRequest = {
 /** Names that address the assistant in speech. */
 export const AGENT_WAKE_NAMES = ["nimbus", "nimbus bot", "nimbusbot"] as const;
 
-/** RPC a browser calls on the agent while the Ask button is held or released. */
-export const AGENT_RPC_ASK = "nimbus.ask";
-
 /** RPC a browser calls on the agent to stop it speaking. */
 export const AGENT_RPC_STOP = "nimbus.stop";
-
-/** Payload of {@link AGENT_RPC_ASK}. */
-export type AskRpcPayload = { pressed: boolean };
 
 /** Name of the audio track the agent speaks on. */
 export const AGENT_VOICE_TRACK = "nimbus-voice";

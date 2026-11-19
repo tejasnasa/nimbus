@@ -288,14 +288,8 @@ describe("Transcriber", () => {
   });
 
   it("reserves numbers for replies without holding back later captions", async () => {
-    const asked: boolean[] = [];
-    const { transcriber, segments, provider } = harness({
-      onSegment: (s, a) => {
-        segments.push(s);
-        asked.push(a);
-      },
-    });
-    expect(transcriber.submit({ ...job("Ada"), asked: true })).toBe(1);
+    const { transcriber, segments, provider } = harness();
+    expect(transcriber.submit(job("Ada"))).toBe(1);
     expect(transcriber.reserveSeq()).toBe(2);
     expect(transcriber.submit(job("Bo"))).toBe(3);
 
@@ -304,6 +298,5 @@ describe("Transcriber", () => {
     await transcriber.flush(1000);
 
     expect(segments.map((s) => s.seq)).toEqual([1, 3]);
-    expect(asked).toEqual([true, false]);
   });
 });

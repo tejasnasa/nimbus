@@ -2,7 +2,7 @@
  * @module agent/addressing
  * @description Decides which utterances are spoken to the assistant.
  *
- * Three ways in:
+ * Two ways in, both spoken:
  *
  * - **Wake phrase.** A final transcript is addressed when, after folding the
  *   assistant's names together, it starts with the name ("Nimbus, what did we
@@ -12,9 +12,6 @@
  *   the start followed by a third-person verb is a mention, not a request.
  * - **Wake word alone.** "Nimbus?" or "Hey Nimbus" opens a short window in
  *   which that speaker's next utterance is the question.
- * - **Ask button.** While a person holds it, everything they say is addressed;
- *   after release, an utterance that finishes within a short grace still
- *   counts, and a release with no utterance in that grace cancels the ask.
  *
  * @important The matching uses the redeemed wake names plus a fixed list of
  *            mishearings seen in transcription ("Mimbus", "Nimbas", "Limbus").
@@ -24,9 +21,6 @@
 
 /** How long a bare wake word keeps the speaker's next utterance addressed. */
 export const WAKE_WINDOW_MS = 6000;
-
-/** How long after the Ask button is released an utterance still counts. */
-export const ASK_RELEASE_GRACE_MS = 1500;
 
 /** Mishearings of the assistant's name, folded into it before matching. */
 export const WAKE_MISHEARINGS: readonly string[] = [
@@ -160,23 +154,11 @@ export function matchWake(
   return "none";
 }
 
-/** Per-speaker state: the Ask button and an open wake window. */
-type SpeakerState = {
-  pressed: boolean;
-  /** When the button was released, while the grace runs. */
-  releasedAt: number | null;
-  /** When a bare wake word's window closes. */
-  windowUntil: number | null;
-  cancelTimer: ReturnType<typeof setTimeout> | null;
-};
-
 /** What the tracker needs from outside. */
 export type AddressingOptions = {
   wakeNames: readonly string[];
   /** The clock in milliseconds. Tests only. */
   now?: () => number;
-  /** A press ended with nothing said. */
-  onAskCancelled?: (identity: string) => void;
 };
 
 /** What {@link Addressing.classify} decided about one utterance. */
@@ -190,78 +172,12 @@ export type AddressDecision = {
 export class Addressing {
   private readonly options: AddressingOptions;
   private readonly now: () => number;
-  private readonly speakers = new Map<string, SpeakerState>();
+  /** When each speaker's open wake window closes. */
+  private readonly windows = new Map<string, number>();
 
   constructor(options: AddressingOptions) {
     this.options = options;
     this.now = options.now ?? Date.now;
-  }
-
-  private state(identity: string): SpeakerState {
-    let state = this.speakers.get(identity);
-    if (!state) {
-      state = {
-        pressed: false,
-        releasedAt: null,
-        windowUntil: null,
-        cancelTimer: null,
-      };
-      this.speakers.set(identity, state);
-    }
-    return state;
-  }
-
-  /**
-   * Records the Ask button being pressed or released.
-   *
-   * @param identity - Who pressed it.
-   * @param pressed - True on press, false on release.
-   */
-  setPressed(identity: string, pressed: boolean): void {
-    const state = this.state(identity);
-    if (state.cancelTimer) clearTimeout(state.cancelTimer);
-    state.cancelTimer = null;
-    if (pressed) {
-      state.pressed = true;
-      state.releasedAt = null;
-      return;
-    }
-    if (!state.pressed) return;
-    state.pressed = false;
-    state.releasedAt = this.now();
-    state.cancelTimer = setTimeout(() => {
-      state.cancelTimer = null;
-      if (state.releasedAt === null) return;
-      state.releasedAt = null;
-      this.options.onAskCancelled?.(identity);
-    }, ASK_RELEASE_GRACE_MS);
-  }
-
-  /** Whether the person is holding the Ask button right now. */
-  isPressed(identity: string): boolean {
-    return this.speakers.get(identity)?.pressed ?? false;
-  }
-
-  /**
-   * Whether an utterance that just ended was spoken under the Ask button:
-   * during the press, or within the grace after release.
-   *
-   * @param identity - The speaker.
-   */
-  private takeAsk(identity: string): boolean {
-    const state = this.speakers.get(identity);
-    if (!state) return false;
-    if (state.pressed) return true;
-    if (
-      state.releasedAt !== null &&
-      this.now() - state.releasedAt <= ASK_RELEASE_GRACE_MS
-    ) {
-      state.releasedAt = null;
-      if (state.cancelTimer) clearTimeout(state.cancelTimer);
-      state.cancelTimer = null;
-      return true;
-    }
-    return false;
   }
 
   /**
@@ -269,47 +185,21 @@ export class Addressing {
    *
    * @param identity - The speaker, or null when unknown.
    * @param text - The final transcript.
-   * @param askedWithButton - Whether the utterance was spoken under the Ask
-   *                          button; see {@link Addressing.markAsk}.
    */
-  classify(
-    identity: string | null,
-    text: string,
-    askedWithButton = false,
-  ): AddressDecision {
+  classify(identity: string | null, text: string): AddressDecision {
     const match = matchWake(text, this.options.wakeNames);
-    if (askedWithButton) return { addressed: true, wakeOnly: false };
     if (!identity) return { addressed: match === "addressed", wakeOnly: false };
 
-    const state = this.state(identity);
     const at = this.now();
+    const windowUntil = this.windows.get(identity);
+    this.windows.delete(identity);
     if (match === "wake-only") {
-      state.windowUntil = at + WAKE_WINDOW_MS;
+      this.windows.set(identity, at + WAKE_WINDOW_MS);
       return { addressed: true, wakeOnly: true };
     }
-    if (state.windowUntil !== null && at <= state.windowUntil) {
-      state.windowUntil = null;
+    if (windowUntil !== undefined && at <= windowUntil) {
       return { addressed: true, wakeOnly: false };
     }
-    state.windowUntil = null;
     return { addressed: match === "addressed", wakeOnly: false };
-  }
-
-  /**
-   * Called when an utterance ends, before it is transcribed: says whether it
-   * was spoken under the Ask button, and uses up a post-release grace.
-   *
-   * @param identity - The speaker.
-   */
-  markAsk(identity: string): boolean {
-    return this.takeAsk(identity);
-  }
-
-  /** Cancels every timer. */
-  close(): void {
-    for (const state of this.speakers.values()) {
-      if (state.cancelTimer) clearTimeout(state.cancelTimer);
-      state.cancelTimer = null;
-    }
   }
 }

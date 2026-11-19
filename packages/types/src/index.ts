@@ -118,7 +118,6 @@ export type {
   AnswerErrorReason,
   AnswerLine,
   AnswerRequest,
-  AskRpcPayload,
   EndedRequest,
   NoticeRequest,
   RedeemRequest,
@@ -133,7 +132,6 @@ export type {
 } from "./api/agent";
 export {
   AGENT_NOTICE_TEXT,
-  AGENT_RPC_ASK,
   AGENT_RPC_STOP,
   AGENT_VOICE_TRACK,
   AGENT_WAKE_NAMES,

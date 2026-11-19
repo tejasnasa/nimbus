@@ -41,8 +41,6 @@ export type TranscriptionJob = {
   startMs: number;
   endMs: number;
   pcm: Int16Array;
-  /** Spoken under the Ask button, so addressed whatever the words. */
-  asked?: boolean;
 };
 
 /** What the transcriber needs from its surroundings. */
@@ -55,11 +53,8 @@ export type TranscriberOptions = {
   prompt?: string;
   /** Spelling repair applied to each result. */
   glossary: (text: string) => string;
-  /**
-   * A segment, released in sequence order. `asked` is true when it was spoken
-   * under the Ask button.
-   */
-  onSegment(segment: SegmentIn, asked: boolean): void;
+  /** A segment, released in sequence order. */
+  onSegment(segment: SegmentIn): void;
   /** A provider request, for the call log. */
   onUsage(entry: UsageIn): void;
   /** The key was rejected; transcription cannot continue. */
@@ -88,10 +83,7 @@ export class Transcriber {
   private nextToEmit = 1;
   private readonly waiting: Array<() => Promise<void>> = [];
   private running = 0;
-  private readonly results = new Map<
-    number,
-    { segment: SegmentIn; asked: boolean } | null
-  >();
+  private readonly results = new Map<number, SegmentIn | null>();
   private readonly pending = new Set<Promise<void>>();
   private headTimer: ReturnType<typeof setTimeout> | null = null;
   private fatal = false;
@@ -220,16 +212,13 @@ export class Transcriber {
           return;
         }
         this.settle(seq, {
-          segment: {
-            seq,
-            speakerUserId: job.userId,
-            speakerName: job.name,
-            text: this.options.glossary(text),
-            startMs: Math.max(0, Math.round(job.startMs)),
-            endMs: Math.max(0, Math.round(job.endMs)),
-            language: result.language ?? language,
-          },
-          asked: job.asked === true,
+          seq,
+          speakerUserId: job.userId,
+          speakerName: job.name,
+          text: this.options.glossary(text),
+          startMs: Math.max(0, Math.round(job.startMs)),
+          endMs: Math.max(0, Math.round(job.endMs)),
+          language: result.language ?? language,
         });
         return;
       } catch (error) {
@@ -262,10 +251,7 @@ export class Transcriber {
   }
 
   /** Records a result and releases everything that is now in order. */
-  private settle(
-    seq: number,
-    result: { segment: SegmentIn; asked: boolean } | null,
-  ): void {
+  private settle(seq: number, result: SegmentIn | null): void {
     if (seq < this.nextToEmit) return;
     this.results.set(seq, result);
     this.drain();
@@ -276,7 +262,7 @@ export class Transcriber {
       const result = this.results.get(this.nextToEmit)!;
       this.results.delete(this.nextToEmit);
       this.nextToEmit += 1;
-      if (result) this.options.onSegment(result.segment, result.asked);
+      if (result) this.options.onSegment(result);
     }
 
     if (this.headTimer) {

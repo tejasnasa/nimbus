@@ -8,11 +8,11 @@
  * reported to the API a couple of times a second, and the budget and
  * empty-room timers decide when the session ends by itself.
  *
- * A segment addressed to the assistant (by wake phrase, a bare wake word's
- * window, or the Ask button) is answered: the API streams the reply and the
+ * A segment addressed to the assistant (by wake phrase, or within the window
+ * a bare wake word opens) is answered: the API streams the reply and the
  * speaker plays it on the agent's own track, or, when the assistant may not
- * speak, the API posts it to chat. Browsers reach the session through two RPC
- * methods: `nimbus.ask` (the Ask button, held and released) and `nimbus.stop`.
+ * speak, the API posts it to chat. Browsers reach the session through one RPC
+ * method, `nimbus.stop`, which cuts off the answer in progress.
  *
  * @important `stop` is idempotent and always runs the same order: stop the
  *            listeners (which cuts any open utterance), wait for transcription
@@ -52,7 +52,6 @@ import { Addressing } from "../addressing.js";
 import type { NimbusClient } from "../api/nimbusClient.js";
 import {
   AGENT_NOTICE_TEXT,
-  AGENT_RPC_ASK,
   AGENT_RPC_STOP,
 } from "../sharedConstants.js";
 import {
@@ -72,7 +71,6 @@ import {
   type TtsAudio,
   type TtsRequest,
 } from "../tts/openaiCompatibleTts.js";
-import { VAD_OPTIONS } from "../vadOptions.js";
 import type { MeetingClock } from "./clock.js";
 
 /** Why a session is ending. */
@@ -99,9 +97,6 @@ export const STATE_INTERVAL_MS = 500;
 
 /** How often usage is reported while the session runs, in milliseconds. */
 export const USAGE_INTERVAL_MS = 10_000;
-
-/** Silence that ends a turn while the Ask button is held, in milliseconds. */
-export const ASK_SILENCE_MS = 400;
 
 /** Longest wait for the addressed caption to reach the API, in milliseconds. */
 export const ANSWER_FLUSH_MS = 1500;
@@ -225,8 +220,7 @@ export class MeetingSession {
       prompt: `Nimbus, NimbusBot, Excalidraw, LiveKit${names.length ? `, ${names.join(", ")}` : ""}`,
       glossary: createGlossary(names),
       stt: deps.stt,
-      onSegment: (segment: SegmentIn, asked: boolean) =>
-        this.onSegment(segment, asked),
+      onSegment: (segment: SegmentIn) => this.onSegment(segment),
       onUsage: (entry) => {
         this.usage.push(entry);
       },
@@ -245,10 +239,7 @@ export class MeetingSession {
       onEmptyRoom: () => void this.stop("empty-room"),
       onWarning: () => void this.notice("budget-warning"),
     });
-    this.addressing = new Addressing({
-      wakeNames: redeemed.wakeNames,
-      onAskCancelled: (identity) => this.setAskSilence(identity, false),
-    });
+    this.addressing = new Addressing({ wakeNames: redeemed.wakeNames });
     this.bargeIn = new BargeIn({
       isSpeaking: () => this.speaker?.speaking ?? false,
       interrupt: () => this.interrupt(),
@@ -291,18 +282,6 @@ export class MeetingSession {
       speakingUserIds: [],
     });
 
-    this.registerRpc(AGENT_RPC_ASK, async (call) => {
-      let pressed = false;
-      try {
-        pressed =
-          (JSON.parse(call.payload) as { pressed?: unknown } | null)
-            ?.pressed === true;
-      } catch {
-        // A malformed payload reads as a release.
-      }
-      this.ask(call.callerIdentity, pressed);
-      return JSON.stringify({ ok: true });
-    });
     this.registerRpc(AGENT_RPC_STOP, async () => {
       this.interrupt();
       return JSON.stringify({ ok: true });
@@ -370,23 +349,6 @@ export class MeetingSession {
     }
   }
 
-  /** The Ask button, pressed or released by a person in the call. */
-  private ask(identity: string, pressed: boolean): void {
-    if (this.stopPromise) return;
-    if (pressed && this.speaker?.busy) this.interrupt();
-    this.addressing.setPressed(identity, pressed);
-    this.setAskSilence(identity, pressed);
-  }
-
-  /** Shortens a person's end-of-turn silence while they hold the Ask button. */
-  private setAskSilence(identity: string, pressed: boolean): void {
-    this.listeners
-      .get(identity)
-      ?.setMinSilence(
-        pressed ? ASK_SILENCE_MS : VAD_OPTIONS.minSilenceDuration,
-      );
-  }
-
   /** Stops whatever the assistant is doing and returns it to listening. */
   interrupt(): void {
     this.cancelAnswer();
@@ -401,11 +363,10 @@ export class MeetingSession {
   }
 
   /** A transcribed segment, in order: post it, and answer it if addressed. */
-  private onSegment(segment: SegmentIn, asked: boolean): void {
+  private onSegment(segment: SegmentIn): void {
     const decision = this.addressing.classify(
       segment.speakerUserId,
       segment.text,
-      asked,
     );
     const posted = decision.addressed
       ? { ...segment, addressed: true }
@@ -572,13 +533,11 @@ export class MeetingSession {
               startMs: utterance.startMs,
               endMs: utterance.endMs,
               pcm: utterance.pcm,
-              asked: this.addressing.markAsk(identity),
             });
           },
         },
       }),
     );
-    if (this.addressing.isPressed(identity)) this.setAskSilence(identity, true);
   }
 
   private async detach(identity: string): Promise<void> {
@@ -636,7 +595,6 @@ export class MeetingSession {
     this.deps.log?.("stopping session", { reason });
     this.budget.stop();
     this.bargeIn.stop();
-    this.addressing.close();
     this.cancelAnswer();
     this.speaker = null;
     if (this.chatStateTimer) clearTimeout(this.chatStateTimer);

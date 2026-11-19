@@ -19,8 +19,6 @@ const source =
   (nimbusTypes as typeof nimbusTypes & { default?: typeof nimbusTypes })
     .default ?? nimbusTypes;
 
-/** RPC the browser calls while the Ask button is held or released. */
-export const AGENT_RPC_ASK = source.AGENT_RPC_ASK;
 /** RPC the browser calls to stop the assistant mid-answer. */
 export const AGENT_RPC_STOP = source.AGENT_RPC_STOP;
 /** Name of the audio track the assistant speaks on. */

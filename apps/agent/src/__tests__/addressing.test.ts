@@ -2,11 +2,10 @@
  * @module agent/__tests__/addressing
  * @description Which utterances are spoken to the assistant: the wake phrase
  * table (positives, mentions that are not requests, mishearings), the window a
- * bare wake word opens, and the Ask button's press, release and cancel.
+ * bare wake word opens.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
-  ASK_RELEASE_GRACE_MS,
   Addressing,
   matchWake,
   normalise,
@@ -72,15 +71,10 @@ describe("matchWake", () => {
 
 describe("Addressing", () => {
   let now = 0;
-  const make = (onAskCancelled = vi.fn()) =>
-    new Addressing({ wakeNames: WAKE, now: () => now, onAskCancelled });
+  const make = () => new Addressing({ wakeNames: WAKE, now: () => now });
 
   beforeEach(() => {
     now = 1_000_000;
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("opens a window after a bare wake word for that speaker only", () => {
@@ -117,66 +111,5 @@ describe("Addressing", () => {
     const addressing = make();
     expect(addressing.classify(null, "Nimbus, hello").addressed).toBe(true);
     expect(addressing.classify(null, "Nimbus?").wakeOnly).toBe(false);
-  });
-
-  it("addresses everything said while the Ask button is held", () => {
-    const addressing = make();
-    addressing.setPressed("riya", true);
-    expect(addressing.isPressed("riya")).toBe(true);
-    expect(addressing.markAsk("riya")).toBe(true);
-    expect(addressing.classify("riya", "what is the plan", true)).toEqual({
-      addressed: true,
-      wakeOnly: false,
-    });
-    expect(addressing.markAsk("sam")).toBe(false);
-  });
-
-  it("counts an utterance that ends within the grace after release, once", () => {
-    const onCancelled = vi.fn();
-    const addressing = make(onCancelled);
-    addressing.setPressed("riya", true);
-    addressing.setPressed("riya", false);
-    expect(addressing.isPressed("riya")).toBe(false);
-    now += 900;
-    expect(addressing.markAsk("riya")).toBe(true);
-    expect(addressing.markAsk("riya")).toBe(false);
-    vi.advanceTimersByTime(ASK_RELEASE_GRACE_MS);
-    expect(onCancelled).not.toHaveBeenCalled();
-  });
-
-  it("cancels a release with no utterance after the grace", () => {
-    const onCancelled = vi.fn();
-    const addressing = make(onCancelled);
-    addressing.setPressed("riya", true);
-    addressing.setPressed("riya", false);
-    vi.advanceTimersByTime(ASK_RELEASE_GRACE_MS);
-    expect(onCancelled).toHaveBeenCalledWith("riya");
-    now += ASK_RELEASE_GRACE_MS + 1;
-    expect(addressing.markAsk("riya")).toBe(false);
-  });
-
-  it("ignores a release without a press, and a re-press clears the grace", () => {
-    const onCancelled = vi.fn();
-    const addressing = make(onCancelled);
-    addressing.setPressed("riya", false);
-    vi.advanceTimersByTime(ASK_RELEASE_GRACE_MS * 2);
-    expect(onCancelled).not.toHaveBeenCalled();
-
-    addressing.setPressed("riya", true);
-    addressing.setPressed("riya", false);
-    addressing.setPressed("riya", true);
-    vi.advanceTimersByTime(ASK_RELEASE_GRACE_MS * 2);
-    expect(onCancelled).not.toHaveBeenCalled();
-    expect(addressing.isPressed("riya")).toBe(true);
-  });
-
-  it("drops its timers on close", () => {
-    const onCancelled = vi.fn();
-    const addressing = make(onCancelled);
-    addressing.setPressed("riya", true);
-    addressing.setPressed("riya", false);
-    addressing.close();
-    vi.advanceTimersByTime(ASK_RELEASE_GRACE_MS * 2);
-    expect(onCancelled).not.toHaveBeenCalled();
   });
 });

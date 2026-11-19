@@ -1,7 +1,7 @@
 /**
  * @module agent/__tests__/meetingSessionVoice
  * @description The session's voice: an addressed question answered out loud, a
- * plain caption left alone, the chat fallback, the Ask and Stop RPCs, a person
+ * plain caption left alone, the chat fallback, the Stop RPC, a person
  * barging in, a bare wake word's chime and window, the budget notices, and the
  * voice turning itself off when its key is refused.
  *
@@ -321,21 +321,11 @@ describe("MeetingSession voice", () => {
     expect(h.out.frames).toHaveLength(0);
   });
 
-  it("addresses what is said while the Ask button is held", async () => {
-    const h = await makeSession({ texts: ["what is the plan"] });
+  it("offers browsers only the Stop RPC", async () => {
+    const h = await makeSession({});
     h.session.start();
-    const ask = h.room.rpc.get("nimbus.ask")!;
-    expect(
-      await ask({ callerIdentity: "u-riya", payload: '{"pressed":true}' }),
-    ).toBe('{"ok":true}');
-    await vi.waitFor(() => expect(h.answers).toHaveLength(1), {
-      timeout: 10_000,
-    });
-    await ask({ callerIdentity: "u-riya", payload: "not json" });
+    expect([...h.room.rpc.keys()]).toEqual(["nimbus.stop"]);
     await h.session.stop("shutdown");
-    expect(h.segments[0]!.addressed).toBe(true);
-    // Once stopped, the button does nothing.
-    await ask({ callerIdentity: "u-riya", payload: '{"pressed":true}' });
   });
 
   it("stops speaking on the Stop RPC", async () => {
@@ -513,13 +503,12 @@ describe("MeetingSession voice", () => {
     expect(h.out.frames).toHaveLength(0);
   });
 
-  it("listens to a participant who joins while holding the Ask button", async () => {
-    const h = await makeSession({ people: [], texts: ["what is the plan"] });
-    h.session.start();
-    await h.room.rpc.get("nimbus.ask")!({
-      callerIdentity: "u-sam",
-      payload: '{"pressed":true}',
+  it("answers a participant who joins after the session started", async () => {
+    const h = await makeSession({
+      people: [],
+      texts: ["Nimbus, what is the plan"],
     });
+    h.session.start();
     join(h.room, "u-sam", "Sam");
     h.room.emit(
       RoomEvent.TrackSubscribed,

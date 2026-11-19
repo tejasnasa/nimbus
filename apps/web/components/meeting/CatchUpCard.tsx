@@ -1,9 +1,10 @@
 /**
  * @module web/components/meeting/CatchUpCard
- * @description A dismissible "Catch me up" card shown above the live captions
+ * @description A dismissible "Catch me up" offer shown above the live captions
  * once the assistant's meeting is more than two minutes old, for someone who
- * joined partway through (or who stepped away). Asking fetches the summary so
- * far on demand; the card does not fetch by itself.
+ * joined partway through (or who stepped away). Until it is used it is a slim
+ * pill; asking fetches the summary so far on demand (the card does not fetch by
+ * itself) and the pill opens into a card that holds it.
  *
  * Dismissal is remembered per meeting for the browser session, so closing it
  * does not bring it back on the next render but a new meeting shows it again.
@@ -70,37 +71,51 @@ export default function CatchUpCard() {
     setDismissedFor(meetingId);
   };
 
+  const dismissButton = (
+    <button
+      type="button"
+      aria-label="Dismiss catch me up"
+      onClick={dismiss}
+      className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted) hover:text-(--foreground)"
+    >
+      ×
+    </button>
+  );
+
+  if (state.kind === "idle") {
+    return (
+      <section
+        aria-label="Catch me up"
+        data-testid="catch-up-card"
+        className="mx-auto mb-2 flex w-fit max-w-full items-center gap-2 rounded-full border border-(--border) bg-(--background)/90 py-1 pr-1.5 pl-3 shadow-lg backdrop-blur-md"
+      >
+        <p className="truncate text-xs text-(--muted-foreground)">
+          Joined partway through?
+        </p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="shrink-0 rounded-full bg-(--primary) px-3 py-0.5 text-xs font-semibold text-(--primary-foreground) hover:cursor-pointer hover:opacity-90"
+        >
+          Catch me up
+        </button>
+        {dismissButton}
+      </section>
+    );
+  }
+
   return (
     <section
       aria-label="Catch me up"
       data-testid="catch-up-card"
-      className="mb-2 rounded-xl border border-(--border) bg-(--background)/90 p-3 shadow-lg backdrop-blur-md"
+      className="mb-2 rounded-2xl border border-(--border) bg-(--background)/90 px-4 py-3 shadow-lg backdrop-blur-md"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <p className="text-xs font-semibold">
-            Joined partway through? Get the short version.
-          </p>
-          {state.kind === "idle" ? (
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="rounded-lg bg-(--primary) px-3 py-1 text-xs font-semibold text-(--primary-foreground) hover:cursor-pointer hover:opacity-90"
-            >
-              Catch me up
-            </button>
-          ) : (
-            <CatchUpSummary state={state} onRetry={() => void load()} />
-          )}
+        <div className="min-w-0 space-y-1">
+          <p className="text-xs font-semibold">The short version so far</p>
+          <CatchUpSummary state={state} onRetry={() => void load()} />
         </div>
-        <button
-          type="button"
-          aria-label="Dismiss catch me up"
-          onClick={dismiss}
-          className="shrink-0 text-(--muted-foreground) hover:cursor-pointer hover:text-(--foreground)"
-        >
-          ×
-        </button>
+        {dismissButton}
       </div>
     </section>
   );

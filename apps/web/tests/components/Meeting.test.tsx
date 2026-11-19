@@ -1,7 +1,7 @@
 /**
  * @module web/tests/components/Meeting
- * @description The assistant's call UI: the start and stop button with its
- * states and reasons, the caption bar (ordering, line limit, speaking line,
+ * @description The assistant's call UI: the assistant panel's start and stop
+ * button with its states and reasons, the caption bar (ordering, line limit, speaking line,
  * live-region semantics, the viewer's caption look) and the transcript panel.
  *
  * The shared meeting state and the call are mocked, so each test states
@@ -15,7 +15,7 @@ import type { MeetingState } from "../../hooks/useMeeting";
 
 const assistant = vi.hoisted(() => ({ current: {} as MeetingState }));
 const voice = vi.hoisted(() => ({
-  current: { participants: [] as unknown[] },
+  current: { participants: [] as unknown[] } as Record<string, unknown>,
 }));
 
 vi.mock("../../providers/MeetingProvider", () => ({
@@ -25,7 +25,7 @@ vi.mock("../../providers/VoiceProvider", () => ({
   useVoice: () => voice.current,
 }));
 
-import AssistantButton from "../../components/meeting/AssistantButton";
+import AssistantPanel from "../../components/meeting/AssistantPanel";
 import CaptionsBar from "../../components/meeting/CaptionsBar";
 import { prefsKey } from "../../hooks/useCaptionPrefs";
 import LiveTranscript, {
@@ -86,20 +86,24 @@ function setAssistant(patch: Partial<MeetingState> = {}) {
 
 beforeEach(() => {
   setAssistant();
-  voice.current = { participants: [person("u1", "Ada", true)] };
+  voice.current = {
+    participants: [person("u1", "Ada", true)],
+    localUser: { userId: "u1", name: "Ada", image: null },
+    room: { localParticipant: { performRpc: vi.fn() } },
+  };
   window.localStorage.clear();
 });
 
-describe("AssistantButton", () => {
+describe("AssistantPanel", () => {
   it("is disabled, and says why, until the user is in the call", () => {
-    render(<AssistantButton inCall={false} />);
+    render(<AssistantPanel inCall={false} />);
 
     expect(screen.getByRole("button", { name: "Start Nimbus" })).toBeDisabled();
     expect(screen.getByText("Join the call to start Nimbus.")).toBeVisible();
   });
 
   it("starts the assistant from the call", () => {
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start Nimbus" }));
 
@@ -108,14 +112,14 @@ describe("AssistantButton", () => {
 
   it("shows progress while a start is in flight", () => {
     setAssistant({ isPending: true });
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
 
     expect(screen.getByRole("button", { name: "Starting..." })).toBeDisabled();
   });
 
   it("offers Stop with the assistant state while it is live", () => {
     setAssistant({ meeting: live, assistantState: "thinking" });
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
 
     expect(screen.getByTestId("assistant-state")).toHaveTextContent("Thinking");
     fireEvent.click(screen.getByRole("button", { name: "Stop Nimbus" }));
@@ -124,14 +128,14 @@ describe("AssistantButton", () => {
 
   it("stays usable for stopping even if the user dropped out of the call", () => {
     setAssistant({ meeting: live, assistantState: "listening" });
-    render(<AssistantButton inCall={false} />);
+    render(<AssistantPanel inCall={false} />);
 
     expect(screen.getByRole("button", { name: "Stop Nimbus" })).toBeEnabled();
   });
 
   it("shows a stop in flight", () => {
     setAssistant({ meeting: live, isPending: true });
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
 
     expect(screen.getByRole("button", { name: "Stopping..." })).toBeDisabled();
   });
@@ -141,7 +145,7 @@ describe("AssistantButton", () => {
       refusal: { reason: "no-voice-key", cta: "add-key", message: "Add a key" },
       error: "Try later",
     });
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
 
     const alerts = screen.getAllByRole("alert");
     expect(alerts.map((a) => a.textContent)).toEqual([
@@ -152,13 +156,13 @@ describe("AssistantButton", () => {
 
   it("says why the last meeting ended, when that is worth saying", () => {
     setAssistant({ endReason: "budget" });
-    const { rerender } = render(<AssistantButton inCall />);
+    const { rerender } = render(<AssistantPanel inCall />);
     expect(
       screen.getByText("Nimbus left because the free assistant time ran out."),
     ).toBeVisible();
 
     setAssistant({ endReason: "stopped" });
-    rerender(<AssistantButton inCall />);
+    rerender(<AssistantPanel inCall />);
     expect(screen.queryByText(/Nimbus left/)).toBeNull();
   });
 });

@@ -1,7 +1,11 @@
-export default function Cloud() {
+export default function Cloud({
+  className = "svg-icon text-(--chart-2) h-16 w-16",
+}: {
+  className?: string;
+}) {
   return (
     <svg
-      className="svg-icon text-(--chart-2) h-16 w-16"
+      className={className}
       viewBox="0 0 1024 1024"
       version="1.1"
       xmlns="http://www.w3.org/2000/svg"

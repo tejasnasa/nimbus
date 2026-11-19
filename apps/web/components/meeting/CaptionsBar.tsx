@@ -8,12 +8,13 @@
  *
  * Lines the assistant spoke are set apart: tinted, italic and marked with
  * `data-from-assistant`, so a spoken answer never reads as a person's words.
+ * Every line but the newest is dimmed, so the eye lands on what was just said.
  *
  * When the viewer picked a caption language, each line shows its translation
  * once it arrives and the original text until then. Hovering or focusing a
  * translated line shows the original beneath it.
  *
- * Above the captions, a dismissible "Catch me up" card (`CatchUpCard`) is offered
+ * Above the captions, a dismissible "Catch me up" offer (`CatchUpCard`) appears
  * once the meeting is more than two minutes old.
  *
  * Mounting the bar is what subscribes the viewer to translation: it reports the
@@ -47,13 +48,20 @@ import CatchUpCard from "./CatchUpCard";
 function CaptionLine({
   segment,
   translation,
+  dimmed,
 }: {
   segment: SegmentDTO;
   translation: string | undefined;
+  dimmed: boolean;
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const fromAssistant = segment.fromAssistant === true;
-  const voice = fromAssistant ? "italic text-(--primary)" : "";
+  const voice = `${fromAssistant ? "italic text-(--primary)" : ""} ${
+    dimmed ? "opacity-60" : ""
+  } transition-opacity`;
+  const speaker = (
+    <span className="font-semibold opacity-75">{segment.speakerName}: </span>
+  );
 
   if (!translation) {
     return (
@@ -62,7 +70,7 @@ function CaptionLine({
         data-from-assistant={fromAssistant || undefined}
         className={voice}
       >
-        <span className="font-semibold">{segment.speakerName}: </span>
+        {speaker}
         {segment.text}
       </p>
     );
@@ -80,7 +88,7 @@ function CaptionLine({
       onBlur={() => setShowOriginal(false)}
       className={`rounded-sm outline-offset-2 focus-visible:outline focus-visible:outline-2 ${voice}`}
     >
-      <span className="font-semibold">{segment.speakerName}: </span>
+      {speaker}
       <span data-testid="caption-translation">{translation}</span>
       {showOriginal && (
         <span
@@ -113,10 +121,10 @@ export default function CaptionsBar() {
     : "bg-(--background)/90 text-(--foreground) border-(--border)";
 
   return (
-    <div className="absolute bottom-6 left-1/2 z-50 w-[min(42rem,calc(100%-2rem))] -translate-x-1/2">
+    <div className="absolute bottom-20 left-1/2 z-50 w-[min(42rem,calc(100%-2rem))] -translate-x-1/2">
       <CatchUpCard />
       <div
-        className={`rounded-xl border p-3 shadow-lg backdrop-blur-md ${surface}`}
+        className={`rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-md ${surface}`}
       >
         <div
           data-testid="captions"
@@ -128,10 +136,11 @@ export default function CaptionsBar() {
           {visible.length === 0 && (
             <p className="opacity-70">Captions will appear here.</p>
           )}
-          {visible.map((segment) => (
+          {visible.map((segment, i) => (
             <CaptionLine
               key={segment.seq}
               segment={segment}
+              dimmed={i < visible.length - 1}
               translation={
                 prefs.language
                   ? translations[translationKey(segment.seq, prefs.language)]

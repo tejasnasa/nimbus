@@ -1,8 +1,9 @@
 /**
  * @module web/components/VoiceOverlay
- * @description Floating speaking-indicator badges (top-right): avatars appear
- * when a participant starts speaking and linger 1.5s after they stop (swept on
- * a 100ms interval), so brief pauses don't flicker the UI. Participants come
+ * @description Floating speaking-indicator badges (top-right, below the
+ * canvas controls): avatars appear when a participant starts speaking and
+ * linger 1.5s after they stop (swept on a 100ms interval), so brief pauses
+ * don't flicker the UI. Participants come
  * from the call room, and the assistant is marked with an "Agent" badge, told
  * apart by the participant kind LiveKit reports rather than by name.
  * Pointer-events-none overlay; renders no badges when nobody is speaking. Live
@@ -102,7 +103,7 @@ export default function VoiceOverlay() {
   const speakersList = Array.from(activeSpeakers.values());
   const badges =
     speakersList.length === 0 ? null : (
-      <div className="absolute top-8 right-8 z-50 flex flex-col pointer-events-none">
+      <div className="absolute top-24 right-6 z-50 flex flex-col pointer-events-none">
         {speakersList.map((speaker) => {
           // Read the participant now rather than trusting the snapshot taken when
           // they started speaking: an avatar can land after that moment, and the

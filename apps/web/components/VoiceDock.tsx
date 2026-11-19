@@ -36,10 +36,15 @@ export default function VoiceDock() {
         <section
           aria-label="Meeting"
           data-testid="voice-card"
-          className="w-80 rounded-2xl border border-(--border) bg-(--card)/95 p-4 shadow-2xl shadow-(--primary)/10 backdrop-blur-md animate-fade-in"
+          className="w-[21rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-(--border) bg-(--card)/95 p-4 shadow-2xl shadow-(--primary)/10 backdrop-blur-md animate-fade-in"
         >
           <header className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Meeting</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              {inCall && (
+                <span className="h-2 w-2 rounded-full bg-(--chart-2) shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+              )}
+              Meeting
+            </h2>
             <div className="flex items-center gap-1">
               {settings && (
                 <button

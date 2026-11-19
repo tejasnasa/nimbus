@@ -1,10 +1,9 @@
 /**
- * @module web/tests/components/AskNimbus
- * @description Talking to the assistant in the call: the Ask Nimbus button held
- * with the pointer or with Space, disabled until the assistant is live, the
- * Stop action while it speaks, the viewer's mute toggle, the "answered in chat"
- * state, Nimbus's own caption lines styled apart, and the mute option in the
- * Captions settings tab.
+ * @module web/tests/components/AssistantPanel
+ * @description Talking to the assistant in the call: the say-its-name hint
+ * while it is live, the Stop talking action while it speaks, the viewer's mute
+ * toggle, the "answered in chat" state, Nimbus's own caption lines styled
+ * apart, and the mute option in the Captions settings tab.
  *
  * The meeting state and the call are mocked; the RPC is a spy.
  */
@@ -30,10 +29,9 @@ vi.mock("../../providers/VoiceProvider", () => ({
   useVoice: () => voice.current,
 }));
 
-import AskNimbus, {
-  ASK_FAILED_MESSAGE,
-} from "../../components/meeting/AskNimbus";
-import AssistantButton from "../../components/meeting/AssistantButton";
+import AssistantPanel, {
+  STOP_FAILED_MESSAGE,
+} from "../../components/meeting/AssistantPanel";
 import CaptionsBar from "../../components/meeting/CaptionsBar";
 import CaptionSettingsPanel from "../../components/CaptionSettingsPanel";
 import { prefsKey } from "../../hooks/useCaptionPrefs";
@@ -106,96 +104,38 @@ beforeEach(() => {
   setVoice();
 });
 
-describe("AskNimbus", () => {
-  it("sends press and release to the agent while the button is held", async () => {
-    render(<AskNimbus />);
-    const button = screen.getByTestId("ask-nimbus");
-    expect(button).toHaveTextContent("Hold to ask Nimbus");
-
-    fireEvent.pointerDown(button, { pointerId: 1 });
-    expect(button).toHaveAttribute("aria-pressed", "true");
-    expect(button).toHaveTextContent("Listening... release to send");
-    fireEvent.pointerDown(button, { pointerId: 1 });
-    fireEvent.pointerUp(button, { pointerId: 1 });
-    fireEvent.pointerUp(button, { pointerId: 1 });
-
-    await waitFor(() => expect(performRpc).toHaveBeenCalledTimes(2));
-    expect(rpcCalls()).toEqual([
-      { method: "nimbus.ask", payload: '{"pressed":true}', to: "agent-xyz" },
-      { method: "nimbus.ask", payload: '{"pressed":false}', to: "agent-xyz" },
-    ]);
-    expect(button).toHaveAttribute("aria-pressed", "false");
-  });
-
-  it("holds with Space while focused, ignoring key repeat, and releases on blur", async () => {
-    render(<AskNimbus />);
-    const button = screen.getByTestId("ask-nimbus");
-    button.focus();
-
-    fireEvent.keyDown(button, { key: " ", code: "Space" });
-    fireEvent.keyDown(button, { key: " ", code: "Space", repeat: true });
-    fireEvent.keyDown(button, { key: "Enter", code: "Enter" });
-    fireEvent.keyUp(button, { key: "Enter", code: "Enter" });
-    fireEvent.keyUp(button, { key: " ", code: "Space" });
-    fireEvent.keyDown(button, { key: " ", code: "Space" });
-    fireEvent.blur(button);
-
-    await waitFor(() => expect(performRpc).toHaveBeenCalledTimes(4));
-    expect(rpcCalls().map((c) => c.payload)).toEqual([
-      '{"pressed":true}',
-      '{"pressed":false}',
-      '{"pressed":true}',
-      '{"pressed":false}',
-    ]);
-  });
-
-  it.each([
-    ["joining", true],
-    ["stopped", true],
-    ["listening", false],
-  ] as const)(
-    "is disabled while the assistant is %s: %s",
-    (state, disabled) => {
-      setAssistant({ assistantState: state });
-      render(<AskNimbus />);
-      const button = screen.getByTestId("ask-nimbus");
-      if (disabled) expect(button).toBeDisabled();
-      else expect(button).toBeEnabled();
-    },
-  );
-
-  it("is disabled when the agent is not in the room, and sends nothing", () => {
-    setVoice(false);
-    render(<AskNimbus />);
-    const button = screen.getByTestId("ask-nimbus");
-    expect(button).toBeDisabled();
-    fireEvent.pointerDown(button, { pointerId: 1 });
-    expect(performRpc).not.toHaveBeenCalled();
-  });
-
-  it("renders nothing without a meeting", () => {
-    setAssistant({ meeting: null, assistantState: null });
-    const { container } = render(<AskNimbus />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("releases the button when the assistant leaves mid-press", () => {
-    const { rerender } = render(<AskNimbus />);
-    fireEvent.pointerDown(screen.getByTestId("ask-nimbus"), { pointerId: 1 });
-    setAssistant({ assistantState: "stopped" });
-    rerender(<AskNimbus />);
-    expect(screen.getByTestId("ask-nimbus")).toHaveAttribute(
-      "aria-pressed",
-      "false",
+describe("AssistantPanel in the call", () => {
+  it("offers no hold-to-ask button, only a hint to say its name", () => {
+    render(<AssistantPanel inCall />);
+    expect(screen.queryByTestId("ask-nimbus")).toBeNull();
+    expect(screen.getByTestId("wake-hint")).toHaveTextContent(
+      "Say \u201cNimbus\u201d to ask it something.",
     );
   });
 
-  it("offers Stop only while Nimbus is speaking", async () => {
-    const { rerender } = render(<AskNimbus />);
+  it.each(["joining", "stopped"] as const)(
+    "hides the hint while the assistant is %s",
+    (state) => {
+      setAssistant({ assistantState: state });
+      render(<AssistantPanel inCall />);
+      expect(screen.queryByTestId("wake-hint")).toBeNull();
+    },
+  );
+
+  it("hides the hint, and the in-call actions, without a meeting", () => {
+    setAssistant({ meeting: null, assistantState: null });
+    render(<AssistantPanel inCall />);
+    expect(screen.queryByTestId("wake-hint")).toBeNull();
+    expect(screen.queryByTestId("mute-nimbus")).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Nimbus" })).toBeEnabled();
+  });
+
+  it("offers Stop talking only while Nimbus is speaking", async () => {
+    const { rerender } = render(<AssistantPanel inCall />);
     expect(screen.queryByTestId("stop-nimbus")).toBeNull();
 
     setAssistant({ assistantState: "speaking" });
-    rerender(<AskNimbus />);
+    rerender(<AssistantPanel inCall />);
     fireEvent.click(screen.getByTestId("stop-nimbus"));
     await waitFor(() =>
       expect(rpcCalls()).toEqual([
@@ -206,24 +146,31 @@ describe("AskNimbus", () => {
 
   it("says so when the agent cannot be reached", async () => {
     performRpc.mockRejectedValueOnce(new Error("timeout"));
-    render(<AskNimbus />);
-    fireEvent.pointerDown(screen.getByTestId("ask-nimbus"), { pointerId: 1 });
+    setAssistant({ assistantState: "speaking" });
+    render(<AssistantPanel inCall />);
+    fireEvent.click(screen.getByTestId("stop-nimbus"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      ASK_FAILED_MESSAGE,
+      STOP_FAILED_MESSAGE,
     );
-    fireEvent.pointerUp(screen.getByTestId("ask-nimbus"), { pointerId: 1 });
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("sends nothing when the agent is not in the room", () => {
+    setVoice(false);
+    setAssistant({ assistantState: "speaking" });
+    render(<AssistantPanel inCall />);
+    fireEvent.click(screen.getByTestId("stop-nimbus"));
+    expect(performRpc).not.toHaveBeenCalled();
   });
 
   it("mutes Nimbus for this viewer only, remembered per user", async () => {
-    render(<AskNimbus />);
+    render(<AssistantPanel inCall />);
     const toggle = screen.getByTestId("mute-nimbus");
-    expect(toggle).toHaveTextContent("Mute Nimbus");
+    expect(toggle).toHaveAccessibleName("Mute Nimbus");
 
     await act(async () => {
       fireEvent.click(toggle);
     });
-    expect(toggle).toHaveTextContent("Unmute Nimbus");
+    expect(toggle).toHaveAccessibleName("Unmute Nimbus");
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(
       JSON.parse(window.localStorage.getItem(prefsKey("u1"))!).muteAssistant,
@@ -235,7 +182,7 @@ describe("AskNimbus", () => {
 describe("the assistant's state and lines", () => {
   it("labels an answer that went to chat", () => {
     setAssistant({ assistantState: "answered-in-chat" });
-    render(<AssistantButton inCall />);
+    render(<AssistantPanel inCall />);
     expect(screen.getByTestId("assistant-state")).toHaveTextContent(
       "Answered in chat",
     );

@@ -371,6 +371,12 @@ model AiCall {
 /// unique index, so the migration adds one in raw SQL (`Meeting_workspaceId_live_key`
 /// on `workspaceId` where `status = 'LIVE'`); it is what makes concurrent starts
 /// race safely.
+///
+/// A user also has at most one LIVE meeting with source FREE, across every
+/// workspace: a second partial unique index (`Meeting_startedById_free_live_key`
+/// on `startedById` where `status = 'LIVE' AND source = 'FREE'`, again raw SQL
+/// in its migration) stops one user's free allowance from being handed to
+/// several meetings at once, since it is only charged when a meeting ends.
 model Meeting {
   id            String        @id @default(cuid())
   workspaceId   String

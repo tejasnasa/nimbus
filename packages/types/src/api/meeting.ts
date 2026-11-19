@@ -97,7 +97,8 @@ export type SegmentDTO = {
 
 /** The reason and the fix when the assistant cannot be started. */
 export type AssistantRefusalDTO = {
-  reason: AiVoiceUnavailableReason;
+  /** A voice reason, or `free-voice-in-use` when the caller's free assistant is live elsewhere. */
+  reason: AiVoiceUnavailableReason | "free-voice-in-use";
   /** Which settings surface can fix it, if any. */
   cta: "add-key" | "manage-ai" | null;
 };

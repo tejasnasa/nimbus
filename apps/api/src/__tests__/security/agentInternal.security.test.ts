@@ -8,6 +8,8 @@
 import request from "supertest";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../app";
+import { REDEEM_LIMIT } from "../../middleware/agentAuth.middleware";
+import { redeemedKey } from "../../lib/meeting/lifecycle";
 import { issueTicket } from "../../lib/meeting/tickets";
 import { pubClient } from "../../lib/redis";
 import {
@@ -233,5 +235,59 @@ describe("security: agent internal API", () => {
         .send({ ticket: "t".repeat(43) });
       expect(res.status).toBe(401);
     }
+  });
+
+  it("records that the agent joined when a ticket is redeemed", async () => {
+    expect(await pubClient.exists(redeemedKey(meetingId))).toBe(0);
+
+    await redeem();
+
+    expect(await pubClient.exists(redeemedKey(meetingId))).toBe(1);
+  });
+
+  describe("redemption rate limit", () => {
+    const clearBucket = async () => {
+      const keys = await pubClient.keys("redeem-rl:*");
+      if (keys.length > 0) await pubClient.del(...keys);
+    };
+    beforeEach(clearBucket);
+    afterEach(clearBucket);
+
+    it("never lets anonymous requests consume the bucket the agent shares with them", async () => {
+      for (let i = 0; i < REDEEM_LIMIT + 5; i += 1) {
+        const anonymous = await request(app)
+          .post("/internal/agent/redeem")
+          .send({ ticket: "t".repeat(43) });
+        expect(anonymous.status).toBe(401);
+      }
+      expect(await pubClient.keys("redeem-rl:*")).toHaveLength(0);
+
+      const { res } = await redeem();
+      expect(res.status).toBe(200);
+    });
+
+    it("does not count successful redemptions", async () => {
+      for (let i = 0; i < REDEEM_LIMIT + 3; i += 1) {
+        const { res } = await redeem();
+        expect(res.status).toBe(200);
+      }
+    });
+
+    it("refuses the secret holder after too many failed redemptions, until the window clears", async () => {
+      for (let i = 0; i < REDEEM_LIMIT; i += 1) {
+        const failed = await request(app)
+          .post("/internal/agent/redeem")
+          .set(bearer)
+          .send({ ticket: "z".repeat(43) });
+        expect(failed.status).toBe(401);
+      }
+
+      const throttled = await redeem();
+      expect(throttled.res.status).toBe(401);
+
+      await clearBucket();
+      const { res } = await redeem();
+      expect(res.status).toBe(200);
+    });
   });
 });

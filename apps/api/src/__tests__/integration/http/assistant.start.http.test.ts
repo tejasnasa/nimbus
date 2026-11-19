@@ -19,7 +19,11 @@ import {
 } from "vitest";
 import { createApp } from "../../../app";
 import { getAgentDispatchClient } from "../../../lib/livekit/client";
-import { clearBackstops, hasBackstop } from "../../../lib/meeting/lifecycle";
+import {
+  clearBackstops,
+  hasBackstop,
+  hasDispatchTimeout,
+} from "../../../lib/meeting/lifecycle";
 import { TICKET_TTL_SECONDS } from "../../../lib/meeting/tickets";
 import { pubClient } from "../../../lib/redis";
 import {
@@ -280,6 +284,92 @@ describe("http: assistant start and stop", () => {
         budgetSeconds: 200,
       });
       expect(hasBackstop(res.body.responseObject.id)).toBe(true);
+    });
+
+    it("arms the timeout for an agent that never joins", async () => {
+      await addWorkspaceKey();
+
+      const res = await start(member);
+
+      expect(res.status).toBe(201);
+      expect(hasDispatchTimeout(res.body.responseObject.id)).toBe(true);
+    });
+
+    describe("one free assistant per user", () => {
+      let otherWorkspaceId: string;
+
+      beforeEach(async () => {
+        process.env.AI_VOICE_API_KEY = "operator-voice-key";
+        process.env.AI_FREE_VOICE_SECONDS = "300";
+        otherWorkspaceId = (await createWorkspace(member.id)).id;
+        await joinCall(member, otherWorkspaceId);
+      });
+
+      const startIn = (user: TestUser, id: string) =>
+        as(app, user).post("/api/meetings/assistant/start").send({ workspaceId: id });
+
+      it("refuses a second free start by the same user in another workspace", async () => {
+        const first = await start(member);
+        const second = await startIn(member, otherWorkspaceId);
+
+        expect(first.status).toBe(201);
+        expect(second.status).toBe(403);
+        expect(second.body.responseObject).toEqual({
+          reason: "free-voice-in-use",
+          cta: null,
+        });
+        expect(dispatch).toHaveBeenCalledOnce();
+        expect(
+          await testPrisma.meeting.count({
+            where: { startedById: member.id, source: "FREE", status: "LIVE" },
+          }),
+        ).toBe(1);
+      });
+
+      it("lets only one of two simultaneous free starts in different workspaces through", async () => {
+        const results = await Promise.all([
+          start(member),
+          startIn(member, otherWorkspaceId),
+        ]);
+
+        expect(results.map((r) => r.status).sort()).toEqual([201, 403]);
+        expect(
+          await testPrisma.meeting.count({
+            where: { startedById: member.id, source: "FREE", status: "LIVE" },
+          }),
+        ).toBe(1);
+      });
+
+      it("allows another free start once the first meeting has ended", async () => {
+        const first = await start(member);
+        await as(app, member).post(`/api/meetings/${first.body.responseObject.id}/assistant/stop`);
+
+        const second = await startIn(member, otherWorkspaceId);
+
+        expect(second.status).toBe(201);
+      });
+
+      it("does not limit a different user's free start", async () => {
+        const mine = await start(member);
+        await addMember(otherWorkspaceId, owner.id, "MEMBER");
+        const theirs = await startIn(owner, otherWorkspaceId);
+
+        expect(mine.status).toBe(201);
+        expect(theirs.status).toBe(201);
+      });
+
+      it("does not limit a workspace-key meeting while a free one is live", async () => {
+        const free = await start(member);
+        await createWorkspaceAiCredential(otherWorkspaceId, "openai", {
+          verifiedKinds: ["text", "transcription"],
+        });
+
+        const byok = await startIn(member, otherWorkspaceId);
+
+        expect(free.body.responseObject.source).toBe("FREE");
+        expect(byok.status).toBe(201);
+        expect(byok.body.responseObject.source).toBe("BYOK");
+      });
     });
 
     it("returns the running meeting when started again, without a second dispatch", async () => {

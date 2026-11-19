@@ -1,8 +1,16 @@
 /**
  * @module api/middleware/agentAuth
  * @description Authentication for the internal agent routes, in three layers
- * that a request passes in order: a per-IP rate limit on ticket redemption, the
- * shared bearer secret, and (for everything after redemption) the session token.
+ * that a request passes in order: the shared bearer secret, a per-IP rate limit
+ * on failed ticket redemptions, and (for everything after redemption) the
+ * session token.
+ *
+ * @important The redemption limiter runs after the secret check and only
+ *            failures stay counted. Production sits behind a reverse proxy
+ *            without a trusted-proxy setting, so `req.ip` is one shared value
+ *            for every caller; a limiter that ran first would let anonymous
+ *            traffic fill the bucket and lock the real agent out. Do not move
+ *            it ahead of {@link requireAgentSecret}.
  *
  * @important Every failure is the same bare 401 envelope. The response never
  *            says whether the secret, the ticket or the session was the wrong
@@ -69,8 +77,11 @@ export function requireAgentSecret(
 }
 
 /**
- * Limits redemption attempts per IP. The over-limit answer is the ordinary 401,
- * so a brute-forcer cannot tell throttling from a wrong guess.
+ * Limits failed redemptions per IP. Mount it after {@link requireAgentSecret}.
+ * Every attempt is counted on arrival, so concurrent guesses cannot slip past,
+ * and a successful redemption is handed back with {@link refundRedeemAttempt}.
+ * The over-limit answer is the ordinary 401, so a brute-forcer cannot tell
+ * throttling from a wrong guess.
  */
 export async function redeemRateLimit(
   req: Request,
@@ -81,6 +92,7 @@ export async function redeemRateLimit(
     const key = `redeem-rl:${req.ip ?? "unknown"}`;
     const attempts = await pubClient.incr(key);
     if (attempts === 1) await pubClient.expire(key, REDEEM_WINDOW_SECONDS);
+    res.locals.redeemAttemptKey = key;
     if (attempts > REDEEM_LIMIT) return deny(res);
   } catch {
     // A Redis failure cannot be allowed to open the door; redemption needs
@@ -88,6 +100,20 @@ export async function redeemRateLimit(
     return deny(res);
   }
   next();
+}
+
+/**
+ * Gives back the attempt {@link redeemRateLimit} counted for this request, so
+ * only failed redemptions stay in the bucket.
+ */
+export async function refundRedeemAttempt(res: Response): Promise<void> {
+  const key = res.locals.redeemAttemptKey as string | undefined;
+  if (!key) return;
+  try {
+    await pubClient.decr(key);
+  } catch {
+    // A missed refund only makes the limiter stricter for the rest of the window.
+  }
 }
 
 /**

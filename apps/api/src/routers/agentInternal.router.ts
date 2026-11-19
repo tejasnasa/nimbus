@@ -12,6 +12,12 @@
  *            this router is excluded from request logging in `src/app.ts`; both
  *            must stay true. Failures of any kind are the same bare 401.
  *
+ * @important `POST /redeem` checks the agent secret before it rate-limits, and
+ *            only failed redemptions count against the limit. The limiter is
+ *            keyed on `req.ip`, which behind the production proxy is one
+ *            shared value, so anonymous requests must be refused before they
+ *            can touch the bucket.
+ *
  * @important Mounted in `src/app.ts` outside `master.router.ts` and outside
  *            `/api`, on its own bearer-secret and session-token guards instead
  *            of `authCheck`: the caller is a process, not a signed-in user. It
@@ -31,6 +37,7 @@ import {
 import {
   noStore,
   redeemRateLimit,
+  refundRedeemAttempt,
   requireAgentSecret,
   requireAgentSession,
 } from "../middleware/agentAuth.middleware";
@@ -41,11 +48,12 @@ agentInternalRouter.use(noStore);
 
 agentInternalRouter.post(
   "/redeem",
-  redeemRateLimit,
   requireAgentSecret,
+  redeemRateLimit,
   async (req, res) => {
     const io = req.app.get("io") as Server | undefined;
     const response = await redeem(req.body, { io });
+    if (response.success) await refundRedeemAttempt(res);
     return res.status(response.statusCode).json(response);
   },
 );

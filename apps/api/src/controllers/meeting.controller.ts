@@ -10,6 +10,13 @@
  * the voice entitlement, the free allowance, then the meeting row, the ticket
  * and the agent dispatch.
  *
+ * @important A user has at most one live free-tier meeting across all of their
+ *            workspaces, enforced by the partial unique index
+ *            `Meeting(startedById) WHERE status = 'LIVE' AND source = 'FREE'`.
+ *            The free allowance is only charged when a meeting ends, so
+ *            without it every workspace would be handed the whole remaining
+ *            balance. A refused start answers 403 `free-voice-in-use`.
+ *
  * @important One workspace has at most one live meeting. The check above is a
  *            fast path; the guarantee is the partial unique index on
  *            `Meeting(workspaceId) WHERE status = 'LIVE'`. When five starts race,
@@ -25,8 +32,9 @@
  *            a meeting id from another workspace is indistinguishable from one
  *            that does not exist.
  *
- * @important The free-budget backstop armed on start is process-local. See
- *            `lib/meeting/lifecycle` for why losing it is harmless.
+ * @important The free-budget backstop and the dispatch timeout armed on start are
+ *            process-local. See `lib/meeting/lifecycle` for why losing them is
+ *            harmless: boot recovery re-arms both.
  */
 import { prisma } from "@nimbus/db";
 import {
@@ -68,6 +76,7 @@ import {
 import { buildDiagramPrompt, runMeetingDiagram } from "../lib/meeting/diagram";
 import {
   armBudgetBackstop,
+  armDispatchTimeout,
   endMeeting,
   requestStop,
   toMeetingDTO,
@@ -91,6 +100,27 @@ const CTA: Record<VoiceRefusalReason, AssistantRefusalDTO["cta"]> = {
   "free-voice-exhausted": "add-key",
   "spend-cap-reached": "manage-ai",
 };
+
+const FREE_IN_USE_MESSAGE =
+  "Your free assistant is already running in another workspace. End that meeting to start one here.";
+
+/** A 403 for a free-tier start while the caller's free assistant is live elsewhere. */
+function freeInUseResponse() {
+  return new ServerResponse<AssistantRefusalDTO>(
+    false,
+    FREE_IN_USE_MESSAGE,
+    { reason: "free-voice-in-use", cta: null },
+    403,
+  );
+}
+
+/** Reads the caller's live free-tier meeting, in any workspace. */
+function findLiveFreeOf(userId: string) {
+  return prisma.meeting.findFirst({
+    where: { startedById: userId, source: "FREE", status: "LIVE" },
+    select: { id: true },
+  });
+}
 
 /** A 403 carrying the curated reason and which settings surface fixes it. */
 function refusalResponse(refusal: VoiceRefusal) {
@@ -116,7 +146,8 @@ function findLive(workspaceId: string) {
  * @param deps.io - Broadcaster for `meeting:started`.
  * @returns 201 with the meeting; 200 with the existing one when already
  *          running; 404 for a non-member; 409 when nobody is on the call; 403
- *          with the refusal reason; 502 when the agent cannot be dispatched.
+ *          with the refusal reason (including a free assistant already live in
+ *          another workspace); 502 when the agent cannot be dispatched.
  */
 export async function startAssistant(
   user: { id: string },
@@ -160,6 +191,7 @@ export async function startAssistant(
 
     let budgetSeconds: number | null = null;
     if (planned.plan.source === "free") {
+      if (await findLiveFreeOf(user.id)) return freeInUseResponse();
       const quota = await readVoiceQuotaState(user.id);
       if (quota.remaining < MIN_FREE_START_SECONDS) {
         return refusalResponse(voiceRefusal("free-voice-exhausted"));
@@ -186,6 +218,9 @@ export async function startAssistant(
           toMeetingDTO(winner),
           "Nimbus is already in the call",
         );
+      }
+      if (planned.plan.source === "free" && (await findLiveFreeOf(user.id))) {
+        return freeInUseResponse();
       }
       throw error;
     }
@@ -216,6 +251,7 @@ export async function startAssistant(
     const dto = toMeetingDTO(meeting);
     deps.io?.to(workspaceId).emit("meeting:started", dto);
     armBudgetBackstop(meeting, deps);
+    armDispatchTimeout(meeting, deps);
     return ServerResponse.created<MeetingDTO>(
       dto,
       "Nimbus is joining the call",

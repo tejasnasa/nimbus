@@ -20,6 +20,14 @@
  *            meeting's timestamps and capped at its budget, never from anything
  *            the agent reports. {@link recoverOrphanedMeetings} re-arms it.
  *
+ * @important A meeting whose agent never redeems its ticket is ended after
+ *            {@link DISPATCH_TIMEOUT_MS} with reason `dispatch-failed`, by a
+ *            process-local timer that {@link recoverOrphanedMeetings} re-arms
+ *            at boot. Redemption leaves a Redis marker
+ *            ({@link redeemedKey}); the meeting also counts as joined once it
+ *            has stored a caption. A meeting ended for this reason is never
+ *            charged, free or not, because no assistant ever ran.
+ *
  * @important The meeting's notes are queued from here, a few seconds after the
  *            transition (see `notes`), by the one caller whose update changed
  *            the row. Queuing never blocks or fails ending.
@@ -43,6 +51,9 @@ export type MeetingBroadcaster = Pick<Server, "to">;
 /** How long past its budget a free meeting may run before the server steps in. */
 export const BUDGET_GRACE_SECONDS = 20;
 
+/** How long an agent has to redeem its ticket before the meeting is given up on. */
+export const DISPATCH_TIMEOUT_MS = 90_000;
+
 /** How long the stop flag outlives the request that set it. */
 export const STOP_FLAG_TTL_SECONDS = 3600;
 
@@ -63,6 +74,10 @@ export type MeetingRow = {
 
 /** Redis key of the flag the agent reads as `stop: true`. */
 export const stopFlagKey = (meetingId: string) => `meeting:${meetingId}:stop`;
+
+/** Redis key set when the agent redeems its ticket for a meeting. */
+export const redeemedKey = (meetingId: string) =>
+  `meeting:${meetingId}:redeemed`;
 
 /** Redis key of the last assistant state broadcast for a meeting. */
 export const stateKey = (meetingId: string) => `meeting:${meetingId}:state`;
@@ -88,12 +103,33 @@ export function toMeetingDTO(row: MeetingRow): MeetingDTO {
 }
 
 const backstops = new Map<string, NodeJS.Timeout>();
+const dispatchTimers = new Map<string, NodeJS.Timeout>();
 
 /** Cancels a meeting's budget backstop, if one is armed. */
 function disarmBackstop(meetingId: string): void {
   const timer = backstops.get(meetingId);
   if (timer) clearTimeout(timer);
   backstops.delete(meetingId);
+}
+
+/** Cancels a meeting's dispatch timeout, if one is armed. */
+function disarmDispatchTimeout(meetingId: string): void {
+  const timer = dispatchTimers.get(meetingId);
+  if (timer) clearTimeout(timer);
+  dispatchTimers.delete(meetingId);
+}
+
+/**
+ * Records that the agent redeemed its ticket for a meeting.
+ *
+ * @param meetingId - The meeting.
+ * @param ttlSeconds - How long the marker lives; outlasts the agent session.
+ */
+export async function markRedeemed(
+  meetingId: string,
+  ttlSeconds: number,
+): Promise<void> {
+  await pubClient.set(redeemedKey(meetingId), "1", "EX", ttlSeconds);
 }
 
 /**
@@ -176,8 +212,9 @@ export async function endMeeting(
   if (!meeting) return { ended: false };
 
   disarmBackstop(meetingId);
+  disarmDispatchTimeout(meetingId);
 
-  if (meeting.source === "FREE") {
+  if (meeting.source === "FREE" && reason !== "dispatch-failed") {
     try {
       await chargeFreeSeconds(meeting);
     } catch (error) {
@@ -193,6 +230,7 @@ export async function endMeeting(
     .del(
       stopFlagKey(meetingId),
       stateKey(meetingId),
+      redeemedKey(meetingId),
       captionLanguagesKey(meetingId),
     )
     .catch(() => undefined);
@@ -260,20 +298,83 @@ export function armBudgetBackstop(
   backstops.set(meeting.id, timer);
 }
 
+/**
+ * Arms the timeout for an agent that never joins: if no agent has redeemed its
+ * ticket by {@link DISPATCH_TIMEOUT_MS} after the meeting started, the room is
+ * cleared of agents and the meeting ends as `dispatch-failed`.
+ *
+ * @param meeting - The meeting.
+ * @param deps.io - Broadcaster passed through to {@link endMeeting}.
+ * @param deps.now - The clock in milliseconds. Tests only.
+ * @param deps.timeoutMs - Overrides {@link DISPATCH_TIMEOUT_MS}. Tests only.
+ */
+export function armDispatchTimeout(
+  meeting: Pick<MeetingRow, "id" | "roomName" | "startedAt">,
+  deps: {
+    io?: MeetingBroadcaster;
+    now?: () => number;
+    timeoutMs?: number;
+  } = {},
+): void {
+  disarmDispatchTimeout(meeting.id);
+  const now = (deps.now ?? Date.now)();
+  const fireAt =
+    meeting.startedAt.getTime() + (deps.timeoutMs ?? DISPATCH_TIMEOUT_MS);
+  const timer = setTimeout(
+    () => {
+      dispatchTimers.delete(meeting.id);
+      void endIfNeverJoined(meeting, deps).catch((error: unknown) => {
+        console.error(
+          `[meeting] dispatch timeout failed for ${meeting.id}:`,
+          error instanceof Error ? error.name : "unknown error",
+        );
+      });
+    },
+    Math.max(0, fireAt - now),
+  );
+  timer.unref();
+  dispatchTimers.set(meeting.id, timer);
+}
+
+/** Ends a meeting whose agent has shown no sign of ever joining. */
+async function endIfNeverJoined(
+  meeting: Pick<MeetingRow, "id" | "roomName">,
+  deps: { io?: MeetingBroadcaster },
+): Promise<void> {
+  const [redeemed, row] = await Promise.all([
+    pubClient.exists(redeemedKey(meeting.id)),
+    prisma.meeting.findUnique({
+      where: { id: meeting.id },
+      select: { status: true, lastSeq: true },
+    }),
+  ]);
+  if (!row || row.status !== "LIVE") return;
+  if (redeemed === 1 || row.lastSeq > 0) return;
+  await removeAgents(meeting.roomName).catch(() => undefined);
+  await endMeeting(meeting.id, "dispatch-failed", { io: deps.io });
+}
+
+/** Whether a dispatch timeout is armed for a meeting. Tests only. */
+export function hasDispatchTimeout(meetingId: string): boolean {
+  return dispatchTimers.has(meetingId);
+}
+
 /** Whether a backstop is armed for a meeting. Tests only. */
 export function hasBackstop(meetingId: string): boolean {
   return backstops.has(meetingId);
 }
 
-/** Cancels every armed backstop. Tests only. */
+/** Cancels every armed backstop and dispatch timeout. Tests only. */
 export function clearBackstops(): void {
   for (const timer of backstops.values()) clearTimeout(timer);
   backstops.clear();
+  for (const timer of dispatchTimers.values()) clearTimeout(timer);
+  dispatchTimers.clear();
 }
 
 /**
  * Boot-time sweep: ends live meetings whose room no longer exists and re-arms
- * the budget backstop for those that remain.
+ * the budget backstop and the dispatch timeout for those that remain.
  *
  * A meeting can outlive its room when the API restarts while a call ends, or
  * the media server's webhook for it is lost. Without this the workspace would
@@ -307,6 +408,7 @@ export async function recoverOrphanedMeetings(
       if (result.ended) ended += 1;
     } else {
       armBudgetBackstop(meeting, deps);
+      armDispatchTimeout(meeting, deps);
     }
   }
   return ended;

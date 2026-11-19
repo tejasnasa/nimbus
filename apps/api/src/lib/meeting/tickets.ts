@@ -16,6 +16,10 @@
  *            minute; a refusal then ends the meeting rather than leaving it
  *            "joining".
  *
+ * @important A successful redemption also records that the agent joined, which
+ *            is what stops the meeting's dispatch timeout from ending it (see
+ *            `lifecycle`).
+ *
  * @important This is the only module allowed to import `voiceEntitlements`
  *            (enforced by a lint rule), which is what keeps the number of code
  *            paths that can produce a plaintext key at one.
@@ -31,7 +35,8 @@ import {
 import { resolveVoice } from "../ai/voiceEntitlements";
 import { env } from "../env";
 import { pubClient } from "../redis";
-import { createAgentSession } from "./agentSession";
+import { createAgentSession, SESSION_TTL_SECONDS } from "./agentSession";
+import { markRedeemed } from "./lifecycle";
 
 /** How long a ticket can wait to be redeemed, in seconds. */
 export const TICKET_TTL_SECONDS = 60;
@@ -113,6 +118,8 @@ export async function redeemTicket(ticket: string): Promise<RedeemResult> {
     providerId,
     credentialId: voice.credentialId,
   });
+
+  await markRedeemed(meetingId, SESSION_TTL_SECONDS);
 
   return {
     ok: true,

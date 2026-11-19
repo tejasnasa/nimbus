@@ -11,10 +11,14 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { resetLivekitClients } from "../../../lib/livekit/client";
 import {
   armBudgetBackstop,
+  armDispatchTimeout,
   clearBackstops,
+  DISPATCH_TIMEOUT_MS,
   endLiveMeetingOf,
   endMeeting,
   hasBackstop,
+  hasDispatchTimeout,
+  markRedeemed,
   recoverOrphanedMeetings,
   requestStop,
   stopFlagKey,
@@ -326,6 +330,87 @@ describe("meeting lifecycle", () => {
       expect(hasBackstop(meeting.id)).toBe(true);
       clearBackstops();
       expect(hasBackstop(meeting.id)).toBe(false);
+    });
+  });
+
+  describe("dispatch timeout", () => {
+    const statusOf = async (id: string) =>
+      testPrisma.meeting.findUniqueOrThrow({ where: { id } });
+
+    it("ends a meeting whose agent never redeemed as dispatch-failed, without charging", async () => {
+      const meeting = await createMeeting(workspaceId, {
+        startedById: userId,
+        source: "FREE",
+        budgetSeconds: 300,
+        startedAt: secondsAgo(80),
+      });
+      const { io, sent } = recorder();
+
+      armDispatchTimeout(meeting, { io, timeoutMs: 100 });
+      expect(hasDispatchTimeout(meeting.id)).toBe(true);
+
+      await vi.waitFor(async () => {
+        expect((await statusOf(meeting.id)).status).toBe("ENDED");
+      });
+      expect(await statusOf(meeting.id)).toMatchObject({ endReason: "dispatch-failed" });
+      expect(await used()).toBe(0);
+      expect(sent.map((s) => s.event)).toEqual(["meeting:ended"]);
+      expect(hasDispatchTimeout(meeting.id)).toBe(false);
+    });
+
+    it("leaves a meeting alone once its agent has redeemed", async () => {
+      const meeting = await createMeeting(workspaceId, {
+        startedById: userId,
+        startedAt: secondsAgo(80),
+      });
+      await markRedeemed(meeting.id, 60);
+
+      armDispatchTimeout(meeting, { timeoutMs: 50 });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect((await statusOf(meeting.id)).status).toBe("LIVE");
+    });
+
+    it("leaves a meeting alone once it has stored a caption", async () => {
+      const meeting = await createMeeting(workspaceId, {
+        startedById: userId,
+        startedAt: secondsAgo(80),
+      });
+      await testPrisma.meeting.update({ where: { id: meeting.id }, data: { lastSeq: 3 } });
+
+      armDispatchTimeout(meeting, { timeoutMs: 50 });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect((await statusOf(meeting.id)).status).toBe("LIVE");
+    });
+
+    it("is cancelled when the meeting ends first", async () => {
+      const meeting = await createMeeting(workspaceId, { startedById: userId });
+      armDispatchTimeout(meeting);
+
+      await endMeeting(meeting.id, "stopped");
+
+      expect(hasDispatchTimeout(meeting.id)).toBe(false);
+    });
+
+    it("uses a named timeout of about a minute and a half", () => {
+      expect(DISPATCH_TIMEOUT_MS).toBe(90_000);
+    });
+
+    it("is re-armed at boot, and ends an unredeemed meeting older than the timeout", async () => {
+      await joinCall({ id: userId, name: "Starter" }, workspaceId);
+      const stale = await createMeeting(workspaceId, {
+        startedById: userId,
+        startedAt: secondsAgo(DISPATCH_TIMEOUT_MS / 1000 + 30),
+      });
+
+      expect(await recoverOrphanedMeetings()).toBe(0);
+      expect(hasDispatchTimeout(stale.id)).toBe(true);
+
+      await vi.waitFor(async () => {
+        expect((await statusOf(stale.id)).status).toBe("ENDED");
+      });
+      expect(await statusOf(stale.id)).toMatchObject({ endReason: "dispatch-failed" });
     });
   });
 

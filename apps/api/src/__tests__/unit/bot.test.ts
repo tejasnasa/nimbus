@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/unit/bot
- * @description The NimbusBot decision pipeline. The LLM client is mocked (never
+ * @description The Nimbus decision pipeline. The LLM client is mocked (never
  * call a real model), but history is assembled from a real database so the
  * 20-message window and role mapping are exercised against actual rows.
  *
@@ -585,7 +585,7 @@ describe("lib/bot", () => {
       const author = await createUser("Grace");
       await createMessage(workspaceId, author.id, "first");
       await createMessage(workspaceId, author.id, "second");
-      await createMessage(workspaceId, author.id, "@nimbusbot what is this?");
+      await createMessage(workspaceId, author.id, "@nimbus what is this?");
 
       await generateBotResponse({
         workspaceId,
@@ -615,7 +615,7 @@ describe("lib/bot", () => {
             "https://res.cloudinary.com/test/image/upload/v1/nimbus/chat/ws/old.jpg",
         },
       });
-      await createMessage(workspaceId, author.id, "@nimbusbot hello");
+      await createMessage(workspaceId, author.id, "@nimbus hello");
 
       await generateBotResponse({
         workspaceId,
@@ -851,11 +851,7 @@ describe("lib/bot search_workspace", () => {
 
     const author = await createUser("Ada Lovelace");
     workspaceId = (await createWorkspace(author.id)).id;
-    await createMessage(
-      workspaceId,
-      author.id,
-      "@nimbusbot where is the plan?",
-    );
+    await createMessage(workspaceId, author.id, "@nimbus where is the plan?");
   });
 
   it("searches once, hands the results back and answers", async () => {
@@ -1189,11 +1185,7 @@ describe("lib/bot meeting tools", () => {
     const asker = await createUser("Ada Lovelace");
     askerId = asker.id;
     workspaceId = (await createWorkspace(asker.id)).id;
-    await createMessage(
-      workspaceId,
-      asker.id,
-      "@nimbusbot what did we decide?",
-    );
+    await createMessage(workspaceId, asker.id, "@nimbus what did we decide?");
   });
 
   const ask = (options: { userId?: string; allowSearch?: boolean } = {}) =>

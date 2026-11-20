@@ -80,11 +80,11 @@ describe("chat bubbles with an image", () => {
 
   it("ChatMsgB keeps the text next to the image", () => {
     const { container } = render(
-      <ChatMsgB {...base} message="hi @nimbusbot" imageUrl={FULL} />,
+      <ChatMsgB {...base} message="hi @nimbus" imageUrl={FULL} />,
     );
 
     expect(container.querySelector(".rounded-tr-sm")!.textContent).toBe(
-      "hi @nimbusbot",
+      "hi @nimbus",
     );
   });
 });

@@ -5,7 +5,7 @@
  * highlight, and dashed SVG orbit arcs. Fixed 120px box; no props or state.
  */
 
-/** Animated orb shown while NimbusBot generates docs or canvas content. */
+/** Animated orb shown while Nimbus generates docs or canvas content. */
 export function AIGenOrb() {
   return (
     <div

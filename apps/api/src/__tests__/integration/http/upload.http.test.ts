@@ -285,7 +285,7 @@ describe("http: upload — post-delete avatar cleanup", () => {
     expect(res.status).toBe(200);
   });
 
-  it("skips the destroy call for NimbusBot (no avatar by construction)", async () => {
+  it("skips the destroy call for Nimbus (no avatar by construction)", async () => {
     // The bot owns no avatar asset — calling destroy with the bot's id
     // would be a no-op (Cloudinary returns "not found") but would still
     // generate a network call. Guarding the call site is cheaper than

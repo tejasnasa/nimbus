@@ -103,11 +103,11 @@ describe("AvatarGroup", () => {
 });
 
 describe("ChatMsgA", () => {
-  const base = { name: "NimbusBot", image: "/bot.png", message: "hello", time: "12:00" };
+  const base = { name: "Nimbus", image: "/bot.png", message: "hello", time: "12:00" };
 
   it("renders the sender, message and hover timestamp", () => {
     const { container } = render(<ChatMsgA {...base} />);
-    expect(container.textContent).toContain("NimbusBot");
+    expect(container.textContent).toContain("Nimbus");
     expect(container.textContent).toContain("hello");
     expect(container.textContent).toContain("12:00");
   });
@@ -159,7 +159,7 @@ describe("ChatMsgB", () => {
       <ChatMsgB
         name="Ada"
         image="/ada.png"
-        message="hey @nimbusbot make a diagram"
+        message="hey @nimbus make a diagram"
         time="12:02"
       />,
     );
@@ -167,7 +167,21 @@ describe("ChatMsgB", () => {
     const mention = queryAll<HTMLSpanElement>(container, "span").find((span) =>
       span.className.includes("text-(--chart-2)"),
     );
-    expect(mention?.textContent).toBe("@nimbusbot");
+    expect(mention?.textContent).toBe("@nimbus");
+  });
+
+  it("still highlights the original @nimbusbot spelling, and only whole handles", () => {
+    const highlighted = (message: string) => {
+      const { container } = render(
+        <ChatMsgB name="Ada" image="/ada.png" message={message} time="12:02" />,
+      );
+      return queryAll<HTMLSpanElement>(container, "span")
+        .filter((span) => span.className.includes("text-(--chart-2)"))
+        .map((span) => span.textContent);
+    };
+
+    expect(highlighted("hey @NimbusBot go")).toEqual(["@NimbusBot"]);
+    expect(highlighted("hey @nimbusapp go")).toEqual([]);
   });
 });
 

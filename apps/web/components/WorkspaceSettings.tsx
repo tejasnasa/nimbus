@@ -36,11 +36,11 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * `SettingTabs` with General (rename form, dirty-gated save), Members
  * (role OptionMenu + remove confirmations), Documents (a keyword search box,
  * create dialog with MARKDOWN/CANVAS ToggleGroup, a "From an image…" shortcut
- * that uploads a picture and asks NimbusBot to diagram it, and per-doc rename,
+ * that uploads a picture and asks Nimbus to diagram it, and per-doc rename,
  * download and delete; the list follows `document:*` events live), AI (workspace provider keys,
  * models, assistant switches and spend cap for admins; a read-only summary for
  * members), Usage (admins only: the AI call log), Meetings (every member:
- * the calls NimbusBot joined with their notes, action items and transcripts,
+ * the calls Nimbus joined with their notes, action items and transcripts,
  * searchable, in the viewer's caption language where translations are stored;
  * `initialTab="Meetings"` lands here from the call card), Captions (the viewer's own live caption look and
  * language, when a user is given), and Permissions (invite
@@ -57,7 +57,7 @@ import WorkspaceMeetingsPanel from "./WorkspaceMeetingsPanel";
 import WorkspaceUsagePanel from "./WorkspaceUsagePanel";
 
 /** The chat message "From an image…" posts alongside the uploaded picture. */
-const IMAGE_TO_DIAGRAM_MESSAGE = "@nimbusbot turn this into a diagram";
+const IMAGE_TO_DIAGRAM_MESSAGE = "@nimbus turn this into a diagram";
 
 /**
  * @param props.workspace - Workspace under edit (seeds the rename form).

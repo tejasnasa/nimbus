@@ -1,5 +1,26 @@
 /**
- * Discriminated union returned by the NimbusBot AI pipeline.
+ * Matches a mention of the chat assistant: `@nimbus`, or the original
+ * `@nimbusbot`, in any case. The trailing word boundary keeps `@nimbusapp` and
+ * `@nimbuses` from counting. Carries no `g` flag, so `.test()` is stateless.
+ *
+ * @important The one definition every mention check shares. The old
+ *            `@nimbusbot` spelling stays matched because earlier messages and
+ *            habits still use it; do not narrow it to the new name alone.
+ */
+export const BOT_MENTION = /@nimbus(?:bot)?\b/i;
+
+/**
+ * Whether a chat message addresses the assistant.
+ *
+ * @param text - Raw message content.
+ * @returns True when `text` contains a {@link BOT_MENTION}.
+ */
+export function mentionsBot(text: string): boolean {
+  return BOT_MENTION.test(text);
+}
+
+/**
+ * Discriminated union returned by the Nimbus chat AI pipeline.
  *
  * `generateBotResponse()` decides between three variants:
  * - `reply`: a plain chat answer, emitted back to the room as a message.

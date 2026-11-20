@@ -1,6 +1,6 @@
 /**
  * @module api/lib/bot
- * @description NimbusBot chat pipeline: loads the last 20 workspace messages
+ * @description Nimbus chat pipeline: loads the last 20 workspace messages
  * as LLM history (bot rows → assistant, others prefixed `Name:`), calls the
  * model the resolver chose (the workspace's key or the free tier) with two
  * strict tools — `create_document` (MARKDOWN for text, CANVAS for diagrams) and
@@ -50,7 +50,7 @@
  *            point of view, not a failure.
  */
 import { prisma } from "@nimbus/db";
-import { BotResult, normalizeTimeZone } from "@nimbus/types";
+import { BotResult, mentionsBot, normalizeTimeZone } from "@nimbus/types";
 import { withAiCall, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
 import { searchDocuments } from "./documentSearch";
@@ -76,7 +76,7 @@ import { now, runWithClockOverride } from "./time/clock";
 export const MAX_SEARCH_ROUNDS = 2;
 
 /**
- * The meeting tools NimbusBot offers in chat. `search_meetings` is left out:
+ * The meeting tools Nimbus offers in chat. `search_meetings` is left out:
  * `search_workspace` already searches transcripts, and two searches over the
  * same rows only invite the model to run both.
  */
@@ -263,7 +263,7 @@ async function recallBlockFor(
     const newestFirst = [...messages].reverse();
     const asking =
       newestFirst.find(
-        (message) => !isBot(message) && /@nimbusbot/i.test(message.content),
+        (message) => !isBot(message) && mentionsBot(message.content),
       ) ?? newestFirst.find((message) => !isBot(message));
     if (!asking) return "";
     const result = await recall(
@@ -359,7 +359,7 @@ async function generateBotResponseAt(
       botUserId,
     );
 
-    let instructions = `You are Nimbus Bot, the official AI companion for the Nimbus collaborative workspace.
+    let instructions = `You are Nimbus, the official AI companion for the Nimbus collaborative workspace.
 
 You can create documents for users. When they ask you to create, write, draft, make,
 or generate a document, note, diagram, flowchart, wireframe, canvas, or any written
@@ -376,7 +376,7 @@ Your role is to assist users within their workspaces. Here is how they can perfo
 - Invite Others: Go to workspace Settings (gear icon) -> 'Permissions' tab to copy the unique Invite Code.
 
 STRICT RULES:
-- Reply to messages which called you using @NimbusBot or something similar.
+- Your name is Nimbus. Reply to messages which called you using @nimbus (or the older @nimbusbot) or something similar.
 - ALWAYS reply in simple text, not markdown. Do not use symbols like ** or # for formatting. The one exception is a document link, written exactly as given to you.
 - Keep your responses helpful, concise, and professional yet friendly.
 - Line breaks are allowed.

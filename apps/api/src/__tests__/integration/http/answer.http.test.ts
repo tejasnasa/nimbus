@@ -264,7 +264,7 @@ describe("http: agent answer and notice", () => {
     expect(row).toMatchObject({ feature: "SPEECH", characters: 120 });
   });
 
-  it("posts a budget notice to chat as NimbusBot, with the server's own words", async () => {
+  it("posts a budget notice to chat as Nimbus, with the server's own words", async () => {
     const res = await agent("/notice").send({ kind: "budget-warning" });
     expect(res.status).toBe(200);
     expect(res.body.responseObject).toEqual({ stop: false });

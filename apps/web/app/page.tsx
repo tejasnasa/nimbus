@@ -211,7 +211,7 @@ export default function LandingPage() {
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
                 Instant messaging with live updates. See who&apos;s online and
-                watch typing indicators appear, with @NimbusBot mentions
+                watch typing indicators appear, with @Nimbus mentions
                 highlighted inline.
               </p>
             </div>
@@ -275,8 +275,8 @@ export default function LandingPage() {
                 AI Workspace Copilot
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Mention @NimbusBot in chat and it answers from your conversation
-                — or drafts a spec, note, or flowchart straight into the
+                Mention @Nimbus in chat and it answers from your conversation —
+                or drafts a spec, note, or flowchart straight into the
                 workspace.
               </p>
             </div>
@@ -318,7 +318,7 @@ export default function LandingPage() {
                   <span className="w-5 h-5 rounded-full bg-(--chart-2)/20 flex items-center justify-center shrink-0">
                     <span className="w-2 h-2 rounded-full bg-(--chart-2)" />
                   </span>
-                  Built-in AI with @NimbusBot
+                  Built-in AI with @Nimbus
                 </li>
               </ul>
             </div>
@@ -653,8 +653,8 @@ export default function LandingPage() {
                 Start Collaborating
               </h3>
               <p className="text-sm text-(--muted-foreground) leading-relaxed">
-                Chat, edit docs, ask @NimbusBot, and ship features — all from
-                one unified workspace. Everything updates in real-time.
+                Chat, edit docs, ask @Nimbus, and ship features — all from one
+                unified workspace. Everything updates in real-time.
               </p>
             </div>
           </div>
@@ -732,8 +732,8 @@ export default function LandingPage() {
               </div>
               <p className="text-sm text-(--muted-foreground) leading-relaxed mb-6">
                 &ldquo;The AI assistant built right into chat is genius. We ask
-                @NimbusBot to summarize discussions, and it saves us so much
-                time in stand-ups.&rdquo;
+                @Nimbus to summarize discussions, and it saves us so much time
+                in stand-ups.&rdquo;
               </p>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-(--sidebar-primary)/20 flex items-center justify-center text-sm font-semibold text-(--sidebar-primary)">

@@ -181,7 +181,7 @@ export function searchMeetings(workspaceId: string, query: string, limit = 20) {
 }
 
 /**
- * Asks NimbusBot to draw a meeting's discussion as a new canvas. Progress
+ * Asks Nimbus to draw a meeting's discussion as a new canvas. Progress
  * arrives over the document generation socket events.
  *
  * @param meetingId - The meeting, which must have notes.

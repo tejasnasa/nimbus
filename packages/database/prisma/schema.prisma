@@ -528,7 +528,7 @@ enum MemberRole {
   OWNER
   /// Can manage documents and members, but not delete the workspace.
   ADMIN
-  /// Read/write participant; NimbusBot is added as ADMIN to every workspace.
+  /// Read/write participant; Nimbus is added as ADMIN to every workspace.
   MEMBER
 }
 
@@ -544,7 +544,7 @@ enum DocumentType {
 /// `AiFeature` type in `packages/types/src/ai/providers.ts`; kept here as an
 /// enum so the database can enforce it.
 enum AiFeature {
-  /// NimbusBot chat replies.
+  /// Nimbus chat replies.
   CHAT
   /// AI-generated markdown documents.
   MARKDOWN

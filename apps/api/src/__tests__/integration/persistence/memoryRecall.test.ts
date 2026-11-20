@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/integration/persistence/memoryRecall
- * @description NimbusBot's recall against a real database: meetings found by
+ * @description Nimbus's recall against a real database: meetings found by
  * the date a user names (in their timezone), with their decisions and the
  * CURRENT state of their action items; the workspace chat of that day; the
  * flags for "nothing recorded", "which meeting?"; keyword matches; the
@@ -116,7 +116,7 @@ beforeAll(async () => {
   workspaceId = (await createWorkspace(ada.id)).id;
   await addMember(workspaceId, grace.id);
   otherWorkspaceId = (await createWorkspace(ada.id, "Other")).id;
-  // The only other user row is NimbusBot, seeded by the database reset.
+  // The only other user row is Nimbus, seeded by the database reset.
   botUserId = (
     await testPrisma.user.findFirstOrThrow({
       where: { id: { notIn: [ada.id, grace.id] } },
@@ -243,7 +243,7 @@ beforeAll(async () => {
     workspaceId,
     ada.id,
     "2026-11-09T05:00:00Z",
-    "@nimbusbot what is the cheapest CRM?",
+    "@nimbus what is the cheapest CRM?",
   );
   await message(
     workspaceId,
@@ -389,14 +389,14 @@ describe("recall: chat", () => {
     const result = await run("What did I ask you on Monday?");
     expect(result.chat.map((line) => line.author)).toEqual([
       "Ada Lovelace",
-      "NimbusBot",
+      "Nimbus",
       "Grace Hopper",
     ]);
     expect(result.block).toContain(
-      "[Mon 2026-11-09 10:30] Ada Lovelace: @nimbusbot what is the cheapest CRM?",
+      "[Mon 2026-11-09 10:30] Ada Lovelace: @nimbus what is the cheapest CRM?",
     );
     expect(result.block).toContain(
-      "[Mon 2026-11-09 10:30] NimbusBot: HubSpot has a free tier.",
+      "[Mon 2026-11-09 10:30] Nimbus: HubSpot has a free tier.",
     );
   });
 

@@ -151,7 +151,7 @@ describe("MeetingDetail: the notes", () => {
     renderDetail();
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "NimbusBot is writing the notes",
+      "Nimbus is writing the notes",
     );
     expect(screen.getByTestId("meeting-status")).toHaveTextContent(
       "Writing notes…",
@@ -217,7 +217,7 @@ describe("MeetingDetail: the notes", () => {
       ),
     );
     renderDetail();
-    await screen.findByText(/NimbusBot is writing the notes/);
+    await screen.findByText(/Nimbus is writing the notes/);
 
     act(() =>
       fakeSocket.fire("meeting:notes-ready", {

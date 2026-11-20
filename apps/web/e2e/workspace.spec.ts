@@ -5,7 +5,7 @@ import { test, expect, e2eState } from "./fixtures";
  *
  * Creation is worth driving end to end: it runs a single Prisma transaction that
  * adds the creator as OWNER, seeds a CANVAS and a MARKDOWN document, and inserts
- * NimbusBot as an ADMIN member. A failure anywhere in that chain surfaces here as
+ * Nimbus as an ADMIN member. A failure anywhere in that chain surfaces here as
  * a 500 instead of a room.
  */
 

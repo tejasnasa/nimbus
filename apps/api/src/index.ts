@@ -8,7 +8,7 @@
  *            the required/optional split.
  *
  * @important Startup needs valid configuration and a reachable, migrated
- *            database: NimbusBot's user row is upserted before the server binds
+ *            database: Nimbus's user row is upserted before the server binds
  *            (see `lib/botUser`), and a failure there exits non-zero.
  *
  * @important Live meetings whose media room no longer exists are ended at boot

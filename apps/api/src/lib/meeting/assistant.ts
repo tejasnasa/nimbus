@@ -13,7 +13,7 @@
  * A spoken reply is stored as a caption under the sequence number the agent
  * reserved for it, so captions, the transcript and the notes include what the
  * assistant said. When the assistant may not speak, the same reply is posted to
- * chat as NimbusBot and the call is told with `meeting:assistant-state`
+ * chat as Nimbus and the call is told with `meeting:assistant-state`
  * `answered-in-chat`.
  *
  * @important Write tools run before speaking starts. Text produced in a round

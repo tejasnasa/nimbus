@@ -39,7 +39,7 @@ const SAMPLE_LINES = [
   { speaker: "Ada", text: "Shall we go through the launch checklist?" },
   { speaker: "Grace", text: "Sure, the docs are ready for review." },
   { speaker: "Ada", text: "Great, I'll share the timeline next." },
-  { speaker: "NimbusBot", text: "I've noted three action items so far." },
+  { speaker: "Nimbus", text: "I've noted three action items so far." },
   { speaker: "Grace", text: "Can we move the demo to Thursday?" },
   { speaker: "Ada", text: "Thursday works, let's lock it in." },
 ];

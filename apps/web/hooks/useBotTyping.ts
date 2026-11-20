@@ -1,6 +1,6 @@
 /**
  * @module web/hooks/useBotTyping
- * @description Whether NimbusBot is currently working on a reply in a
+ * @description Whether Nimbus is currently working on a reply in a
  * workspace, from the server's `bot:typing` signal. The indicator ends when the
  * server says so, when a message from the bot arrives, or after a safety
  * timeout, so a lost `typing: false` can never leave it on for good.

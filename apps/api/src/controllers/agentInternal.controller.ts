@@ -287,7 +287,7 @@ export async function postAnswer(
 
 /**
  * Posts one of the agent's fixed notices (free time running out, or gone) to
- * the workspace chat as NimbusBot. The text is chosen here from the notice
+ * the workspace chat as Nimbus. The text is chosen here from the notice
  * kind; the agent never supplies words for chat.
  *
  * @param context - The authenticated session and its meeting.

@@ -1,6 +1,6 @@
 /**
  * @module api/lib/botUser
- * @description Guarantees that NimbusBot's `user` row exists.
+ * @description Guarantees that Nimbus's `user` row exists, under its current name.
  *
  * Workspace creation inserts the bot as an ADMIN member, and
  * `WorkspaceMember.userId` is a foreign key to `user.id`. Nothing in the
@@ -15,10 +15,18 @@
  *
  * @important The upsert is keyed on `id`, not on the address. The `.invalid`
  *            TLD is reserved by RFC 2606, so the address can never belong to a
- *            real user, and a pre-existing row with this id is left untouched.
+ *            real user. An existing row keeps its address and everything else,
+ *            but its `name` is rewritten on every boot, so a deployment that
+ *            still carries the bot's old display name picks up the new one.
+ *
+ * @important {@link BOT_USER_EMAIL} keeps the original `nimbusbot` spelling. It
+ *            is an identity key rather than a label; do not rename it.
  */
 import { prisma } from "@nimbus/db";
 import { env } from "./env";
+
+/** Display name stored on the bot's user row. */
+export const BOT_USER_NAME = "Nimbus";
 
 /** Address stored on the bot's user row. `.invalid` can never be registered. */
 export const BOT_USER_EMAIL = "nimbusbot@nimbus.invalid";
@@ -29,7 +37,8 @@ export type BotUserDb = {
 };
 
 /**
- * Creates the bot's user row when it is missing; a no-op when it exists.
+ * Creates the bot's user row when it is missing, and renames an existing one
+ * to {@link BOT_USER_NAME}.
  *
  * @param db - Prisma client to write through. Defaults to the shared client;
  *             tests pass their own pool.
@@ -48,10 +57,10 @@ export async function ensureBotUser(
     where: { id: botUserId },
     create: {
       id: botUserId,
-      name: "NimbusBot",
+      name: BOT_USER_NAME,
       email: BOT_USER_EMAIL,
       emailVerified: true,
     },
-    update: {},
+    update: { name: BOT_USER_NAME },
   });
 }

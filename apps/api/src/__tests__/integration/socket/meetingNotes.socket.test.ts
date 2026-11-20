@@ -2,7 +2,7 @@
  * @module api/__tests__/integration/socket/meetingNotes.socket
  * @description What a workspace hears when notes are written and when action
  * items or meetings change: `meeting:notes-ready`, `meeting:action-items`, the
- * NimbusBot chat message with the notes link, and `meeting:deleted`. Real
+ * Nimbus chat message with the notes link, and `meeting:deleted`. Real
  * sockets, Postgres and Redis (the adapter publishes every broadcast); the
  * model is a stub.
  *
@@ -123,7 +123,7 @@ describe("socket: meeting notes broadcasts", () => {
     await seedTranscript(meetingId, SAMPLE_LINES);
   });
 
-  it("announces the notes, the action items and a NimbusBot message with the link", async () => {
+  it("announces the notes, the action items and a Nimbus message with the link", async () => {
     createMock.mockResolvedValue(modelReply(sampleNotes()));
     const listener = await joined(member);
     const outsiderSocket = connectClient(url, { Cookie: outsider.cookie });

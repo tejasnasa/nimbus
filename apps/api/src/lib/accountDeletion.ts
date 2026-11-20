@@ -16,7 +16,7 @@
  *            neither would otherwise disconnect a live participant. Best
  *            effort: a failure never blocks the deletion.
  *
- * @important Skips for NimbusBot. The bot is added as ADMIN to every
+ * @important Skips for Nimbus. The bot is added as ADMIN to every
  *            workspace and cannot sign in, so the delete path should be
  *            unreachable in practice — but the guard costs one line and its
  *            absence would risk deleting every workspace in the system.

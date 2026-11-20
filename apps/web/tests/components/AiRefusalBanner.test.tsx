@@ -18,14 +18,14 @@ describe("AiRefusalBanner", () => {
   it("renders the refusal message and an add-key CTA", () => {
     render(
       <AiRefusalBanner
-        message="Add your API key to chat with @NimbusBot."
+        message="Add your API key to chat with @Nimbus."
         cta="add-key"
         onCtaClickAction={() => {}}
       />,
     );
 
     expect(
-      screen.getByText("Add your API key to chat with @NimbusBot."),
+      screen.getByText("Add your API key to chat with @Nimbus."),
     ).toBeInTheDocument();
     expect(screen.getByTestId("ai-refusal-cta")).toHaveTextContent(
       "Add API key",
@@ -47,7 +47,7 @@ describe("AiRefusalBanner", () => {
   it("disables the CTA while another action is in flight", () => {
     render(
       <AiRefusalBanner
-        message="Add your API key to chat with @NimbusBot."
+        message="Add your API key to chat with @Nimbus."
         cta="add-key"
         onCtaClickAction={() => {}}
         ctaDisabled
@@ -60,14 +60,14 @@ describe("AiRefusalBanner", () => {
   it("surfaces the banner as an alert for assistive technology", () => {
     render(
       <AiRefusalBanner
-        message="Add your API key to chat with @NimbusBot."
+        message="Add your API key to chat with @Nimbus."
         cta="add-key"
         onCtaClickAction={() => {}}
       />,
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Add your API key to chat with @NimbusBot.",
+      "Add your API key to chat with @Nimbus.",
     );
   });
 

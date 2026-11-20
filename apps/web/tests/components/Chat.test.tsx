@@ -201,7 +201,7 @@ describe("Chat composer", () => {
     expect(textarea).toBeDisabled();
     expect(textarea).toHaveAttribute(
       "placeholder",
-      "Add an API key to chat with @NimbusBot",
+      "Add an API key to chat with @Nimbus",
     );
     expect(send).toBeDisabled();
 
@@ -373,7 +373,7 @@ describe("Chat composer: roles and the spend cap", () => {
     expect(screen.queryByTestId("ai-refusal-cta")).not.toBeInTheDocument();
     expect(screen.getByTestId("chat-composer")).toHaveAttribute(
       "placeholder",
-      "@NimbusBot is unavailable in this workspace",
+      "@Nimbus is unavailable in this workspace",
     );
   });
 

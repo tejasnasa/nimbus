@@ -3,7 +3,7 @@
  * @description Smoke coverage for the tabbed editor shell. The two editors it
  * hosts are stubbed so the test does not drag in Excalidraw or Milkdown; what is
  * asserted is the shell's own wiring: the tab strip reflects the documents it
- * was handed, and the NimbusBot socket events drive the generating pseudo-tab
+ * was handed, and the Nimbus socket events drive the generating pseudo-tab
  * and its overlay.
  */
 import "./testUtils";
@@ -125,7 +125,7 @@ describe("DocEditor", () => {
     expect(screen.queryByTestId("markdown")).not.toBeInTheDocument();
   });
 
-  it("subscribes to the NimbusBot generation events", () => {
+  it("subscribes to the Nimbus generation events", () => {
     renderEditor();
 
     expect(socket.on).toHaveBeenCalledWith(

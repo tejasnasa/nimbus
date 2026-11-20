@@ -4,7 +4,7 @@
  * @module web/components/WorkspaceMeetingsPanel
  * @description The workspace settings "Meetings" tab, open to every member. It
  * holds two views behind a switch: **Meetings** (a keyword search over every
- * transcript, then the paged list of calls NimbusBot was in, newest first, each
+ * transcript, then the paged list of calls Nimbus was in, newest first, each
  * with its title, date, length, starter and status) and **Action items**
  * (everything assigned across meetings, filtered to mine, open or all).
  *
@@ -199,8 +199,8 @@ export default function WorkspaceMeetingsPanel({
       ) : (
         <>
           <p className="text-sm text-(--muted-foreground)">
-            Calls NimbusBot joined in this workspace, with the notes it wrote.
-            Open one to read the notes and the transcript.
+            Calls Nimbus joined in this workspace, with the notes it wrote. Open
+            one to read the notes and the transcript.
           </p>
 
           <form
@@ -308,7 +308,7 @@ export default function WorkspaceMeetingsPanel({
                   className="text-sm text-(--muted-foreground)"
                   data-testid="meetings-empty"
                 >
-                  No meetings yet. Start NimbusBot in a call to record one.
+                  No meetings yet. Start Nimbus in a call to record one.
                 </p>
               ) : (
                 <ul

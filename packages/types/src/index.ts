@@ -178,6 +178,7 @@ export type { PointerTool, PresenceUser } from "./socket/presence";
 export type { VoiceUser } from "./socket/voice";
 
 export type { BotResult } from "./api/bot";
+export { BOT_MENTION, mentionsBot } from "./api/bot";
 
 export {
   AI_DEFAULT_VOICE,

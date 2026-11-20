@@ -1,7 +1,7 @@
 /**
  * @module api/lib/memory/recall
  * @description Looks up what the workspace already recorded about the past
- * before NimbusBot answers, with plain SQL and no model: meetings whose start
+ * before Nimbus answers, with plain SQL and no model: meetings whose start
  * falls in a date the user named (with their notes, decisions, open questions
  * and the CURRENT state of their action items), the workspace chat from that
  * period (the bot's replies and the messages that mentioned it first), and
@@ -34,7 +34,7 @@
  *            sends as real conversation turns) are never recalled again.
  */
 import { prisma } from "@nimbus/db";
-import { MeetingSummarySchema } from "@nimbus/types";
+import { MeetingSummarySchema, mentionsBot } from "@nimbus/types";
 import { searchSegments } from "../meeting/search";
 import { formatInZone } from "../time/dates";
 import {
@@ -135,7 +135,7 @@ export interface RecallOptions {
   tz: string;
   /** The current time, from `now()`. */
   now: Date;
-  /** NimbusBot's user id, so its messages are labelled as the bot's. */
+  /** Nimbus's user id, so its messages are labelled as the bot's. */
   botUserId?: string;
   tokenBudget?: number;
 }
@@ -387,7 +387,7 @@ function toChatLine(
   return {
     id: row.id,
     at: row.createdAt,
-    author: isBot ? "NimbusBot" : (row.user.name ?? "User"),
+    author: isBot ? "Nimbus" : (row.user.name ?? "User"),
     isBot,
     content: row.imageUrl ? `${text} [attached an image]`.trim() : text,
   };
@@ -684,9 +684,7 @@ export async function recall(
     hiddenMeetings = Math.max(0, meetingIds.length - MAX_RECALLED_MEETINGS);
     meetingIds = meetingIds.slice(0, MAX_RECALLED_MEETINGS);
     const priority = (line: RecalledChatLine) =>
-      line.isBot ||
-      /@nimbusbot/i.test(line.content) ||
-      keywordChatSet.has(line.id);
+      line.isBot || mentionsBot(line.content) || keywordChatSet.has(line.id);
     const first = rangeChat.filter(priority);
     const rest = rangeChat.filter((line) => !priority(line));
     const room = Math.max(0, MAX_CHAT_LINES - first.length);

@@ -1,7 +1,7 @@
 /**
  * @module api/__tests__/integration/socket/chat.memory
  * @description The time context a `message:send` carries: the sender's
- * timezone and a test clock override reach NimbusBot's model request, an
+ * timezone and a test clock override reach Nimbus's model request, an
  * unknown timezone falls back to UTC, and the override is ignored in
  * production. The SDK client is mocked at the factory; every broadcast a test
  * triggers (the echo, the bot's reply, the typing signal's end) is awaited
@@ -125,7 +125,7 @@ describe("socket: message:send time context", () => {
     const room = await join();
     room.socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot what day is it?",
+      content: "@nimbus what day is it?",
       ...extra,
     });
     await waitFor(
@@ -159,7 +159,7 @@ describe("socket: message:send time context", () => {
     });
     expect(context).toContain("Today is Wednesday 2026-11-11 (UTC).");
     expect(room.messages[0]).toMatchObject({
-      content: "@nimbusbot what day is it?",
+      content: "@nimbus what day is it?",
       userId: alice.id,
     });
   });
@@ -191,7 +191,7 @@ describe("socket: message:send time context", () => {
     vi.stubEnv("NODE_ENV", "production");
     room.socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot what day is it?",
+      content: "@nimbus what day is it?",
       timeZone: "UTC",
       clockOverride: "2020-02-02T10:00:00Z",
     });

@@ -275,7 +275,7 @@ describe("VoiceControls: in the call", () => {
       participants: [
         {
           userId: "agent-1",
-          name: "NimbusBot",
+          name: "Nimbus",
           image: null,
           isMuted: false,
           isAgent: true,
@@ -288,7 +288,7 @@ describe("VoiceControls: in the call", () => {
     expect(screen.getByText("Bot")).toBeInTheDocument();
     expect(screen.getByTestId("call-participant")).toHaveAttribute(
       "title",
-      "NimbusBot",
+      "Nimbus",
     );
   });
 

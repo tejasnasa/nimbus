@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * (`ChatMsgA`); Enter sends, Shift+Enter newlines. Typing indicators are
  * wired through `useTypingIndicator` so the composer emits throttled
  * `typing:start`/`typing:stop` events and renders peers' status as a
- * reserved-height line below the message list; NimbusBot appears there as a
+ * reserved-height line below the message list; Nimbus appears there as a
  * typer while the server's `bot:typing` signal (`useBotTyping`) is on.
  *
  * Images: the paperclip (or a file dropped on the composer) uploads straight to
@@ -28,7 +28,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * may be empty). Messages with an image render a thumbnail that opens full size.
  *
  * A message from someone else that contains `[label](nimbus-doc:<id>)` (the
- * notes link NimbusBot posts when a meeting is written up) shows the label as a
+ * notes link Nimbus posts when a meeting is written up) shows the label as a
  * button that opens the document through `useOpenDocument`. The workspace
  * settings dialog is not rendered here: this panel asks the shared
  * `WorkspaceSettingsProvider` to open it on the AI tab.
@@ -291,7 +291,7 @@ export default function Chat({
     return { ok: true as const };
   };
 
-  // A link in a message (the meeting notes NimbusBot posts) opens that document
+  // A link in a message (the meeting notes Nimbus posts) opens that document
   // in the editor; a failure is said in the same banner as other room errors.
   const handleOpenDocument = (documentId: string) => {
     void openDocument.open(documentId).then((opened) => {
@@ -302,8 +302,8 @@ export default function Chat({
   const placeholder = chatEnabled
     ? "Type a message..."
     : canManageAi
-      ? "Add an API key to chat with @NimbusBot"
-      : "@NimbusBot is unavailable in this workspace";
+      ? "Add an API key to chat with @Nimbus"
+      : "@Nimbus is unavailable in this workspace";
 
   return (
     <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
@@ -408,7 +408,7 @@ export default function Chat({
             message={
               capReached
                 ? "This workspace has reached its monthly AI spend cap."
-                : "This workspace has no AI key yet, so @NimbusBot cannot reply."
+                : "This workspace has no AI key yet, so @Nimbus cannot reply."
             }
             cta={capReached ? "manage-ai" : "add-key"}
             reason={chatStatus.reason}
@@ -420,7 +420,7 @@ export default function Chat({
           />
         )}
         <TypingIndicator
-          names={botTyping ? [...typingNames, "NimbusBot"] : typingNames}
+          names={botTyping ? [...typingNames, "Nimbus"] : typingNames}
         />
         {pendingImage.status !== "idle" && pendingImage.status !== "error" && (
           <div
@@ -548,7 +548,7 @@ export default function Chat({
         </form>
         <p className="text-[10px] text-(--muted-foreground)/60 mt-1 text-right px-1">
           {chatEnabled
-            ? "Ask anything from @NimbusBot"
+            ? "Ask anything from @Nimbus"
             : canManageAi
               ? "Add an API key to enable AI replies"
               : "AI replies are unavailable here"}

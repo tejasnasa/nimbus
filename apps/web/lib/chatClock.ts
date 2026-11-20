@@ -1,7 +1,7 @@
 /**
  * @module web/lib/chatClock
  * @description The time context a chat message carries to the API: the
- * viewer's IANA timezone, so NimbusBot resolves "on Tuesday" in the viewer's
+ * viewer's IANA timezone, so Nimbus resolves "on Tuesday" in the viewer's
  * own day, and an optional clock override for testing date handling.
  *
  * To try date-aware answers against seeded data in a development build, set

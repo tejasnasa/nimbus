@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/unit/memoryUnderstand
- * @description Date and intent parsing for NimbusBot's memory: which day a
+ * @description Date and intent parsing for Nimbus's memory: which day a
  * bare weekday or day-and-month means (always one that already happened),
  * "last week", day boundaries in the asker's timezone, and the difference
  * between a question about the workspace's own past and one about the world.
@@ -188,7 +188,7 @@ describe("references to the workspace's past", () => {
 describe("keywords", () => {
   it("drops stopwords, date words and bot words", () => {
     const u = understand(
-      "@NimbusBot what did we decide on Tuesday's call about postgres hosting?",
+      "@Nimbus what did we decide on Tuesday's call about postgres hosting?",
       NOW,
       TZ,
     );

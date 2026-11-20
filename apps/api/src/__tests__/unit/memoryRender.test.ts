@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/unit/memoryRender
- * @description The text NimbusBot is given about the past, without a
+ * @description The text Nimbus is given about the past, without a
  * database: the dated meeting rendering in its full and compact forms, the
  * per-turn context message, the token estimate, and the `message:send` time
  * fields' validation.

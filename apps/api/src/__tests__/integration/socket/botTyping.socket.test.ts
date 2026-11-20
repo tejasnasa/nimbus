@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/integration/socket/botTyping
- * @description `bot:typing` over a real socket server: on when NimbusBot starts
+ * @description `bot:typing` over a real socket server: on when Nimbus starts
  * answering a mention, off when the reply lands, a refusal or failure ends it,
  * the hand-over to document generation ends it before the overlay events, and
  * overlapping mentions are counted.
@@ -142,7 +142,7 @@ describe("socket: bot:typing", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot hi",
+      content: "@nimbus hi",
     });
     await waitFor(() => seen.includes("typing:off"), "typing to end");
 
@@ -164,7 +164,7 @@ describe("socket: bot:typing", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot hi",
+      content: "@nimbus hi",
     });
 
     await expect(on).resolves.toEqual({ workspaceId: wsId, typing: true });
@@ -218,7 +218,7 @@ describe("socket: bot:typing", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot write a doc",
+      content: "@nimbus write a doc",
     });
     await waitFor(() => seen.includes("doc:complete"), "the document");
 
@@ -240,7 +240,7 @@ describe("socket: bot:typing", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot hi",
+      content: "@nimbus hi",
     });
     await waitFor(() => seen.includes("typing:off"), "typing to end");
 
@@ -262,7 +262,7 @@ describe("socket: bot:typing", () => {
 
       socket.emit("message:send", {
         workspaceId: wsId,
-        content: "@nimbusbot hi",
+        content: "@nimbus hi",
       });
       await waitFor(() => seen.includes("refused"), "the refusal");
       await settle();
@@ -286,11 +286,11 @@ describe("socket: bot:typing", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot one",
+      content: "@nimbus one",
     });
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot two",
+      content: "@nimbus two",
     });
     await waitFor(() => releases.length === 2, "both model calls");
 

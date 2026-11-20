@@ -195,7 +195,7 @@ describe("contract: server→client socket events", () => {
     "doc:update",
     "doc:awareness",
     "doc:error",
-    // ── AI generation (NimbusBot) ──
+    // ── AI generation (Nimbus) ──
     "doc:ai:start",
     "doc:ai:thinking",
     "doc:ai:complete",

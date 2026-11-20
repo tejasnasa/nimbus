@@ -1,7 +1,7 @@
 /**
  * @module web/tests/components/WorkspaceSettingsImage
  * @description The add-document dialog's "From an image…" shortcut: it uploads
- * the picked picture and posts the same `@nimbusbot turn this into a diagram`
+ * the picked picture and posts the same `@nimbus turn this into a diagram`
  * chat message a member would type, with the image attached. There is no
  * second code path, so the test pins exactly the `message:send` it produces.
  *
@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 describe("Add document: from an image", () => {
-  it("uploads the picture and asks NimbusBot to diagram it", async () => {
+  it("uploads the picture and asks Nimbus to diagram it", async () => {
     upload.upload.mockResolvedValue(IMAGE);
     const user = await openDialog();
 
@@ -93,7 +93,7 @@ describe("Add document: from an image", () => {
     await waitFor(() =>
       expect(emit).toHaveBeenCalledWith("message:send", {
         workspaceId: workspace.id,
-        content: "@nimbusbot turn this into a diagram",
+        content: "@nimbus turn this into a diagram",
         imageUrl: IMAGE,
         timeZone: expect.any(String),
       }),

@@ -22,9 +22,9 @@ test.describe("chat", () => {
 
     // Both sockets must be in the workspace room before the send, or the
     // broadcast has nobody to reach and the test would flake rather than fail.
-    await expect(page.getByText("Ask anything from @NimbusBot")).toBeVisible();
+    await expect(page.getByText("Ask anything from @Nimbus")).toBeVisible();
     await expect(
-      memberPage.getByText("Ask anything from @NimbusBot"),
+      memberPage.getByText("Ask anything from @Nimbus"),
     ).toBeVisible();
 
     await page.getByPlaceholder("Type a message...").fill(content);

@@ -41,7 +41,7 @@ const envSchema = z.object({
   BETTER_AUTH_URL: required,
   FRONTEND_URL: required,
 
-  // ── NimbusBot identity ──
+  // ── Nimbus identity ──
   // The bot's own user row: workspace creation inserts it as ADMIN, bot messages
   // are persisted under it, and chat history is classified by comparing to it.
   BOT_USERID: required,
@@ -115,7 +115,7 @@ const envSchema = z.object({
   CLOUDINARY_API_SECRET: required,
 
   // ── Test clock ──
-  // Pins NimbusBot's idea of "now" (an ISO date or timestamp) so date-aware
+  // Pins Nimbus's idea of "now" (an ISO date or timestamp) so date-aware
   // answers can be exercised against seeded data. Ignored when NODE_ENV is
   // "production", where the real clock always applies.
   AGENT_NOW: z.string().optional(),

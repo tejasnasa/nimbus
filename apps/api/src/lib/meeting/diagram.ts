@@ -1,7 +1,7 @@
 /**
  * @module api/lib/meeting/diagram
  * @description Drawing a meeting's discussion: builds a prompt from the stored
- * notes and runs the same canvas generation NimbusBot uses, creating a new
+ * notes and runs the same canvas generation Nimbus uses, creating a new
  * canvas document and streaming `doc:ai:start`, `doc:ai:thinking` and then
  * `doc:ai:complete` or `doc:ai:error` to the workspace.
  *

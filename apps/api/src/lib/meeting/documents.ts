@@ -3,7 +3,7 @@
  * @description Writing a markdown document the assistant was asked for, in the
  * background: streams `doc:ai:start`, `doc:ai:thinking` and then
  * `doc:ai:complete` or `doc:ai:error` to the workspace, exactly as a document
- * NimbusBot creates from chat. Canvas documents go through
+ * Nimbus creates from chat. Canvas documents go through
  * `diagram.runMeetingDiagram`, which has the same shape.
  *
  * @important {@link runMarkdownDocument} never throws. A failure after a free

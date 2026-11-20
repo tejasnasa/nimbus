@@ -4,10 +4,11 @@
  * primary-tinted bubble on the right, avatar at the edge. Timestamp reveals
  * on hover. Pair with `ChatMsgA` for incoming messages.
  */
+import { BOT_MENTION } from "@nimbus/types";
 import Avatar from "./Avatar";
 import ChatImage from "./ChatImage";
 
-const MENTION = /(@nimbusbot)/gi;
+const MENTION = new RegExp(`(${BOT_MENTION.source})`, "gi");
 
 function HighlightMentions({ text }: { text: string }) {
   return (

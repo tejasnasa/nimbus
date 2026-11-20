@@ -16,7 +16,7 @@ import { pubClient } from "../src/lib/redis";
 export const testPrisma = createPrismaClient(process.env.DATABASE_URL);
 
 /**
- * Re-creates the NimbusBot user row, if `BOT_USERID` is configured.
+ * Re-creates the Nimbus user row, if `BOT_USERID` is configured.
  *
  * Truncation wipes it, and `createWorkspace` needs it for the bot's membership
  * foreign key. The upsert is the same one the server runs at boot, so the tests

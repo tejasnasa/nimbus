@@ -1,6 +1,6 @@
 /**
  * @module api/lib/time/clock
- * @description The one place the time-aware paths of NimbusBot read the time.
+ * @description The one place the time-aware paths of Nimbus read the time.
  * `now()` resolves, in order, a per-request override (carried with the chat
  * message and held in `AsyncLocalStorage` for the duration of the bot turn),
  * the `AGENT_NOW` environment variable, then the real clock. It exists so that
@@ -53,7 +53,7 @@ export function runWithClockOverride<T>(
 }
 
 /**
- * The current time as NimbusBot sees it.
+ * The current time as Nimbus sees it.
  *
  * @returns The request override, else `AGENT_NOW`, else the real clock; in
  *          production always the real clock.

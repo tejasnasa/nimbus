@@ -1,6 +1,6 @@
 /**
  * @module web/tests/components/AiGenOverlay
- * @description Behaviour of the NimbusBot generation status pane: the headline
+ * @description Behaviour of the Nimbus generation status pane: the headline
  * and status line per stage, the reasoning panel's visibility rules (which
  * differ between MARKDOWN and CANVAS), and the error dismissal affordance.
  */

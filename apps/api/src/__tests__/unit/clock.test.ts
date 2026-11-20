@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/unit/clock
- * @description The clock every time-aware path of NimbusBot reads: override,
+ * @description The clock every time-aware path of Nimbus reads: override,
  * then `AGENT_NOW`, then the real clock; and the rule that in production none
  * of the overrides is honoured.
  */

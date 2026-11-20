@@ -1,6 +1,6 @@
 /**
  * @module api/lib/memory/context
- * @description Builds the per-turn context message NimbusBot receives after
+ * @description Builds the per-turn context message Nimbus receives after
  * its fixed system prompt: today's date and time in the asker's timezone and,
  * when recall found anything, the dated block of recalled history.
  *

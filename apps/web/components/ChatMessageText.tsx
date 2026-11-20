@@ -1,7 +1,7 @@
 /**
  * @module web/components/ChatMessageText
  * @description The text of a chat message with one piece of markup understood:
- * a document link written `[label](nimbus-doc:<documentId>)`, which NimbusBot
+ * a document link written `[label](nimbus-doc:<documentId>)`, which Nimbus
  * posts when meeting notes are ready. It renders as a button that opens that
  * document in the editor. Everything else, including anything that looks like
  * HTML or other markdown, stays plain text.

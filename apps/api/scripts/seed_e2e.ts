@@ -64,7 +64,7 @@ async function main() {
   const botUserId = process.env.BOT_USERID;
   if (!botUserId) {
     throw new Error(
-      "BOT_USERID must be set — workspace creation inserts NimbusBot as a member.",
+      "BOT_USERID must be set — workspace creation inserts Nimbus as a member.",
     );
   }
 

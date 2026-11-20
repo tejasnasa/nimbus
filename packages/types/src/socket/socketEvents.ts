@@ -24,7 +24,7 @@ export type ClientToServerEvents = {
   "workspace:join": (workspaceId: string) => void;
   /** Leave the workspace room. */
   "workspace:leave": (workspaceId: string) => void;
-  /** Send a chat message; `@nimbusbot` mentions trigger the AI pipeline. */
+  /** Send a chat message; `@nimbus` mentions trigger the AI pipeline. */
   "message:send": (data: {
     workspaceId: string;
     content: string;
@@ -165,7 +165,7 @@ export type ServerToClientEvents = {
   "doc:awareness": (docId: string, update: number[]) => void;
   "doc:error": (message: string) => void;
   /**
-   * A document was created in the workspace, by a member, NimbusBot or a
+   * A document was created in the workspace, by a member, Nimbus or a
    * meeting's notes. Also sent for documents that arrive by `doc:ai:complete`
    * or `meeting:notes-ready`, so clients must treat it as idempotent by id.
    */
@@ -179,7 +179,7 @@ export type ServerToClientEvents = {
     deletedById: string;
   }) => void;
 
-  // ── AI generation (NimbusBot) ──
+  // ── AI generation (Nimbus) ──
   /** Bot started generating a document; clients show a GENERATING tab. */
   "doc:ai:start": (data: {
     type: "MARKDOWN" | "CANVAS";
@@ -196,7 +196,7 @@ export type ServerToClientEvents = {
   }) => void;
   "doc:ai:error": (data: { message: string }) => void;
   /**
-   * NimbusBot is working on a reply to a mention (`typing: true`) or has
+   * Nimbus is working on a reply to a mention (`typing: true`) or has
    * finished, failed or handed over to document generation (`typing: false`).
    */
   "bot:typing": (data: { workspaceId: string; typing: boolean }) => void;

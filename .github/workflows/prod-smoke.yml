@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_ai:
-        description: Skip the NimbusBot check (real model call)
+        description: Skip the Nimbus check (real model call)
         type: boolean
         default: false
 

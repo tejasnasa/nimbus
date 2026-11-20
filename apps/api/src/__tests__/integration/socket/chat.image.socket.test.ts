@@ -2,7 +2,7 @@
  * @module api/__tests__/integration/socket/chat.image
  * @description Images in chat, end to end over a real socket server: a message
  * with an image from the workspace's own folder persists and broadcasts, any
- * other URL is refused, and a `@nimbusbot` mention with an image is answered by
+ * other URL is refused, and a `@nimbus` mention with an image is answered by
  * the vision model and can become a canvas.
  *
  * The SDK client is mocked at the `clientFactory` boundary exactly as in the
@@ -247,7 +247,7 @@ describe("socket: chat images", () => {
     const refused = waitForEvent<string>(socket, "workspace:error");
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot read this",
+      content: "@nimbus read this",
       imageUrl: make(wsId),
     });
 
@@ -291,7 +291,7 @@ describe("socket: chat images", () => {
     const latest = imageIn(wsId, "latest");
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot what is this?",
+      content: "@nimbus what is this?",
       imageUrl: latest,
     });
 
@@ -324,7 +324,7 @@ describe("socket: chat images", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot hello",
+      content: "@nimbus hello",
     });
     await waitFor(() => createMock.mock.calls.length > 0, "a plain bot call");
     const plain = createMock.mock.calls[0]![0] as {
@@ -337,7 +337,7 @@ describe("socket: chat images", () => {
     createMock.mockClear();
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot diagram this",
+      content: "@nimbus diagram this",
       imageUrl: imageIn(wsId),
     });
     await waitFor(() => createMock.mock.calls.length > 0, "an image bot call");
@@ -368,7 +368,7 @@ describe("socket: chat images", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot turn this into a diagram",
+      content: "@nimbus turn this into a diagram",
       imageUrl: url,
     });
 
@@ -422,7 +422,7 @@ describe("socket: chat images", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot turn this into a diagram",
+      content: "@nimbus turn this into a diagram",
       imageUrl: imageIn(wsId),
     });
 
@@ -462,7 +462,7 @@ describe("socket: chat images", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot what is in this picture?",
+      content: "@nimbus what is in this picture?",
       imageUrl: imageIn(wsId),
     });
 

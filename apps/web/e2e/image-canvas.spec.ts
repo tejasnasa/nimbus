@@ -3,7 +3,7 @@ import { test, expect, e2eState } from "./fixtures";
 /**
  * Image to canvas, end to end.
  *
- * A picture is attached in the chat composer, `@nimbusbot` is asked to turn it
+ * A picture is attached in the chat composer, `@nimbus` is asked to turn it
  * into a diagram, the generation overlay appears, and a canvas tab opens whose
  * stored document holds the diagram's elements.
  *
@@ -32,7 +32,7 @@ const PIXEL = Buffer.from(
 );
 
 test.describe("image to canvas", () => {
-  test("an attached picture becomes a canvas when NimbusBot is asked", async ({
+  test("an attached picture becomes a canvas when Nimbus is asked", async ({
     page,
   }) => {
     let uploadedFolder = "";
@@ -59,7 +59,7 @@ test.describe("image to canvas", () => {
     );
 
     await page.goto(room);
-    await expect(page.getByText("Ask anything from @NimbusBot")).toBeVisible();
+    await expect(page.getByText("Ask anything from @Nimbus")).toBeVisible();
 
     // The text above is server-rendered, so the page can be visible before it
     // has hydrated; a file chosen that early is lost. Choosing again until the
@@ -77,7 +77,7 @@ test.describe("image to canvas", () => {
 
     await page
       .getByPlaceholder("Type a message...")
-      .fill("@nimbusbot turn this into a diagram");
+      .fill("@nimbus turn this into a diagram");
     await page.getByRole("button", { name: "Send" }).click();
 
     // The picture is in the chat as a thumbnail that opens full size.

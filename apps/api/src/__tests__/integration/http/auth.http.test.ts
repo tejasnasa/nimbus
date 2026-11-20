@@ -283,7 +283,7 @@ describe("http: auth — account deletion", () => {
     ).resolves.toBeNull();
   });
 
-  // NimbusBot owns no workspaces by construction, and the guard
+  // Nimbus owns no workspaces by construction, and the guard
   // skips the cascade outright. Better-auth's own delete still cascades the
   // bot's membership and message rows — but it cannot get to "owns every
   // workspace in the system" because the bot owns none.
@@ -292,7 +292,7 @@ describe("http: auth — account deletion", () => {
   // reaching the actual `/api/auth/delete-user` endpoint with a bot session
   // would mean minting one by hand. The policy is the thing the guard lives
   // in, so the guard is what we test.
-  it("does not cascade workspaces when the user being deleted is NimbusBot", async () => {
+  it("does not cascade workspaces when the user being deleted is Nimbus", async () => {
     const botId = process.env.BOT_USERID;
     expect(botId).toBeTruthy();
 

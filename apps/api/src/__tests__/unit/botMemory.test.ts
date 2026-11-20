@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/unit/botMemory
- * @description What NimbusBot's model request carries for time-aware memory:
+ * @description What Nimbus's model request carries for time-aware memory:
  * the "Today is" line computed from the request's clock (and ignored in
  * production), the recalled block, the fixed instructions that tell the model
  * how to treat it, and the degradation when recall fails. The SDK client is a
@@ -103,7 +103,7 @@ describe("lib/bot: time-aware memory", () => {
   });
 
   it("tells the model today's date in the asker's timezone, from the request's clock", async () => {
-    await ask("@nimbusbot hello", {
+    await ask("@nimbus hello", {
       timeZone: "Asia/Kolkata",
       clockOverride: "2026-11-11T08:35:00Z",
     });
@@ -113,15 +113,13 @@ describe("lib/bot: time-aware memory", () => {
     );
     expect(contextSent()).toContain("No earlier history was recalled");
     // The conversation itself follows the context message.
-    expect(lastRequest().input[1]!.content).toBe(
-      "Ada Lovelace: @nimbusbot hello",
-    );
+    expect(lastRequest().input[1]!.content).toBe("Ada Lovelace: @nimbus hello");
   });
 
   it("keeps everything that changes per turn out of the fixed instructions", async () => {
-    await ask("@nimbusbot hello", { clockOverride: "2026-11-11" });
+    await ask("@nimbus hello", { clockOverride: "2026-11-11" });
     const first = lastRequest().instructions;
-    await ask("@nimbusbot hello again", { clockOverride: "2027-05-05" });
+    await ask("@nimbus hello again", { clockOverride: "2027-05-05" });
     expect(lastRequest().instructions).toBe(first);
     expect(first).not.toMatch(/2026-11-11|Today is/);
     expect(first).toContain("MEMORY:");
@@ -137,7 +135,7 @@ describe("lib/bot: time-aware memory", () => {
   });
 
   it("falls back to UTC for a timezone it does not know", async () => {
-    await ask("@nimbusbot hello", {
+    await ask("@nimbus hello", {
       timeZone: "Mars/Olympus_Mons",
       clockOverride: "2026-11-11T08:35:00Z",
     });
@@ -167,7 +165,7 @@ describe("lib/bot: time-aware memory", () => {
       },
     });
 
-    await ask("@nimbusbot What did we decide on Tuesday's call?", {
+    await ask("@nimbus What did we decide on Tuesday's call?", {
       timeZone: "Asia/Kolkata",
       clockOverride: "2026-11-11T08:35:00Z",
     });
@@ -192,9 +190,9 @@ describe("lib/bot: time-aware memory", () => {
         summary: sampleNotes(),
       },
     });
-    await createMessage(workspaceId, askerId, "@nimbusbot hello there");
+    await createMessage(workspaceId, askerId, "@nimbus hello there");
 
-    await ask("@nimbusbot What did we decide on Tuesday's call?", {
+    await ask("@nimbus What did we decide on Tuesday's call?", {
       timeZone: "Asia/Kolkata",
       clockOverride: "2026-11-11T08:35:00Z",
     });
@@ -202,12 +200,42 @@ describe("lib/bot: time-aware memory", () => {
     expect(contextSent()).toContain('Meeting "Beta launch planning"');
   });
 
+  it.each(["@nimbus", "@nimbusbot"])(
+    "finds the question at a %s mention that is not the newest message",
+    async (mention) => {
+      await testPrisma.meeting.create({
+        data: {
+          workspaceId,
+          roomName: `nimbus-ws-${workspaceId}`,
+          source: "BYOK",
+          status: "SUMMARIZED",
+          title: "Beta launch planning",
+          startedAt: new Date("2026-11-10T08:30:00Z"),
+          endedAt: new Date("2026-11-10T09:02:00Z"),
+          summary: sampleNotes(),
+        },
+      });
+      await createMessage(
+        workspaceId,
+        askerId,
+        `${mention} What did we decide on Tuesday's call?`,
+      );
+
+      await ask("thanks, one moment", {
+        timeZone: "Asia/Kolkata",
+        clockOverride: "2026-11-11T08:35:00Z",
+      });
+
+      expect(contextSent()).toContain('Meeting "Beta launch planning"');
+    },
+  );
+
   it("does not recall the messages it already sends as history", async () => {
     const grace = await createUser("Grace Hopper");
     for (let i = 1; i <= 25; i += 1) {
       await createMessage(workspaceId, grace.id, `message-${i}`);
     }
-    await ask("@nimbusbot what did I ask you today?", { timeZone: "UTC" });
+    await ask("@nimbus what did I ask you today?", { timeZone: "UTC" });
 
     const recalled = contextSent();
     expect(recalled).toMatch(/Grace Hopper: message-1(\n|$)/);
@@ -220,7 +248,7 @@ describe("lib/bot: time-aware memory", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("AGENT_NOW", "2001-01-01");
     const before = new Date().toISOString().slice(0, 10);
-    await ask("@nimbusbot hello", {
+    await ask("@nimbus hello", {
       timeZone: "UTC",
       clockOverride: "2020-02-02T10:00:00Z",
     });
@@ -242,12 +270,9 @@ describe("lib/bot: time-aware memory", () => {
       Object.assign(new TypeError("secret detail: postgres://u:p@host"), {}),
     );
 
-    const result = await ask(
-      "@nimbusbot What did we decide on Tuesday's call?",
-      {
-        clockOverride: "2026-11-11",
-      },
-    );
+    const result = await ask("@nimbus What did we decide on Tuesday's call?", {
+      clockOverride: "2026-11-11",
+    });
 
     expect(result).toEqual({ kind: "reply", content: "ok" });
     expect(contextSent()).toContain("No earlier history was recalled");

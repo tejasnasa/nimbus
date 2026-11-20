@@ -1,7 +1,7 @@
 /**
  * @module web/hooks/useMeetingActions
  * @description The two things a member can do to an ended meeting from its
- * detail view: ask NimbusBot to draw the discussion as a canvas, and delete the
+ * detail view: ask Nimbus to draw the discussion as a canvas, and delete the
  * meeting.
  *
  * Drawing only starts the work (the API answers 202); the progress and the

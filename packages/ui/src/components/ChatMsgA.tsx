@@ -1,6 +1,6 @@
 /**
  * @module ui/components/ChatMsgA
- * @description Left-aligned chat bubble for other users' (and NimbusBot's)
+ * @description Left-aligned chat bubble for other users' (and Nimbus's)
  * messages: avatar + name on the left, muted bubble underneath. Timestamp
  * reveals on hover. Pair with `ChatMsgB` for the current user's messages.
  */

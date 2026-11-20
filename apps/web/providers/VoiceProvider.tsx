@@ -133,7 +133,7 @@ function imageFromMetadata(metadata: string | undefined): string | null {
 }
 
 /** How the assistant is named in the call, whatever identity LiveKit gave it. */
-export const AGENT_DISPLAY_NAME = "NimbusBot";
+export const AGENT_DISPLAY_NAME = "Nimbus";
 
 /**
  * Projects a LiveKit participant onto the shape the UI renders.

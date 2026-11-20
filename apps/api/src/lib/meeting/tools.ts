@@ -3,7 +3,7 @@
  * @description The meeting tool registry: the functions a model may call to
  * read the workspace's meeting record (transcripts, notes, decisions, action
  * items) and to act on it (add an action item, create a document, draw the
- * discussion). One registry serves the in-call assistant and NimbusBot in chat;
+ * discussion). One registry serves the in-call assistant and Nimbus in chat;
  * each caller picks the tools it offers by name.
  *
  * Every tool has a zod schema for its arguments and a matching strict JSON
@@ -83,7 +83,7 @@ export type MeetingToolName = (typeof MEETING_TOOL_NAMES)[number];
 export const VOICE_TOOL_NAMES: readonly MeetingToolName[] = MEETING_TOOL_NAMES;
 
 /**
- * The tools NimbusBot can offer in chat: the read-only ones plus adding an
+ * The tools Nimbus can offer in chat: the read-only ones plus adding an
  * action item. Chat has its own document tool, and there is no current meeting
  * to read or draw.
  */

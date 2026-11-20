@@ -81,7 +81,7 @@ const STOPWORDS = new Set(
     "july august september october november december jan feb mar apr jun jul aug sep sept oct nov dec " +
     "yesterday tomorrow earlier before previously discussed shipped new big something some one two three " +
     "four five six seven eight nine ten please also just really very much more most " +
-    "meeting meetings call calls nimbusbot nimbus bot decide decided decision decisions agree agreed " +
+    "meeting meetings call calls nimbus nimbusbot bot decide decided decision decisions agree agreed " +
     "discuss talked happened happen plan action items item notes recap whether"
   ).split(" "),
 );

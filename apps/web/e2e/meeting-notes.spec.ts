@@ -19,7 +19,7 @@ import { test, expect, e2eState } from "./fixtures";
  * served by the free tier, which the fake accepts like any other token.
  *
  * What the page then has to show:
- *   - NimbusBot's chat message with a link to the notes document, and a tab for
+ *   - Nimbus's chat message with a link to the notes document, and a tab for
  *     that document, both arriving live (the page is never reloaded);
  *   - the link opening the notes in the editor;
  *   - the call card's "Open meetings" shortcut landing on the Meetings tab, with
@@ -96,7 +96,7 @@ test.describe("meeting notes", () => {
     );
     expect(stop.ok()).toBe(true);
 
-    // NimbusBot announces the notes in chat with a link to the document, and
+    // Nimbus announces the notes in chat with a link to the document, and
     // the document appears as a tab, both without a reload.
     const link = page.getByTestId("chat-doc-link");
     await expect(link).toHaveText(notesTitle, { timeout: 60_000 });

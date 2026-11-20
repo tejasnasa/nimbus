@@ -294,12 +294,12 @@ describe("Chat: attaching an image", () => {
     upload.state = { status: "ready", imageUrl: FULL, previewUrl: "blob:x" };
     renderChat();
 
-    await user.type(screen.getByTestId("chat-composer"), "@nimbusbot diagram");
+    await user.type(screen.getByTestId("chat-composer"), "@nimbus diagram");
     await user.click(screen.getByTestId("chat-send"));
 
     expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
       workspaceId: "ws-1",
-      content: "@nimbusbot diagram",
+      content: "@nimbus diagram",
       imageUrl: FULL,
       timeZone: expect.any(String),
     });
@@ -324,12 +324,12 @@ describe("Chat: attaching an image", () => {
     localStorage.setItem("nimbus:agent-now", "2026-11-11");
     try {
       renderChat();
-      await user.type(screen.getByTestId("chat-composer"), "@nimbusbot hi");
+      await user.type(screen.getByTestId("chat-composer"), "@nimbus hi");
       await user.click(screen.getByTestId("chat-send"));
 
       expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
         workspaceId: "ws-1",
-        content: "@nimbusbot hi",
+        content: "@nimbus hi",
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clockOverride: "2026-11-11",
       });
@@ -344,12 +344,12 @@ describe("Chat: attaching an image", () => {
     vi.stubEnv("NODE_ENV", "production");
     try {
       renderChat();
-      await user.type(screen.getByTestId("chat-composer"), "@nimbusbot hi");
+      await user.type(screen.getByTestId("chat-composer"), "@nimbus hi");
       await user.click(screen.getByTestId("chat-send"));
 
       expect(socketMock.emit).toHaveBeenCalledWith("message:send", {
         workspaceId: "ws-1",
-        content: "@nimbusbot hi",
+        content: "@nimbus hi",
         timeZone: expect.any(String),
       });
     } finally {
@@ -363,7 +363,7 @@ describe("Chat: the bot cannot read images", () => {
   const refusal = {
     feature: "vision",
     reason: "no-capable-model",
-    message: "NimbusBot can't read images with this workspace's AI setup.",
+    message: "Nimbus can't read images with this workspace's AI setup.",
     cta: "manage-ai" as const,
   };
 

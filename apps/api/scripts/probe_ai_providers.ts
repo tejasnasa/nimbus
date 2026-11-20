@@ -182,7 +182,7 @@ async function checkTools(client: OpenAI, provider: AiProviderSpec, model: strin
         { role: "user", content: "Please create a flowchart for a login flow." },
       ],
       instructions:
-        "You are Nimbus Bot. Use the create_document tool when the user asks for a document.",
+        "You are Nimbus. Use the create_document tool when the user asks for a document.",
       max_output_tokens: 1000,
     } as never)) as { output?: Array<{ type?: string; name?: string }>; output_text?: string };
 
@@ -384,7 +384,7 @@ async function checkMultiTurn(
 ): Promise<Check> {
   const body: Record<string, unknown> = {
     model,
-    instructions: "You are Nimbus Bot in a workspace chat.",
+    instructions: "You are Nimbus in a workspace chat.",
     input: [
       { role: "user", content: "Teja: what should we do about the cache?" },
       { role: "assistant", content: "Consider a short TTL and a stampede guard." },

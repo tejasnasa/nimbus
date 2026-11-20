@@ -30,7 +30,7 @@ import PresenceAvatars from "./PresenceAvatars";
 /**
  * @module web/components/DocEditor
  * @description Tabbed document workspace: `DocTabs` strip + per-tab
- * `Canvas`/`MarkdownEditor`, plus the NimbusBot AI flow. `doc:ai:start`
+ * `Canvas`/`MarkdownEditor`, plus the Nimbus AI flow. `doc:ai:start`
  * swaps in a GENERATING pseudo-tab with `AiGenOverlay`; `doc:ai:thinking`
  * streams reasoning tokens; `doc:ai:complete` replaces the pseudo-tab with
  * the real document after 500ms; `doc:ai:error` surfaces dismissal. When a
@@ -54,7 +54,7 @@ import PresenceAvatars from "./PresenceAvatars";
  *            `doc:ai:complete` or `meeting:notes-ready`, in either order, and
  *            `replaceGeneratingTab` never leaves two tabs on one document.
  */
-/** Placeholder tab shown while NimbusBot generates a document. */
+/** Placeholder tab shown while Nimbus generates a document. */
 type GeneratingTab = {
   id: string;
   label: string;

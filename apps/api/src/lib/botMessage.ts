@@ -1,6 +1,6 @@
 /**
  * @module api/lib/botMessage
- * @description Posting a chat message as NimbusBot: persist it, then broadcast
+ * @description Posting a chat message as Nimbus: persist it, then broadcast
  * it to the workspace room as `message:new`, the same path a reply to a
  * mention takes.
  *

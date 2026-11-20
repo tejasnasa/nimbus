@@ -1,6 +1,6 @@
 /**
  * @module api/__tests__/integration/socket/bot
- * @description The `@nimbusbot` mention pipeline end to end: a mention is
+ * @description The `@nimbus` mention pipeline end to end: a mention is
  * answered in chat, and a `create_document` decision produces a real Document
  * row plus the `doc:ai:*` streaming events the client renders.
  *
@@ -94,7 +94,7 @@ const markdownStream = (body: string) =>
     yield { type: "response.output_text.delta", delta: body };
   })();
 
-describe("socket: nimbusbot", () => {
+describe("socket: nimbus", () => {
   let server: TestServer;
   let alice: TestUser;
   let wsId: string;
@@ -174,7 +174,7 @@ describe("socket: nimbusbot", () => {
     const seen = collectMessages(socket);
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot hello",
+      content: "@nimbus hello",
     });
 
     // First the user's own echo, then the bot's reply.
@@ -184,7 +184,7 @@ describe("socket: nimbusbot", () => {
     );
 
     expect(seen[0]).toMatchObject({
-      content: "@nimbusbot hello",
+      content: "@nimbus hello",
       userId: alice.id,
     });
     expect(seen.at(-1)?.content).toBe("Hello! How can I help?");
@@ -220,7 +220,7 @@ describe("socket: nimbusbot", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot write design notes",
+      content: "@nimbus write design notes",
     });
 
     await expect(started).resolves.toMatchObject({
@@ -267,7 +267,7 @@ describe("socket: nimbusbot", () => {
     );
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot make a doc",
+      content: "@nimbus make a doc",
     });
 
     await expect(failed).resolves.toMatchObject({
@@ -304,7 +304,7 @@ describe("socket: nimbusbot", () => {
 
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot refund me",
+      content: "@nimbus refund me",
     });
 
     // Wait for the failure to surface so the refund path has run.
@@ -351,7 +351,7 @@ describe("socket: nimbusbot", () => {
     );
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot write me a doc",
+      content: "@nimbus write me a doc",
     });
 
     await expect(completed).resolves.toMatchObject({ type: "MARKDOWN" });
@@ -396,7 +396,7 @@ describe("socket: nimbusbot", () => {
 
       socket.emit("message:send", {
         workspaceId: wsId,
-        content: "@nimbusbot hi",
+        content: "@nimbus hi",
       });
 
       await expect(refused).resolves.toMatchObject({
@@ -448,7 +448,7 @@ describe("socket: nimbusbot", () => {
 
     askingSocket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot write something",
+      content: "@nimbus write something",
     });
 
     await expect(refused).resolves.toMatchObject({
@@ -476,11 +476,11 @@ describe("socket: nimbusbot", () => {
     const echoed = waitForEvent<{ content: string }>(socket, "message:new");
     socket.emit("message:send", {
       workspaceId: wsId,
-      content: "@nimbusbot are you there",
+      content: "@nimbus are you there",
     });
 
     await expect(echoed).resolves.toMatchObject({
-      content: "@nimbusbot are you there",
+      content: "@nimbus are you there",
     });
 
     // The user's message is persisted regardless of the bot's fate.
@@ -488,6 +488,46 @@ describe("socket: nimbusbot", () => {
       testPrisma.message.count({
         where: { workspaceId: wsId, userId: alice.id },
       }),
+    ).resolves.toBe(1);
+  });
+
+  it("still answers the original @nimbusbot spelling", async () => {
+    createMock.mockResolvedValue(botReplies("Still here."));
+
+    const socket = await openSocket(server, alice);
+    socket.emit("workspace:join", wsId);
+    await waitForEvent(socket, "presence:online_users");
+
+    const seen = collectMessages(socket);
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@NimbusBot hello",
+    });
+
+    await waitFor(
+      () => seen.some((m) => m.content === "Still here."),
+      "bot reply",
+    );
+    expect(seen[0]).toMatchObject({ userId: alice.id });
+  });
+
+  it("does not treat a longer handle that starts with the name as a mention", async () => {
+    const socket = await openSocket(server, alice);
+    socket.emit("workspace:join", wsId);
+    await waitForEvent(socket, "presence:online_users");
+
+    const echoed = waitForEvent<{ content: string }>(socket, "message:new");
+    socket.emit("message:send", {
+      workspaceId: wsId,
+      content: "@nimbusapp are you there",
+    });
+    await echoed;
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect(createMock).not.toHaveBeenCalled();
+    await expect(
+      testPrisma.message.count({ where: { workspaceId: wsId } }),
     ).resolves.toBe(1);
   });
 

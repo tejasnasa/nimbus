@@ -538,7 +538,7 @@ async function run(meetingId: string, deps: NotesDeps): Promise<NotesOutcome> {
 }
 
 /**
- * The chat message NimbusBot posts when notes are ready. The second line is a
+ * The chat message Nimbus posts when notes are ready. The second line is a
  * markdown link whose target is `nimbus-doc:<documentId>`, which the web client
  * resolves to the workspace document.
  *

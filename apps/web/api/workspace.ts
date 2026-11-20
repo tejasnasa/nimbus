@@ -2,7 +2,7 @@
  * @module web/api/workspace
  * @description Server-side workspace fetch helpers. Forward the request
  * cookies to the API (session auth) with `cache: "no-store"`, and strip the
- * NimbusBot pseudo-member (`NEXT_PUBLIC_BOT_USERID`) so it never renders as
+ * Nimbus pseudo-member (`NEXT_PUBLIC_BOT_USERID`) so it never renders as
  * a human collaborator.
  */
 "use server";

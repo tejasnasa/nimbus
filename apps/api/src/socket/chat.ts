@@ -1,11 +1,11 @@
 /**
  * @module api/socket/chat
- * @description Workspace chat + presence + NimbusBot pipeline.
+ * @description Workspace chat + presence + Nimbus pipeline.
  *
  * Handles `workspace:join/leave` (membership check → room join → Redis
  * presence → `presence:*` broadcasts), `message:send` (validate → persist →
  * `message:new` fan-out; an attached image must live in the workspace's own
- * chat folder), `@nimbusbot` mentions (resolve → decide → claim → announce →
+ * chat folder), `@nimbus` mentions (resolve → decide → claim → announce →
  * generate → refund, with `ai:refused` for the targeted no-go), ephemeral
  * `typing:*` relays, and `disconnecting` presence cleanup. Joining a workspace
  * also replays the current call roster (`voice:roster`) to the joiner alone.
@@ -39,7 +39,7 @@
  *            a generation that never started.
  */
 import { prisma } from "@nimbus/db";
-import { messageSendSchema, type BotResult } from "@nimbus/types";
+import { mentionsBot, messageSendSchema, type BotResult } from "@nimbus/types";
 import { Server, Socket } from "socket.io";
 import { generateBotResponse } from "../lib/bot";
 import { postBotMessage } from "../lib/botMessage";
@@ -201,9 +201,9 @@ const registerChatHandlers = (io: Server, socket: Socket) => {
           image: user.image,
         });
 
-        // Case-insensitive mention check; bot work runs detached so the sender's
-        // ack path never waits on model latency. Errors are caught and logged.
-        if (data.content.toLowerCase().includes("@nimbusbot")) {
+        // Bot work runs detached so the sender's ack path never waits on model
+        // latency. Errors are caught and logged.
+        if (mentionsBot(data.content)) {
           (async () => {
             await handleBotMention({
               io,
@@ -283,7 +283,7 @@ type HandleBotMentionInput = {
 };
 
 /**
- * Drives the bot's reply to a `@nimbusbot` mention.
+ * Drives the bot's reply to a `@nimbus` mention.
  *
  * The flow:
  *   1. Resolve chat (BYOK or free).
@@ -607,12 +607,12 @@ async function answerBotMention(
   }
 }
 
-/** NimbusBot's user id, read at call time so tests can set it. */
+/** Nimbus's user id, read at call time so tests can set it. */
 const botUserId = () => process.env.BOT_USERID!;
 
 /** What the asker is told when the workspace has no model that can read images. */
 const IMAGE_UNSUPPORTED_MESSAGE =
-  "NimbusBot can't read images with this workspace's current AI setup. Choose a vision-capable model in the workspace's AI settings.";
+  "Nimbus can't read images with this workspace's current AI setup. Choose a vision-capable model in the workspace's AI settings.";
 
 /** The one place the exhausted-quota refusal copy is written. */
 const FREE_TIER_EXHAUSTED_MESSAGE =

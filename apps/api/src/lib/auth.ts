@@ -61,7 +61,7 @@ const cookieAttributes = resolveCookieAttributes({
  * `lib/accountDeletion` so the unit tests can exercise the cascade without
  * booting better-auth.
  *
- * @important Skipped for NimbusBot. The bot is seeded as ADMIN into every
+ * @important Skipped for Nimbus, the chat bot. The bot is seeded as ADMIN into every
  *            workspace and cannot sign in, so the delete path should be
  *            unreachable in practice — but if it ever is reached, the bot
  *            owns no workspaces (the guard prevents mass workspace deletion)

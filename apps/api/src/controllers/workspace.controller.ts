@@ -1,7 +1,7 @@
 /**
  * @module api/controllers/workspace
  * @description Workspace lifecycle + RBAC: creation transaction (workspace,
- * OWNER membership, seeded CANVAS/MARKDOWN docs, NimbusBot ADMIN), member
+ * OWNER membership, seeded CANVAS/MARKDOWN docs, Nimbus ADMIN), member
  * reads scoped by membership, invite join, and ADMIN/OWNER-gated mutations.
  * Role ladder: OWNER (sole, immutable) > ADMIN > MEMBER.
  *
@@ -72,7 +72,7 @@ async function workspaceHasChatImages(workspaceId: string): Promise<boolean> {
  * Creates a workspace with default documents and bot membership.
  *
  * Runs inside a Prisma transaction that creates the workspace, adds the
- * creator as OWNER, seeds one CANVAS + one MARKDOWN doc, and adds NimbusBot
+ * creator as OWNER, seeds one CANVAS + one MARKDOWN doc, and adds Nimbus
  * as ADMIN.
  *
  * @param name - Display name for the workspace.
@@ -152,7 +152,7 @@ export const createWorkspace = async (
   } catch (error) {
     if (error instanceof BotUserMissingError) {
       console.error(
-        "[workspace] Cannot add NimbusBot: BOT_USERID does not match any user row. " +
+        "[workspace] Cannot add Nimbus: BOT_USERID does not match any user row. " +
           "The API upserts that row at boot, so this means it was removed while running.",
       );
       return ServerResponse.internalError(

@@ -62,7 +62,7 @@ const message = (over: Partial<Message> = {}): Message => ({
   id: "m-1",
   userId: "user-2",
   workspaceId: "ws-1",
-  name: "NimbusBot",
+  name: "Nimbus",
   content: "",
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   ...over,

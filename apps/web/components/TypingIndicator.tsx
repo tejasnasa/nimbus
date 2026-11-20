@@ -6,7 +6,7 @@
  * composer does not jump as the line appears and disappears.
  *
  * The line is a polite live region (`role="status"`), so a screen reader
- * announces who is typing without interrupting. NimbusBot is passed in as a
+ * announces who is typing without interrupting. Nimbus is passed in as a
  * name like any other typer.
  *
  * @important The line is always rendered — when nobody is typing it renders

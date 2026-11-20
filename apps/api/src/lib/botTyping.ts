@@ -1,6 +1,6 @@
 /**
  * @module api/lib/botTyping
- * @description The "NimbusBot is typing" signal. A workspace room is told
+ * @description The "Nimbus is typing" signal. A workspace room is told
  * `bot:typing { workspaceId, typing: true }` when the first of its pending
  * mentions starts being answered, and `typing: false` when the last one
  * finishes, fails or hands over to document generation.

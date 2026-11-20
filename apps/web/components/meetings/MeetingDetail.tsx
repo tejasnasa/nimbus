@@ -191,7 +191,7 @@ export default function MeetingDetail({
 
       {meeting.status === "ENDED" && (
         <p role="status" className="text-sm text-(--muted-foreground)">
-          NimbusBot is writing the notes. They appear here when they are ready.
+          Nimbus is writing the notes. They appear here when they are ready.
         </p>
       )}
       {meeting.status === "FAILED" && (

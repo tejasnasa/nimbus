@@ -96,7 +96,7 @@ test.describe("journey", () => {
     await page.getByRole("button", { name: "Create", exact: true }).click();
 
     // The redirect is the signal that the whole transaction committed: the
-    // workspace, the creator as OWNER, both seeded documents, and the NimbusBot
+    // workspace, the creator as OWNER, both seeded documents, and the Nimbus
     // membership row. A failure anywhere in that chain leaves us on /home.
     await expect(page).toHaveURL(/\/workspace\/\d+$/);
     await expect(
@@ -200,7 +200,7 @@ test.describe("journey", () => {
 
     // Waits for the socket to be in the room, so a send cannot race the join.
     await expect(
-      page.getByText("Ask anything from @NimbusBot"),
+      page.getByText("Ask anything from @Nimbus"),
       "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
 
@@ -264,11 +264,11 @@ test.describe("journey", () => {
     // Both sockets must be in the room before the send, or the broadcast has
     // nobody to reach and this would flake rather than fail.
     await expect(
-      page.getByText("Ask anything from @NimbusBot"),
+      page.getByText("Ask anything from @Nimbus"),
       "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
     await expect(
-      memberPage.getByText("Ask anything from @NimbusBot"),
+      memberPage.getByText("Ask anything from @Nimbus"),
       "the member's chat composer is disabled — check the workspace AI status route",
     ).toBeVisible();
 
@@ -279,7 +279,7 @@ test.describe("journey", () => {
     await expect(memberPage.getByText(content)).toBeVisible();
   });
 
-  test("NimbusBot replies in chat without generating a document", async ({
+  test("Nimbus replies in chat without generating a document", async ({
     page,
     workspace,
   }) => {
@@ -292,7 +292,7 @@ test.describe("journey", () => {
 
     await page.goto(`/workspace/${workspace.slugId}`);
     await expect(
-      page.getByText("Ask anything from @NimbusBot"),
+      page.getByText("Ask anything from @Nimbus"),
       "the chat composer is disabled — check the workspace AI status route and the operator AI_API_KEY",
     ).toBeVisible();
 
@@ -301,7 +301,7 @@ test.describe("journey", () => {
     // never touch it.
     await page
       .getByPlaceholder("Type a message...")
-      .fill("@NimbusBot reply with exactly the token SMOKE_OK and nothing else");
+      .fill("@Nimbus reply with exactly the token SMOKE_OK and nothing else");
     await page.getByRole("button", { name: "Send" }).click();
 
     const reply = page.getByText(/SMOKE_OK/);
@@ -329,7 +329,7 @@ test.describe("journey", () => {
 
     if (outcome === "refusal") {
       throw new Error(
-        `NimbusBot refused the request: ${(await refusal.textContent())?.trim()}`,
+        `Nimbus refused the request: ${(await refusal.textContent())?.trim()}`,
       );
     }
 
@@ -338,7 +338,7 @@ test.describe("journey", () => {
     // check, and so would the "I am creating the document" announcement.
     expect(
       outcome,
-      "NimbusBot did not answer within 60s — check the provider key and quota",
+      "Nimbus did not answer within 60s — check the provider key and quota",
     ).toBe("reply");
 
     // Belt and braces: if the model had called the tool, the posted message

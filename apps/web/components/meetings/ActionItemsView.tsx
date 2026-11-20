@@ -26,7 +26,7 @@ const SCOPES: Array<{ value: ActionItemScope; label: string }> = [
 const EMPTY_COPY: Record<ActionItemScope, string> = {
   mine: "Nothing is assigned to you.",
   open: "No open action items.",
-  all: "No action items yet. They appear after NimbusBot writes up a meeting.",
+  all: "No action items yet. They appear after Nimbus writes up a meeting.",
 };
 
 /**

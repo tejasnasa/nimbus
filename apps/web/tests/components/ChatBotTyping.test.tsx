@@ -1,6 +1,6 @@
 /**
  * @module web/tests/components/ChatBotTyping
- * @description The "NimbusBot is typing…" line above the composer: on with the
+ * @description The "Nimbus is typing…" line above the composer: on with the
  * server's `bot:typing` signal, off when the signal ends, when a message from
  * the bot arrives, or after the safety timeout; scoped to its own workspace and
  * announced politely to assistive technology.
@@ -62,7 +62,7 @@ const botMessage = (): Message =>
     userId: BOT,
     workspaceId: WS,
     createdAt: new Date().toISOString(),
-    name: "NimbusBot",
+    name: "Nimbus",
     image: null,
   }) as unknown as Message;
 
@@ -128,7 +128,7 @@ describe("useBotTyping", () => {
   });
 });
 
-describe("Chat: NimbusBot typing line", () => {
+describe("Chat: Nimbus typing line", () => {
   const renderChat = () =>
     render(
       <DocEditorRefProvider>
@@ -150,17 +150,17 @@ describe("Chat: NimbusBot typing line", () => {
 
   it("shows the line in a polite status region while the bot is typing", () => {
     renderChat();
-    expect(screen.queryByText("NimbusBot is typing…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nimbus is typing…")).not.toBeInTheDocument();
 
     typing(true);
 
-    const line = screen.getByText("NimbusBot is typing…");
+    const line = screen.getByText("Nimbus is typing…");
     const region = line.closest("[role='status']");
     expect(region).toHaveAttribute("aria-live", "polite");
     expect(region?.querySelectorAll(".animate-pulse")).toHaveLength(3);
 
     typing(false);
-    expect(screen.queryByText("NimbusBot is typing…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nimbus is typing…")).not.toBeInTheDocument();
   });
 
   it("hides the line when the bot's message arrives", () => {
@@ -169,7 +169,7 @@ describe("Chat: NimbusBot typing line", () => {
 
     act(() => fakeSocket.fire("message:new", botMessage()));
 
-    expect(screen.queryByText("NimbusBot is typing…")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nimbus is typing…")).not.toBeInTheDocument();
     expect(screen.getByText("hi")).toBeInTheDocument();
   });
 
@@ -182,7 +182,7 @@ describe("Chat: NimbusBot typing line", () => {
     typing(true);
 
     expect(
-      screen.getByText("Grace and NimbusBot are typing…"),
+      screen.getByText("Grace and Nimbus are typing…"),
     ).toBeInTheDocument();
   });
 });

@@ -1,12 +1,11 @@
 /**
  * @module web/app/page
  * @description Public marketing landing page (static, no data fetching):
- * fixed nav, hero, feature grid, product preview screenshots, the AI
- * bring-your-own-key section, how-it-works, account security, testimonials,
+ * the shared site navbar, hero, feature grid, product preview screenshots,
+ * the AI bring-your-own-key section, how-it-works, account security, testimonials,
  * and footer. Entry point for logged-out visitors (`/`).
  */
 import Chat from "@nimbus/ui/icons/Chat";
-import Cloud from "@nimbus/ui/icons/Cloud";
 import CreateDocument from "@nimbus/ui/icons/CreateDocument";
 import Eye from "@nimbus/ui/icons/Eye";
 import Flow from "@nimbus/ui/icons/Flow";
@@ -24,6 +23,7 @@ import docgen from "../assets/docgen.png";
 import markdown from "../assets/markdown.png";
 import message from "../assets/message.png";
 import voice from "../assets/voice.png";
+import SiteNavbar from "../components/SiteNavbar";
 import VantaClouds from "../components/VantaClouds";
 
 export default function LandingPage() {
@@ -31,61 +31,7 @@ export default function LandingPage() {
     <main className="min-h-dvh bg-(--background) text-(--foreground) overflow-x-hidden">
       <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" />
 
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-(--background)/70 border-b border-(--border)">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 font-semibold text-lg group"
-          >
-            <div className="flex size-9 items-center justify-center rounded-lg text-(--primary-foreground) group-hover:scale-110 transition-transform duration-300">
-              <Cloud />
-            </div>
-            <span className="tracking-tight">Nimbus</span>
-          </Link>
-
-          <div className="hidden md:flex items-center gap-8 text-sm text-(--muted-foreground)">
-            <a
-              href="#features"
-              className="hover:text-(--foreground) transition-colors duration-200"
-            >
-              Features
-            </a>
-            <a
-              href="#preview"
-              className="hover:text-(--foreground) transition-colors duration-200"
-            >
-              Preview
-            </a>
-            <a
-              href="#how-it-works"
-              className="hover:text-(--foreground) transition-colors duration-200"
-            >
-              How It Works
-            </a>
-            <a
-              href="#testimonials"
-              className="hover:text-(--foreground) transition-colors duration-200"
-            >
-              Testimonials
-            </a>
-            <Link
-              href="/contact"
-              className="hover:text-(--foreground) transition-colors duration-200"
-            >
-              Contact
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="px-5 py-2.5 text-sm font-medium rounded-xl bg-(--primary) text-(--primary-foreground) hover:opacity-90 active:translate-y-0.5 transition-all duration-200 shadow-lg shadow-(--primary)/20"
-            >
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <SiteNavbar />
 
       <section className="relative pt-40 pb-20 mb-16 px-6" id="hero">
         <VantaClouds className="absolute inset-0 pointer-events-none" />
@@ -778,6 +724,12 @@ export default function LandingPage() {
           <div className="p-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-(--muted-foreground)">
             <p>Made by Tejas Nasa.</p>
             <div className="flex items-center gap-6">
+              <Link
+                href="/docs"
+                className="hover:text-(--foreground) transition-colors"
+              >
+                Docs
+              </Link>
               <Link
                 href="/contact"
                 className="hover:text-(--foreground) transition-colors"

@@ -120,12 +120,12 @@ describe("planVoice", () => {
       workspaceId,
       "SPEECH",
       "openrouter",
-      "heygen/heygen-voice-1-turbo:free",
+      "heygen/heygen-voice-1-turbo",
       { voice: "bram" },
     );
     const r = await planVoice({ workspaceId, userId }, notOver);
     expect(r.ok && r.plan.speech).toEqual({
-      model: "heygen/heygen-voice-1-turbo:free",
+      model: "heygen/heygen-voice-1-turbo",
       voice: "bram",
     });
   });
@@ -136,8 +136,8 @@ describe("planVoice", () => {
     });
     const r = await planVoice({ workspaceId, userId }, notOver);
     expect(r.ok && r.plan.speech).toEqual({
-      model: "heygen/heygen-voice-1-turbo:free",
-      voice: "nadine",
+      model: "hexgrad/kokoro-82m",
+      voice: "af_alloy",
     });
   });
 
@@ -154,8 +154,26 @@ describe("planVoice", () => {
     );
     const r = await planVoice({ workspaceId, userId }, notOver);
     expect(r.ok && r.plan.speech).toEqual({
-      model: "heygen/heygen-voice-1-turbo:free",
-      voice: "nadine",
+      model: "hexgrad/kokoro-82m",
+      voice: "af_alloy",
+    });
+  });
+
+  it("replaces the expired free HeyGen model with the default", async () => {
+    await createWorkspaceAiCredential(workspaceId, "openrouter", {
+      verifiedKinds: ["transcription", "speech"],
+    });
+    await createWorkspaceAiPreference(
+      workspaceId,
+      "SPEECH",
+      "openrouter",
+      "heygen/heygen-voice-1-turbo:free",
+      { voice: "nadine" },
+    );
+    const r = await planVoice({ workspaceId, userId }, notOver);
+    expect(r.ok && r.plan.speech).toEqual({
+      model: "hexgrad/kokoro-82m",
+      voice: "af_alloy",
     });
   });
 
@@ -177,20 +195,41 @@ describe("planVoice", () => {
     if (!r.ok) return;
     expect(r.plan).toMatchObject({
       source: "free",
-      transcription: { model: "openai/gpt-transcribe" },
-      speech: { model: "heygen/heygen-voice-1-turbo:free", voice: "nadine" },
+      transcription: { model: "openai/whisper-large-v3-turbo" },
+      speech: { model: "hexgrad/kokoro-82m", voice: "af_alloy" },
     });
   });
 
   it("keeps the free tier's configured voice, and resolves \"default\" to a named one", async () => {
     withFreeTier();
-    process.env.AI_SPEECH_VOICE = "bram";
+    process.env.AI_SPEECH_VOICE = "af_bella";
     const named = await planVoice({ workspaceId, userId }, notOver);
-    expect(named.ok && named.plan.speech?.voice).toBe("bram");
+    expect(named.ok && named.plan.speech?.voice).toBe("af_bella");
 
     process.env.AI_SPEECH_VOICE = "default";
     const resolved = await planVoice({ workspaceId, userId }, notOver);
-    expect(resolved.ok && resolved.plan.speech?.voice).toBe("nadine");
+    expect(resolved.ok && resolved.plan.speech?.voice).toBe("af_alloy");
+  });
+
+  it("falls back to the model's first voice when the configured one is not offered", async () => {
+    withFreeTier();
+    process.env.AI_SPEECH_VOICE = "nadine";
+    const r = await planVoice({ workspaceId, userId }, notOver);
+    expect(r.ok && r.plan.speech).toEqual({
+      model: "hexgrad/kokoro-82m",
+      voice: "af_alloy",
+    });
+  });
+
+  it("trusts a configured voice when the free speech model is not in the registry", async () => {
+    withFreeTier();
+    process.env.AI_SPEECH_MODEL = "acme/unlisted-tts";
+    process.env.AI_SPEECH_VOICE = "custom-voice";
+    const r = await planVoice({ workspaceId, userId }, notOver);
+    expect(r.ok && r.plan.speech).toEqual({
+      model: "acme/unlisted-tts",
+      voice: "custom-voice",
+    });
   });
 
   it("refuses free voice once the user's seconds are spent", async () => {

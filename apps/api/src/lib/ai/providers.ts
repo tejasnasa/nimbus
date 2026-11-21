@@ -83,21 +83,30 @@ export type FreeVoiceConfig = {
   readonly speechVoice: string;
 };
 
-/** The free tier's speech model when `AI_SPEECH_MODEL` is unset. */
-const FREE_SPEECH_MODEL = "heygen/heygen-voice-1-turbo:free";
+/** The free tier's speech model when `AI_SPEECH_MODEL` is unset: the registry's OpenRouter default. */
+const FREE_SPEECH_MODEL = AI_PROVIDERS.openrouter.defaultSpeechModel ?? "";
+
+/** The free tier's transcription model when `AI_TRANSCRIBE_MODEL` is unset. */
+const FREE_TRANSCRIBE_MODEL = AI_PROVIDERS.openrouter.defaultTranscriptionModel ?? "";
 
 /**
- * The free tier's voice: the configured one, or, when it is unset or says
- * "default", the speech model's first named voice from the OpenRouter
- * catalogue. Sending no voice would let the model pick a speaker per request,
- * and the assistant speaks one sentence per request.
+ * The free tier's voice: the configured one when the speech model offers it
+ * (or the model is not in the registry, so its voice list is unknown and the
+ * operator's value is trusted); otherwise the model's first named voice from
+ * the OpenRouter catalogue. An unset value, "default", or a voice left over
+ * from a previous model all resolve to that first voice, because a model
+ * rejects a voice it does not have. Sending no voice would let the model pick
+ * a speaker per request, and the assistant speaks one sentence per request.
  *
  * @param model - The free speech model.
  * @param configured - `AI_SPEECH_VOICE`.
  */
 function freeSpeechVoice(model: string, configured: string | undefined): string {
-  if (configured && configured !== AI_DEFAULT_VOICE) return configured;
-  return modelById(AI_PROVIDERS.openrouter, model)?.voices?.[0] ?? AI_DEFAULT_VOICE;
+  const voices = modelById(AI_PROVIDERS.openrouter, model)?.voices;
+  if (configured && configured !== AI_DEFAULT_VOICE) {
+    if (!voices || voices.includes(configured)) return configured;
+  }
+  return voices?.[0] ?? AI_DEFAULT_VOICE;
 }
 
 /**
@@ -113,7 +122,7 @@ export function freeVoiceTier(): FreeVoiceConfig | null {
   return {
     apiKey,
     baseUrl: process.env.AI_VOICE_BASE_URL || "https://openrouter.ai/api/v1",
-    transcribeModel: process.env.AI_TRANSCRIBE_MODEL || "openai/gpt-transcribe",
+    transcribeModel: process.env.AI_TRANSCRIBE_MODEL || FREE_TRANSCRIBE_MODEL,
     speechModel,
     speechVoice: freeSpeechVoice(speechModel, process.env.AI_SPEECH_VOICE),
   };

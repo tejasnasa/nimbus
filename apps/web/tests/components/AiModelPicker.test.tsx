@@ -419,7 +419,7 @@ describe("AiModelPicker: voice features", () => {
     // The one verified provider is preselected: its default model is shown.
     expect(
       (screen.getByTestId("transcription-model-select") as HTMLInputElement).value,
-    ).toMatch(/transcribe/i);
+    ).toMatch(/whisper/i);
   });
 
   it("offers only audio models of the right kind, with no custom-id row", async () => {

@@ -438,10 +438,10 @@ describe("model kinds", () => {
       "gpt-4o-mini-tts",
     );
     expect(defaultModelFor(AI_PROVIDERS.openrouter, "transcription")?.id).toBe(
-      "openai/gpt-transcribe",
+      "openai/whisper-large-v3-turbo",
     );
     expect(defaultModelFor(AI_PROVIDERS.openrouter, "speech")?.id).toBe(
-      "heygen/heygen-voice-1-turbo:free",
+      "hexgrad/kokoro-82m",
     );
   });
 
@@ -483,14 +483,42 @@ describe("voices and audio formats", () => {
 
   it("lists the measured heygen voices and pcm only", () => {
     const heygen = AI_PROVIDERS.openrouter.models.find(
-      (m) => m.id === "heygen/heygen-voice-1-turbo:free",
+      (m) => m.id === "heygen/heygen-voice-1-turbo",
     )!;
     expect(heygen.voices).toEqual([
       "nadine", "tabitha", "bram", "gareth", "noelle",
       "meredith", "sabrina", "lucian", "weston", "vincent",
     ]);
     expect(heygen.audioFormats).toEqual(["pcm"]);
-    expect(heygen.pricing?.perMChars).toBe(0);
+    expect(heygen.pricing?.perMChars).toBe(4);
+  });
+
+  it("lists Kokoro's measured voices, default first, priced per character", () => {
+    const kokoro = AI_PROVIDERS.openrouter.models.find(
+      (m) => m.id === "hexgrad/kokoro-82m",
+    )!;
+    expect(kokoro.voices).toHaveLength(54);
+    expect(kokoro.voices?.[0]).toBe("af_alloy");
+    expect(kokoro.audioFormats).toEqual(["pcm"]);
+    expect(kokoro.pricing).toEqual({ perMChars: 0.99, checkedAt: "2026-11-21" });
+  });
+
+  it("no longer offers the expiring free HeyGen model", () => {
+    expect(
+      AI_PROVIDERS.openrouter.models.some(
+        (m) => m.id === "heygen/heygen-voice-1-turbo:free",
+      ),
+    ).toBe(false);
+  });
+
+  it("serves every OpenRouter speech model as pcm with a named voice", () => {
+    const models = modelsOfKind(AI_PROVIDERS.openrouter, "speech");
+    expect(models.length).toBeGreaterThan(1);
+    for (const model of models) {
+      expect(model.audioFormats).toEqual(["pcm"]);
+      expect(model.voices?.length ?? 0).toBeGreaterThan(0);
+      expect(model.voices).not.toContain("none");
+    }
   });
 
   it("restricts OpenRouter speech to pcm and mp3", () => {

@@ -45,7 +45,7 @@ describe("selectModelForFeature: kinds", () => {
       [cred("c1", "openrouter", ["speech"])],
       null,
     );
-    expect(result).toMatchObject({ providerId: "openrouter", modelId: "hexgrad/kokoro-82m" });
+    expect(result).toMatchObject({ providerId: "openrouter", modelId: "heygen/heygen-voice-1-turbo" });
   });
 
   it("refuses chat for a credential that only verified transcription", () => {
@@ -102,7 +102,7 @@ describe("selectModelForFeature: kinds", () => {
       ],
       null,
     );
-    expect(result).toMatchObject({ credentialId: "late", modelId: "openai/whisper-large-v3-turbo" });
+    expect(result).toMatchObject({ credentialId: "late", modelId: "openai/gpt-transcribe" });
   });
 
   it("honours a transcription preference when its credential is verified for the kind", () => {

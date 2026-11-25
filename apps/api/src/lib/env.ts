@@ -86,10 +86,10 @@ const envSchema = z.object({
   //    An unset or empty `AI_VOICE_API_KEY` disables free voice. ──
   AI_VOICE_API_KEY: z.string().optional(),
   AI_VOICE_BASE_URL: z.string().min(1).default("https://openrouter.ai/api/v1"),
-  AI_TRANSCRIBE_MODEL: z.string().min(1).default("openai/whisper-large-v3-turbo"),
-  AI_SPEECH_MODEL: z.string().min(1).default("hexgrad/kokoro-82m"),
+  AI_TRANSCRIBE_MODEL: z.string().min(1).default("openai/gpt-transcribe"),
+  AI_SPEECH_MODEL: z.string().min(1).default("heygen/heygen-voice-1-turbo"),
   AI_SPEECH_VOICE: z.string().min(1).default("default"),
-  AI_FREE_VOICE_SECONDS: z.coerce.number().int().min(0).default(300),
+  AI_FREE_VOICE_SECONDS: z.coerce.number().int().min(0).default(600),
 
   // ── BYOK encryption ──
   // Required. Stored provider keys are encrypted with this at rest, so a

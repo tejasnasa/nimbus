@@ -438,10 +438,10 @@ describe("model kinds", () => {
       "gpt-4o-mini-tts",
     );
     expect(defaultModelFor(AI_PROVIDERS.openrouter, "transcription")?.id).toBe(
-      "openai/whisper-large-v3-turbo",
+      "openai/gpt-transcribe",
     );
     expect(defaultModelFor(AI_PROVIDERS.openrouter, "speech")?.id).toBe(
-      "hexgrad/kokoro-82m",
+      "heygen/heygen-voice-1-turbo",
     );
   });
 

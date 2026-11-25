@@ -164,12 +164,15 @@ export type VoiceQuotaState = {
   readonly exhausted: boolean;
 };
 
-/** Reads `AI_FREE_VOICE_SECONDS` as a non-negative integer, defaulting to 300. */
+/** Free assistant seconds per user when `AI_FREE_VOICE_SECONDS` is unset. */
+const DEFAULT_FREE_VOICE_SECONDS = 600;
+
+/** Reads `AI_FREE_VOICE_SECONDS` as a non-negative integer, defaulting to 600 (ten minutes). */
 export function readVoiceQuotaLimit(): number {
   const raw = process.env.AI_FREE_VOICE_SECONDS;
-  if (!raw) return 300;
+  if (!raw) return DEFAULT_FREE_VOICE_SECONDS;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return 300;
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_FREE_VOICE_SECONDS;
   return parsed;
 }
 

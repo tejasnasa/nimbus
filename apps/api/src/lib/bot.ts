@@ -53,6 +53,7 @@ import { prisma } from "@nimbus/db";
 import { BotResult, mentionsBot, normalizeTimeZone } from "@nimbus/types";
 import { withAiCall, type AiCallMeta } from "./ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "./ai/clientFactory";
+import { stripToolMarkup, toolCallsFromText } from "./ai/textToolCalls";
 import { searchDocuments } from "./documentSearch";
 import type { MeetingBroadcaster } from "./meeting/lifecycle";
 import { searchSegments } from "./meeting/search";
@@ -585,9 +586,19 @@ ${TOOL_DATA_RULE}`;
         ? await withAiCall(callMeta, createResponse)
         : await createResponse();
 
-      const calls = (
+      let calls = (
         (response.output ?? []) as Array<Record<string, any>>
       ).filter((item) => item.type === "function_call");
+      // A tool call the model wrote as text instead of returning it is run as
+      // if it had come back as a call, and replayed as one.
+      let replay = (response.output ?? []) as unknown[];
+      if (calls.length === 0 && !mustAnswer) {
+        const written = toolCallsFromText(response.output_text ?? "");
+        if (written.length > 0) {
+          calls = written;
+          replay = written;
+        }
+      }
 
       // `create_document` ends the turn: the chat handler takes over from here.
       // The name is guarded — an unexpected tool must fall through to a text
@@ -630,13 +641,14 @@ ${TOOL_DATA_RULE}`;
         return {
           kind: "reply",
           content:
-            response.output_text || "I'm sorry, I couldn't process that.",
+            stripToolMarkup(response.output_text ?? "") ||
+            "I'm sorry, I couldn't process that.",
         };
       }
 
       // The model's own output goes back with the results, so each call id has
       // its call in the transcript.
-      input.push(...(response.output as unknown[]));
+      input.push(...replay);
       for (const call of lookupCalls) {
         input.push({
           type: "function_call_output",

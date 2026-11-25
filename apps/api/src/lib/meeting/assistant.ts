@@ -23,6 +23,10 @@
  *            therefore never leaves a half-made action item, and nothing is
  *            spoken about an action that has not happened.
  *
+ * @important Tool calls a model writes as text (see `ai/textToolCalls`) are
+ *            run as if they had come back as calls, and tool markup is stripped
+ *            from every reply, so raw markup is never read aloud or posted.
+ *
  * @important One answer per meeting at a time, per process: a new request for a
  *            meeting cancels the one still running. The agent cancels the old
  *            request itself too; this is the server's half of that rule.
@@ -41,6 +45,12 @@ import {
 } from "../ai/callLog";
 import { reasoningKwargs, type AiClientHandle } from "../ai/clientFactory";
 import { resolveAi } from "../ai/entitlements";
+import {
+  markupGuard,
+  stripToolMarkup,
+  toolCallsFromText,
+  type TextToolCall,
+} from "../ai/textToolCalls";
 import { postBotMessage } from "../botMessage";
 import { pubClient } from "../redis";
 import { SESSION_TTL_SECONDS } from "./agentSession";
@@ -383,6 +393,7 @@ export async function answer(input: AnswerInput): Promise<void> {
     let reply = "";
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const offerTools = round < MAX_TOOL_ROUNDS;
+      const live = offerTools ? null : markupGuard(send);
       const result = await modelRound(
         resolution.handle,
         {
@@ -391,17 +402,28 @@ export async function answer(input: AnswerInput): Promise<void> {
           tools: definitions,
           ...(offerTools ? {} : { toolChoice: "none" as const }),
         },
-        { signal: deadline, meta, onDelta: offerTools ? undefined : send },
+        { signal: deadline, meta, onDelta: live?.push },
       );
+      live?.flush();
 
-      const calls = offerTools ? functionCalls(result.output) : [];
+      let calls: FunctionCall[] = offerTools
+        ? functionCalls(result.output)
+        : [];
+      let replay: unknown[] = result.output;
+      if (offerTools && calls.length === 0) {
+        const written: TextToolCall[] = toolCallsFromText(result.text);
+        if (written.length > 0) {
+          calls = written;
+          replay = written;
+        }
+      }
       if (calls.length === 0) {
-        reply = result.text;
-        if (offerTools) sentenceChunks(reply.trim()).forEach(send);
+        reply = stripToolMarkup(result.text);
+        if (offerTools) sentenceChunks(reply).forEach(send);
         break;
       }
 
-      conversation.push(...result.output);
+      conversation.push(...replay);
       for (const call of calls) {
         if (deadline.aborted) break;
         conversation.push({

@@ -372,6 +372,69 @@ describe("answer", () => {
     });
   });
 
+  it("runs a tool call the model wrote as text, and never speaks the markup", async () => {
+    const written = [
+      `<｜｜DSML｜｜ calls>`,
+      `<｜｜DSML｜｜ invoke name="create_action_item">`,
+      `<｜｜DSML｜｜ parameter name="text" string="true">Book the Saket seats</｜｜DSML｜｜ parameter>`,
+      `<｜｜DSML｜｜ parameter name="owner_name" string="true">Ada</｜｜DSML｜｜ parameter>`,
+      `<｜｜DSML｜｜ parameter name="due" string="false">null</｜｜DSML｜｜ parameter>`,
+      `</｜｜DSML｜｜ invoke>`,
+      `</｜｜DSML｜｜ calls>`,
+    ].join("\n");
+    const model = scripted([
+      () => ({ text: written }),
+      () => ({ text: "Added: book the Saket seats, for Ada." }),
+    ]);
+    await run({}, model.round);
+
+    expect(model.requests).toHaveLength(2);
+    const replayed = model.requests[1]!.input.slice(1);
+    expect(replayed[0]).toMatchObject({
+      type: "function_call",
+      name: "create_action_item",
+    });
+    expect(replayed[1]).toMatchObject({
+      type: "function_call_output",
+      call_id: (replayed[0] as { call_id: string }).call_id,
+    });
+    expect(JSON.stringify(model.requests[1]!.input)).not.toContain("DSML");
+    expect(deltas()).toBe("Added: book the Saket seats, for Ada.");
+    await expect(
+      testPrisma.actionItem.findFirstOrThrow({
+        where: { text: "Book the Saket seats" },
+      }),
+    ).resolves.toMatchObject({ meetingId: meeting.id, ownerUserId: ownerId });
+  });
+
+  it("strips tool markup from the forced answer and says only the prose before it", async () => {
+    let n = 0;
+    const model = scripted([
+      (request, onDelta) =>
+        request.toolChoice === "none"
+          ? say(`I could not find it. <｜DSML｜function_calls>`)(
+              request,
+              onDelta,
+            )
+          : {
+              output: [call("list_meetings", { since_days: null }, `c${n++}`)],
+            },
+    ]);
+    await run({}, model.round);
+    expect(deltas()).toBe("I could not find it. ");
+    const stored = await testPrisma.transcriptSegment.findUniqueOrThrow({
+      where: { meetingId_seq: { meetingId: meeting.id, seq: 3 } },
+    });
+    expect(stored.text).toBe("I could not find it.");
+  });
+
+  it("answers with an error rather than speaking a reply that is only markup", async () => {
+    const model = scripted([() => ({ text: "<｜DSML｜function_calls>" })]);
+    await run({}, model.round);
+    expect(deltas()).toBe("");
+    expect(last()).toEqual({ type: "error", reason: "failed" });
+  });
+
   it("stops executing tools once cancelled, and stores nothing", async () => {
     const controller = new AbortController();
     const model = scripted([

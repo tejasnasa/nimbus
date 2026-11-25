@@ -618,8 +618,8 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderSpec> = {
         audioFormats: ["pcm"],
       },
     ],
-    defaultTranscriptionModel: "openai/whisper-large-v3-turbo",
-    defaultSpeechModel: "hexgrad/kokoro-82m",
+    defaultTranscriptionModel: "openai/gpt-transcribe",
+    defaultSpeechModel: "heygen/heygen-voice-1-turbo",
     // Key probe and capability probe passed against the Responses API with a
     // live key, measured on a free catalogue model.
     verifiedAt: "2026-11-03",

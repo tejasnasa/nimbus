@@ -1,13 +1,15 @@
 /**
  * @module api/routers/actionItem
  * @description Authenticated action item endpoints under `/api/action-items`:
- * `GET /` (a workspace's items), `PATCH /:id` and `DELETE /:id`. Membership and
+ * `GET /` (a workspace's items), `POST /` (add one), `PATCH /:id` and
+ * `DELETE /:id`. Membership and
  * permission enforcement live in the controller.
  */
-import { actionItemPatchSchema } from "@nimbus/types";
+import { actionItemCreateSchema, actionItemPatchSchema } from "@nimbus/types";
 import express from "express";
 import type { Server } from "socket.io";
 import {
+  createActionItem,
   deleteActionItem,
   listActionItems,
   patchActionItem,
@@ -20,6 +22,16 @@ actionItemRouter.get("/", async (req, res) => {
   const response = await listActionItems(req.user!.id, req.query);
   return res.status(response.statusCode).json(response);
 });
+
+actionItemRouter.post(
+  "/",
+  validate(actionItemCreateSchema),
+  async (req, res) => {
+    const io = req.app.get("io") as Server | undefined;
+    const response = await createActionItem(req.user!.id, req.body, { io });
+    return res.status(response.statusCode).json(response);
+  },
+);
 
 actionItemRouter.patch(
   "/:id",

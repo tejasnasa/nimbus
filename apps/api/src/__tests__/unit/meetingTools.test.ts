@@ -81,6 +81,23 @@ const SAMPLES: Record<MeetingToolName, { valid: unknown; invalid: unknown }> = {
     valid: { text: "Write it", owner_name: null, due: "2026-11-20" },
     invalid: { text: "Write it", owner_name: null, due: "2026-02-30" },
   },
+  update_action_item: {
+    valid: {
+      id: "a1",
+      text: null,
+      owner_name: null,
+      due: "none",
+      status: "DONE",
+    },
+    invalid: {
+      id: "a1",
+      text: null,
+      owner_name: null,
+      due: "soon",
+      status: null,
+    },
+  },
+  delete_action_item: { valid: { id: "a1" }, invalid: { id: "" } },
   create_document: {
     valid: { type: "MARKDOWN", label: "Plan", prompt: "A plan" },
     invalid: { type: "PDF", label: "Plan", prompt: "A plan" },
@@ -176,6 +193,8 @@ describe("tools against the database", () => {
   let pastA: string;
   let pastB: string;
   let segmentA: string;
+  let itemA: string;
+  let itemB: string;
   const broadcasts = fakeIo();
   const now = new Date("2026-11-12T12:00:00Z");
 
@@ -259,6 +278,16 @@ describe("tools against the database", () => {
 
     pastA = await seed(workspaceA, ownerA, "ALPHA");
     pastB = await seed(workspaceB, ownerB, "BRAVO");
+    itemA = (
+      await testPrisma.actionItem.findFirstOrThrow({
+        where: { workspaceId: workspaceA },
+      })
+    ).id;
+    itemB = (
+      await testPrisma.actionItem.findFirstOrThrow({
+        where: { workspaceId: workspaceB },
+      })
+    ).id;
     await createMeeting(workspaceB, { startedById: ownerB });
 
     liveA = (
@@ -297,6 +326,17 @@ describe("tools against the database", () => {
         "create_action_item",
         () => ({ text: "Ship it", owner_name: "Alan", due: null }),
       ],
+      [
+        "update_action_item",
+        () => ({
+          id: itemB,
+          text: "Taken over",
+          owner_name: null,
+          due: null,
+          status: "DONE",
+        }),
+      ],
+      ["delete_action_item", () => ({ id: itemB })],
       [
         "create_document",
         () => ({ type: "MARKDOWN", label: "Doc", prompt: "Write" }),
@@ -411,6 +451,7 @@ describe("tools against the database", () => {
         }),
       );
       expect(result.body.created).toEqual({
+        id: expect.any(String),
         text: "Draft the rollout plan",
         owner: "Ada Lovelace",
         due: "2026-11-20",
@@ -453,6 +494,7 @@ describe("tools against the database", () => {
         ),
       );
       expect(result.body.created).toEqual({
+        id: expect.any(String),
         text: "Call the vendor",
         owner: "Zed",
         due: null,
@@ -462,6 +504,167 @@ describe("tools against the database", () => {
       });
       expect(row.meetingId).toBeNull();
       expect(row.ownerUserId).toBeNull();
+    });
+  });
+
+  describe("update_action_item", () => {
+    it("finds an item by the id list_action_items gives, changes it, and broadcasts", async () => {
+      const listed = parse(
+        await run("list_action_items", { status: null, owner_name: null }),
+      );
+      const [first] = listed.body.action_items;
+      expect(first.id).toBe(itemA);
+
+      const result = parse(
+        await run("update_action_item", {
+          id: first.id,
+          text: "Write the auth runbook, v2",
+          owner_name: "Ada",
+          due: "2026-11-23",
+          status: "DONE",
+        }),
+      );
+      expect(result.body.updated).toEqual({
+        id: itemA,
+        text: "Write the auth runbook, v2",
+        owner: "Ada Lovelace",
+        due: "2026-11-23",
+        status: "DONE",
+      });
+      const row = await testPrisma.actionItem.findUniqueOrThrow({
+        where: { id: itemA },
+      });
+      expect(row).toMatchObject({
+        ownerUserId: ownerA,
+        ownerName: null,
+        status: "DONE",
+      });
+      expect(row.completedAt).not.toBeNull();
+      expect(broadcasts.emitted).toContainEqual(
+        expect.objectContaining({
+          room: workspaceA,
+          event: "meeting:action-items",
+        }),
+      );
+    });
+
+    it("clears the due date and the owner with none, and leaves null fields alone", async () => {
+      await testPrisma.actionItem.update({
+        where: { id: itemA },
+        data: {
+          dueDate: new Date("2026-11-30T00:00:00Z"),
+          ownerUserId: ownerA,
+        },
+      });
+      const result = parse(
+        await run("update_action_item", {
+          id: itemA,
+          text: null,
+          owner_name: "none",
+          due: "none",
+          status: null,
+        }),
+      );
+      expect(result.body.updated).toMatchObject({
+        text: "Write the auth runbook ALPHA",
+        owner: null,
+        due: null,
+        status: "OPEN",
+      });
+    });
+
+    it("refuses an owner who is not a member, and an empty change", async () => {
+      const stranger = parse(
+        await run("update_action_item", {
+          id: itemA,
+          text: null,
+          owner_name: "Alan Turing",
+          due: null,
+          status: null,
+        }),
+      );
+      expect(stranger.body.error).toMatch(/Nobody in this workspace/);
+
+      const empty = parse(
+        await run("update_action_item", {
+          id: itemA,
+          text: null,
+          owner_name: null,
+          due: null,
+          status: null,
+        }),
+      );
+      expect(empty.body.error).toMatch(/Nothing to change/);
+    });
+
+    it("leaves the other workspace's item untouched, even for a member of both", async () => {
+      await addMember(workspaceB, memberA, "ADMIN");
+      const result = parse(
+        await run("update_action_item", {
+          id: itemB,
+          text: "Taken over",
+          owner_name: null,
+          due: null,
+          status: "DONE",
+        }),
+      );
+      expect(result.body.error).toMatch(/No action item with that id/);
+      const row = await testPrisma.actionItem.findUniqueOrThrow({
+        where: { id: itemB },
+      });
+      expect(row).toMatchObject({
+        text: "Write the auth runbook BRAVO",
+        status: "OPEN",
+      });
+    });
+  });
+
+  describe("delete_action_item", () => {
+    it("refuses a member who neither owns nor created the item", async () => {
+      const result = parse(await run("delete_action_item", { id: itemA }));
+      expect(result.body.error).toMatch(
+        /Only an admin, the owner or the creator/,
+      );
+      expect(await testPrisma.actionItem.count({ where: { id: itemA } })).toBe(
+        1,
+      );
+    });
+
+    it("deletes for an admin of the workspace and broadcasts the removal", async () => {
+      const result = parse(
+        await run(
+          "delete_action_item",
+          { id: itemA },
+          contextA({ userId: ownerA }),
+        ),
+      );
+      expect(result.body.deleted).toEqual({
+        text: "Write the auth runbook ALPHA",
+      });
+      expect(await testPrisma.actionItem.count({ where: { id: itemA } })).toBe(
+        0,
+      );
+      expect(broadcasts.emitted).toContainEqual(
+        expect.objectContaining({
+          room: workspaceA,
+          event: "meeting:action-items",
+          payload: expect.objectContaining({ removedIds: [itemA] }),
+        }),
+      );
+    });
+
+    it("deletes an item the asker created", async () => {
+      const created = parse(
+        await run("create_action_item", {
+          text: "Send the deck",
+          owner_name: null,
+          due: null,
+        }),
+      );
+      const result = parse(
+        await run("delete_action_item", { id: created.body.created.id }),
+      );
+      expect(result.body.deleted).toEqual({ text: "Send the deck" });
     });
   });
 

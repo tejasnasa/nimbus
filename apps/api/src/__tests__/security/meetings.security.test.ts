@@ -215,6 +215,7 @@ describe("security: meetings and action items across workspaces", () => {
       ["post", "/api/meetings/ID/diagram"],
       ["delete", "/api/meetings/ID"],
       ["get", "/api/action-items?workspaceId=W"],
+      ["post", "/api/action-items"],
       ["patch", "/api/action-items/ID"],
       ["delete", "/api/action-items/ID"],
     ] as const)("%s %s needs a session", async (method, path) => {

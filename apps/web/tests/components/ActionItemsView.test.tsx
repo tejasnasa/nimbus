@@ -2,8 +2,9 @@
  * @module web/tests/components/ActionItemsView
  * @description The Meetings tab's action items view: the mine, open and all
  * filters and what each asks the API for, checking an item off, reassigning its
- * owner through the member select, setting and clearing a due date, cursor
- * paging, failures, and live updates from `meeting:action-items`.
+ * owner through the member select, setting and clearing a due date, rewording,
+ * deleting and adding an item, cursor paging, failures, and live updates from
+ * `meeting:action-items`.
  */
 import "./testUtils";
 import {
@@ -12,6 +13,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http } from "msw";
@@ -30,11 +32,16 @@ vi.mock(
 
 const ITEMS = `${BACKEND_URL}/api/action-items`;
 
-function renderView(onOpenMeeting = vi.fn()) {
+function renderView(
+  onOpenMeeting = vi.fn(),
+  viewer: { userId?: string; isAdmin?: boolean } = {},
+) {
   render(
     <ActionItemsView
       workspaceId={WS}
       members={members}
+      userId={viewer.userId}
+      isAdmin={viewer.isAdmin}
       onOpenMeeting={onOpenMeeting}
     />,
   );
@@ -275,7 +282,9 @@ describe("ActionItemsView: editing", () => {
     renderView();
     const user = userEvent.setup();
 
-    const due = await screen.findByLabelText("Due date");
+    const due = within(
+      await screen.findByTestId("action-item-a-1"),
+    ).getByLabelText("Due date");
     fireEvent.change(due, { target: { value: "2099-03-04" } });
     await waitFor(() => expect(due).toHaveValue("2099-03-04"));
 
@@ -347,6 +356,176 @@ describe("ActionItemsView: editing", () => {
       "data-status",
       "OPEN",
     );
+  });
+});
+
+describe("ActionItemsView: rewording, deleting and adding", () => {
+  beforeEach(() => {
+    server.use(
+      http.get(ITEMS, () => ok({ items: [actionItem()], nextCursor: null })),
+    );
+  });
+
+  it("rewords an item in place, trimmed, and cancels with Escape", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch(`${ITEMS}/a-1`, async ({ request }) => {
+        const body = (await request.json()) as { text: string };
+        bodies.push(body);
+        return ok(actionItem({ text: body.text }));
+      }),
+    );
+    renderView();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: 'Edit "Send the launch checklist"',
+      }),
+    );
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("textbox", { name: "Action item text" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: 'Edit "Send the launch checklist"' }),
+    );
+    const field = screen.getByRole("textbox", { name: "Action item text" });
+    await user.clear(field);
+    await user.type(field, "  Send the final checklist {Enter}");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("action-item-a-1")).toHaveTextContent(
+        "Send the final checklist",
+      ),
+    );
+    expect(bodies).toEqual([{ text: "Send the final checklist" }]);
+  });
+
+  it("shows delete only to an admin, the owner or the creator", async () => {
+    renderView(vi.fn(), { userId: "user-3" });
+    await screen.findByTestId("action-item-a-1");
+    expect(
+      screen.queryByRole("button", { name: /^Delete "/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks once, then deletes and drops the row", async () => {
+    let deleted = 0;
+    server.use(
+      http.delete(`${ITEMS}/a-1`, () => {
+        deleted += 1;
+        return ok({ id: "a-1" });
+      }),
+    );
+    renderView(vi.fn(), { userId: "user-2" });
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: 'Delete "Send the launch checklist"',
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(deleted).toBe(0);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: 'Delete "Send the launch checklist"',
+      }),
+    );
+    const confirm = screen.getByRole("group", { name: "Confirm delete" });
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("action-item-a-1")).not.toBeInTheDocument(),
+    );
+    expect(deleted).toBe(1);
+  });
+
+  it("shows why a delete was refused and keeps the row", async () => {
+    server.use(
+      http.delete(`${ITEMS}/a-1`, () => fail(403, "Only an admin can")),
+    );
+    renderView(vi.fn(), { isAdmin: true });
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: 'Delete "Send the launch checklist"',
+      }),
+    );
+    const confirm = screen.getByRole("group", { name: "Confirm delete" });
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByTestId("action-items-error")).toHaveTextContent(
+      "Only an admin can",
+    );
+    expect(screen.getByTestId("action-item-a-1")).toBeInTheDocument();
+  });
+
+  it("adds an item and rereads the page, clearing the form", async () => {
+    const bodies: unknown[] = [];
+    let reads = 0;
+    server.use(
+      http.get(ITEMS, () => {
+        reads += 1;
+        return ok({
+          items:
+            reads > 1
+              ? [actionItem(), actionItem({ id: "a-2", text: "Book a room" })]
+              : [actionItem()],
+          nextCursor: null,
+        });
+      }),
+      http.post(ITEMS, async ({ request }) => {
+        bodies.push(await request.json());
+        return ok(actionItem({ id: "a-2", text: "Book a room" }));
+      }),
+    );
+    renderView();
+    const user = userEvent.setup();
+
+    await screen.findByTestId("action-item-a-1");
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toBeDisabled();
+    const text = screen.getByLabelText("New action item");
+    await user.type(text, "  Book a room ");
+    fireEvent.change(
+      screen.getByLabelText("Due date", { selector: "#new-action-item-due" }),
+      {
+        target: { value: "2026-12-01" },
+      },
+    );
+    await user.click(add);
+
+    expect(await screen.findByTestId("action-item-a-2")).toBeInTheDocument();
+    expect(bodies).toEqual([
+      {
+        text: "Book a room",
+        ownerUserId: null,
+        dueDate: "2026-12-01",
+        workspaceId: WS,
+      },
+    ]);
+    expect(text).toHaveValue("");
+  });
+
+  it("keeps what was typed when an add fails", async () => {
+    server.use(http.post(ITEMS, () => fail(400, "Invalid action item")));
+    renderView();
+    const user = userEvent.setup();
+
+    await screen.findByTestId("action-item-a-1");
+    const text = screen.getByLabelText("New action item");
+    await user.type(text, "Book a room");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByTestId("action-items-error")).toHaveTextContent(
+      "Invalid action item",
+    );
+    expect(text).toHaveValue("Book a room");
   });
 });
 

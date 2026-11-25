@@ -3,7 +3,8 @@
  * @description The Meetings tab's "Action items" view: every action item in the
  * workspace, filtered to the viewer's own, to everything still open, or to all
  * of them, paged with Previous and Next. Each row has the same controls as in a
- * meeting's detail, and a link back to the meeting it came from.
+ * meeting's detail, and a link back to the meeting it came from. A form above
+ * the list adds an item that belongs to no meeting.
  */
 "use client";
 
@@ -16,6 +17,7 @@ import {
 } from "../../hooks/useActionItems";
 import Pagination from "../Pagination";
 import ActionItemRow from "./ActionItemRow";
+import AddActionItemForm from "./AddActionItemForm";
 
 const SCOPES: Array<{ value: ActionItemScope; label: string }> = [
   { value: "mine", label: "Mine" },
@@ -26,26 +28,35 @@ const SCOPES: Array<{ value: ActionItemScope; label: string }> = [
 const EMPTY_COPY: Record<ActionItemScope, string> = {
   mine: "Nothing is assigned to you.",
   open: "No open action items.",
-  all: "No action items yet. They appear after Nimbus writes up a meeting.",
+  all: "No action items yet. Add one above, or they appear after Nimbus writes up a meeting.",
 };
 
 /**
  * @param props.workspaceId - The workspace cuid.
  * @param props.members - Workspace members, for the owner select.
+ * @param props.userId - The viewer, who may delete items they own or created.
+ * @param props.isAdmin - Whether the viewer may delete any item.
  * @param props.onOpenMeeting - Opens an item's meeting.
  */
 export default function ActionItemsView({
   workspaceId,
   members,
+  userId,
+  isAdmin = false,
   onOpenMeeting,
 }: {
   workspaceId: string;
   members: Member[];
+  userId?: string;
+  isAdmin?: boolean;
   onOpenMeeting: (meetingId: string) => void;
 }) {
   const [scope, setScope] = useState<ActionItemScope>("mine");
   const list = useActionItems(workspaceId, scope);
-  const editor = useActionItemEditor(list.replaceItem);
+  const editor = useActionItemEditor(list.replaceItem, {
+    onRemoved: list.removeItem,
+    onAdded: list.reload,
+  });
 
   return (
     <div className="space-y-3" data-testid="action-items-view">
@@ -70,6 +81,12 @@ export default function ActionItemsView({
           </button>
         ))}
       </div>
+
+      <AddActionItemForm
+        members={members}
+        adding={editor.adding}
+        onAdd={(item) => editor.add({ ...item, workspaceId })}
+      />
 
       {(list.error || editor.error) && (
         <p
@@ -104,6 +121,13 @@ export default function ActionItemsView({
               pending={editor.pendingId === item.id}
               onChange={(id, change) => void editor.update(id, change)}
               onOpenMeeting={onOpenMeeting}
+              onDelete={
+                isAdmin ||
+                item.ownerUserId === userId ||
+                item.createdById === userId
+                  ? (id) => void editor.remove(id)
+                  : undefined
+              }
             />
           ))}
         </ul>

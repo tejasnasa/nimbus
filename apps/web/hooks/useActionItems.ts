@@ -4,8 +4,9 @@
  * from `GET /api/action-items` for a mine, open or all filter, paged by cursor
  * with Previous and Next, and kept current over `meeting:action-items`.
  *
- * Also `useActionItemEditor`, the mutation shared by this view and a meeting's
- * own list: check off, reassign and set or clear a due date.
+ * Also `useActionItemEditor`, the mutations shared by this view and a meeting's
+ * own list: check off, reword, reassign, set or clear a due date, delete, and
+ * add an item by hand.
  *
  * @important A socket event updates rows already on the page in place and drops
  *            removed ones. An item the page does not hold may or may not belong
@@ -15,10 +16,13 @@
 import type { ActionItemDTO, ActionItemsChangedDTO } from "@nimbus/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  createActionItem,
+  deleteActionItem,
   fetchActionItems,
   patchActionItem,
   type ActionItemChange,
   type ActionItemFilter,
+  type NewActionItem,
 } from "../lib/meetingApi";
 import { socket } from "../lib/socket";
 
@@ -46,6 +50,10 @@ export type UseActionItems = {
   previousPage: () => Promise<void>;
   /** Swaps in an item the viewer just edited. */
   replaceItem: (item: ActionItemDTO) => void;
+  /** Drops an item the viewer just deleted. */
+  removeItem: (itemId: string) => void;
+  /** Rereads the current page quietly, as after adding an item. */
+  reload: () => void;
 };
 
 /**
@@ -142,6 +150,16 @@ export function useActionItems(
     setItems(next);
   }, []);
 
+  const removeItem = useCallback((itemId: string) => {
+    const next = itemsRef.current.filter((existing) => existing.id !== itemId);
+    itemsRef.current = next;
+    setItems(next);
+  }, []);
+
+  const reload = useCallback(() => {
+    void loadPage(cursorsRef.current, true);
+  }, [loadPage]);
+
   return {
     items,
     page: cursors.length,
@@ -152,18 +170,32 @@ export function useActionItems(
     nextPage,
     previousPage,
     replaceItem,
+    removeItem,
+    reload,
   };
 }
 
+/** Where the editor reports a deleted or added item. */
+export type ActionItemEditorHandlers = {
+  onRemoved?: (itemId: string) => void;
+  onAdded?: (item: ActionItemDTO) => void;
+};
+
 /**
- * The edit action for action items, with the one in flight and the last
- * failure.
+ * The edit, delete and add actions for action items, with the item in flight,
+ * whether an add is in flight, and the last failure.
  *
  * @param onChanged - Called with the server's updated item after a save.
+ * @param handlers - Called after a delete or an add succeeds.
  */
-export function useActionItemEditor(onChanged: (item: ActionItemDTO) => void) {
+export function useActionItemEditor(
+  onChanged: (item: ActionItemDTO) => void,
+  handlers: ActionItemEditorHandlers = {},
+) {
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { onRemoved, onAdded } = handlers;
 
   const update = useCallback(
     async (itemId: string, change: ActionItemChange) => {
@@ -177,5 +209,34 @@ export function useActionItemEditor(onChanged: (item: ActionItemDTO) => void) {
     [onChanged],
   );
 
-  return { pendingId, error, update };
+  const remove = useCallback(
+    async (itemId: string) => {
+      setPendingId(itemId);
+      setError(null);
+      const result = await deleteActionItem(itemId);
+      setPendingId(null);
+      if (result.ok) onRemoved?.(itemId);
+      else setError(result.message);
+    },
+    [onRemoved],
+  );
+
+  /** Adds an item; resolves to whether it was stored. */
+  const add = useCallback(
+    async (item: NewActionItem) => {
+      setAdding(true);
+      setError(null);
+      const result = await createActionItem(item);
+      setAdding(false);
+      if (result.ok) {
+        onAdded?.(result.data);
+        return true;
+      }
+      setError(result.message);
+      return false;
+    },
+    [onAdded],
+  );
+
+  return { pendingId, adding, error, update, remove, add };
 }

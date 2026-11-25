@@ -58,6 +58,7 @@ export {
 export {
   ACTION_ITEM_PAGE_MAX,
   ACTION_ITEM_TEXT_MAX,
+  actionItemCreateSchema,
   actionItemListQuerySchema,
   actionItemPatchSchema,
   assistantStartSchema,

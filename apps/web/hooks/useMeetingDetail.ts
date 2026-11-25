@@ -30,11 +30,14 @@ export type MeetingDetailState =
 
 /**
  * @param meetingId - The meeting to read.
- * @returns The detail state and a way to swap in an edited action item.
+ * @returns The detail state and ways to swap in an edited action item, drop a
+ *          deleted one and add a new one.
  */
 export function useMeetingDetail(meetingId: string): {
   state: MeetingDetailState;
   replaceActionItem: (item: ActionItemDTO) => void;
+  removeActionItem: (itemId: string) => void;
+  addActionItem: (item: ActionItemDTO) => void;
 } {
   const [state, setState] = useState<MeetingDetailState>({ kind: "loading" });
 
@@ -83,21 +86,47 @@ export function useMeetingDetail(meetingId: string): {
     };
   }, [meetingId]);
 
-  const replaceActionItem = useCallback((item: ActionItemDTO) => {
-    setState((prev) =>
-      prev.kind === "ready"
-        ? {
-            kind: "ready",
-            detail: {
-              ...prev.detail,
-              actionItems: prev.detail.actionItems.map((existing) =>
-                existing.id === item.id ? item : existing,
-              ),
-            },
-          }
-        : prev,
-    );
-  }, []);
+  const editItems = useCallback(
+    (edit: (items: ActionItemDTO[]) => ActionItemDTO[]) => {
+      setState((prev) =>
+        prev.kind === "ready"
+          ? {
+              kind: "ready",
+              detail: {
+                ...prev.detail,
+                actionItems: edit(prev.detail.actionItems),
+              },
+            }
+          : prev,
+      );
+    },
+    [],
+  );
 
-  return { state, replaceActionItem };
+  const replaceActionItem = useCallback(
+    (item: ActionItemDTO) =>
+      editItems((items) =>
+        items.map((existing) => (existing.id === item.id ? item : existing)),
+      ),
+    [editItems],
+  );
+
+  const removeActionItem = useCallback(
+    (itemId: string) =>
+      editItems((items) => items.filter((existing) => existing.id !== itemId)),
+    [editItems],
+  );
+
+  // The broadcast may have landed first, so an item already shown is replaced
+  // rather than repeated.
+  const addActionItem = useCallback(
+    (item: ActionItemDTO) =>
+      editItems((items) => [
+        ...items.filter((existing) => existing.id !== item.id),
+        item,
+      ]),
+    [editItems],
+  );
+
+  return { state, replaceActionItem, removeActionItem, addActionItem };
 }

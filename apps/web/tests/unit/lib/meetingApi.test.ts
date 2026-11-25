@@ -6,6 +6,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createActionItem,
+  deleteActionItem,
   deleteMeeting,
   drawMeetingDiagram,
   fetchActionItems,
@@ -257,5 +259,33 @@ describe("lib/meetingApi", () => {
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(init.body)).toEqual({ dueDate: null, status: "DONE" });
     expect(init.headers).toEqual({ "content-type": "application/json" });
+  });
+
+  it("adds an action item with a JSON body", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { id: "a-2" } }),
+    );
+
+    const item = { workspaceId: "w1", text: "Ship it", ownerUserId: null };
+    const result = await createActionItem(item);
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/action-items");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual(item);
+    expect(result).toEqual({ ok: true, data: { id: "a-2" } });
+  });
+
+  it("deletes an action item by its encoded id", async () => {
+    fetchMock.mockResolvedValue(
+      envelope({ success: true, responseObject: { id: "a/1" } }),
+    );
+
+    await deleteActionItem("a/1");
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("http://api.test/api/action-items/a%2F1");
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
   });
 });

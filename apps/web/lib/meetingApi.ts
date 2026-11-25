@@ -5,7 +5,7 @@
  * past meetings and paging a transcript, optionally with stored translations.
  * Also the meeting brain: one meeting's notes, the catch-up summary, keyword
  * search across transcripts, drawing a meeting as a canvas, deleting a meeting
- * and the workspace's action items.
+ * and the workspace's action items: listing, adding, changing and deleting them.
  *
  * Failures resolve to `{ ok: false, message }` rather than throwing, matching
  * `lib/voiceApi`, so callers can show the message inline. A refusal to start
@@ -258,5 +258,40 @@ export function patchActionItem(itemId: string, change: ActionItemChange) {
       method: "PATCH",
       body: JSON.stringify(change),
     },
+  );
+}
+
+/** A new action item added by hand. */
+export type NewActionItem = {
+  workspaceId: string;
+  /** The meeting it belongs to, if any. */
+  meetingId?: string | null;
+  text: string;
+  ownerUserId?: string | null;
+  /** `YYYY-MM-DD`, or null for none. */
+  dueDate?: string | null;
+};
+
+/**
+ * Adds an action item, credited to the viewer.
+ *
+ * @param item - The new item.
+ */
+export function createActionItem(item: NewActionItem) {
+  return call<ActionItemDTO>("/api/action-items", {
+    method: "POST",
+    body: JSON.stringify(item),
+  });
+}
+
+/**
+ * Deletes an action item.
+ *
+ * @param itemId - The action item.
+ */
+export function deleteActionItem(itemId: string) {
+  return call<{ id: string }>(
+    `/api/action-items/${encodeURIComponent(itemId)}`,
+    { method: "DELETE" },
   );
 }

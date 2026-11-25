@@ -24,6 +24,7 @@ import {
   meetingDetail,
   members,
   segment,
+  WS,
 } from "../msw/meetingFixtures";
 import { server } from "../msw/server";
 import { fakeSocket } from "./fakeSocket";
@@ -701,5 +702,72 @@ describe("MeetingDetail: action items", () => {
       "data-status",
       "OPEN",
     );
+  });
+
+  it("adds an item to this meeting and shows it", async () => {
+    routes();
+    const bodies: unknown[] = [];
+    server.use(
+      http.post(`${BACKEND_URL}/api/action-items`, async ({ request }) => {
+        bodies.push(await request.json());
+        return ok(actionItem({ id: "a-2", text: "Book a room" }));
+      }),
+    );
+    renderDetail();
+    const user = userEvent.setup();
+
+    await screen.findByTestId("action-item-a-1");
+    await user.type(screen.getByLabelText("New action item"), "Book a room");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByTestId("action-item-a-2")).toHaveTextContent(
+      "Book a room",
+    );
+    expect(bodies).toEqual([
+      {
+        text: "Book a room",
+        ownerUserId: null,
+        dueDate: null,
+        workspaceId: WS,
+        meetingId: "m-1",
+      },
+    ]);
+  });
+
+  it("lets the creator delete an item they added", async () => {
+    routes(
+      meetingDetail({
+        actionItems: [actionItem({ createdById: "user-3", ownerUserId: null })],
+      }),
+    );
+    server.use(
+      http.delete(`${BACKEND_URL}/api/action-items/a-1`, () =>
+        ok({ id: "a-1" }),
+      ),
+    );
+    renderDetail();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: 'Delete "Send the launch checklist"',
+      }),
+    );
+    const confirm = screen.getByRole("group", { name: "Confirm delete" });
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("action-item-a-1")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("offers no delete to another plain member", async () => {
+    routes();
+    renderDetail();
+
+    await screen.findByTestId("action-item-a-1");
+    expect(
+      screen.queryByRole("button", { name: /^Delete "/ }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -81,6 +81,16 @@ const calendarDate = z
     );
   }, "dueDate must be a real date");
 
+/** Body of `POST /api/action-items`. */
+export const actionItemCreateSchema = z.object({
+  workspaceId: z.string().min(1).max(64),
+  /** The meeting the item came out of, if any; it must be in the workspace. */
+  meetingId: z.string().min(1).max(64).nullable().optional(),
+  text: z.string().trim().min(1).max(ACTION_ITEM_TEXT_MAX),
+  ownerUserId: z.string().min(1).max(64).nullable().optional(),
+  dueDate: calendarDate.nullable().optional(),
+});
+
 /** Body of `PATCH /api/action-items/:id`; at least one field is required. */
 export const actionItemPatchSchema = z
   .object({

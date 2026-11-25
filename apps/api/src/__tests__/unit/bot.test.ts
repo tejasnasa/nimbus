@@ -1210,6 +1210,8 @@ describe("lib/bot meeting tools", () => {
       "search_workspace",
       ...READ_MEETING_TOOLS,
       "create_action_item",
+      "update_action_item",
+      "delete_action_item",
     ]);
     expect(lastRequest().instructions).toMatch(/MEETINGS:/);
     expect(lastRequest().instructions).toMatch(/<tool_result>/);

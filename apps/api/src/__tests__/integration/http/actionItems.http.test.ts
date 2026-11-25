@@ -206,6 +206,86 @@ describe("http: action items", () => {
     });
   });
 
+  describe("POST /api/action-items", () => {
+    const add = (user: TestUser, body: Record<string, unknown>) =>
+      as(app, user)
+        .post("/api/action-items")
+        .send({ workspaceId, ...body });
+
+    it("lets any member add an item, credited to them, and broadcasts it", async () => {
+      const res = await add(bob, {
+        text: "  Book the venue  ",
+        ownerUserId: alice.id,
+        dueDate: "2026-12-04",
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.responseObject).toMatchObject({
+        text: "Book the venue",
+        ownerUserId: alice.id,
+        dueDate: "2026-12-04",
+        status: "OPEN",
+        meetingId: null,
+      });
+      const row = await testPrisma.actionItem.findUniqueOrThrow({
+        where: { id: res.body.responseObject.id },
+      });
+      expect(row.createdById).toBe(bob.id);
+      expect(lastBroadcast()).toMatchObject({
+        room: workspaceId,
+        payload: {
+          meetingId: null,
+          items: [expect.objectContaining({ text: "Book the venue" })],
+        },
+      });
+    });
+
+    it("attaches the item to a meeting in the workspace", async () => {
+      const res = await add(alice, { text: "Follow up", meetingId });
+
+      expect(res.status).toBe(201);
+      expect(res.body.responseObject).toMatchObject({
+        meetingId,
+        ownerUserId: null,
+        dueDate: null,
+      });
+      expect(lastBroadcast()?.payload).toMatchObject({ meetingId });
+    });
+
+    it("refuses an owner who is not in the workspace", async () => {
+      const res = await add(bob, { text: "x", ownerUserId: outsider.id });
+
+      expect(res.status).toBe(400);
+      expect(await testPrisma.actionItem.count()).toBe(0);
+    });
+
+    it("refuses a meeting from another workspace with 404", async () => {
+      const otherWorkspace = (await createWorkspace(outsider.id)).id;
+      const otherMeeting = (await createMeeting(otherWorkspace)).id;
+
+      const res = await add(bob, { text: "x", meetingId: otherMeeting });
+
+      expect(res.status).toBe(404);
+      expect(await testPrisma.actionItem.count()).toBe(0);
+    });
+
+    it("rejects empty text and a bad date", async () => {
+      expect((await add(bob, { text: "   " })).status).toBe(400);
+      expect(
+        (await add(bob, { text: "x", dueDate: "2026-02-30" })).status,
+      ).toBe(400);
+    });
+
+    it("answers 404 to a non-member and 401 without a session", async () => {
+      expect((await add(outsider, { text: "x" })).status).toBe(404);
+      const anonymous = await request(app)
+        .post("/api/action-items")
+        .send({ workspaceId, text: "x" });
+      expect(anonymous.status).toBe(401);
+      expect(await testPrisma.actionItem.count()).toBe(0);
+    });
+  });
+
   describe("PATCH /api/action-items/:id", () => {
     const patch = (user: TestUser, id: string, body: unknown) =>
       as(app, user)

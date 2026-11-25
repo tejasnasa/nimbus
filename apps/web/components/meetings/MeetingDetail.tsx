@@ -47,6 +47,7 @@ import {
 } from "../../lib/meetingFormat";
 import { useOptionalWorkspaceSettings } from "../WorkspaceSettingsContext";
 import ActionItemRow from "./ActionItemRow";
+import AddActionItemForm from "./AddActionItemForm";
 
 const ORIGINAL = "original";
 
@@ -94,13 +95,17 @@ export default function MeetingDetail({
   onBack: () => void;
   onDeleted: (meetingId: string) => void;
 }) {
-  const { state, replaceActionItem } = useMeetingDetail(meetingId);
+  const { state, replaceActionItem, removeActionItem, addActionItem } =
+    useMeetingDetail(meetingId);
   const { prefs } = useCaptionPrefs(userId);
   const [confirming, setConfirming] = useState(false);
   const [chosen, setChosen] = useState<string | null | undefined>(undefined);
   const language = chosen === undefined ? prefs.language : chosen;
 
-  const editor = useActionItemEditor(replaceActionItem);
+  const editor = useActionItemEditor(replaceActionItem, {
+    onRemoved: removeActionItem,
+    onAdded: addActionItem,
+  });
   const actions = useMeetingActions(meetingId);
   const notes = useOpenDocument();
   const settings = useOptionalWorkspaceSettings();
@@ -269,9 +274,29 @@ export default function MeetingDetail({
                   members={members}
                   pending={editor.pendingId === item.id}
                   onChange={(id, change) => void editor.update(id, change)}
+                  onDelete={
+                    isAdmin ||
+                    item.ownerUserId === userId ||
+                    item.createdById === userId
+                      ? (id) => void editor.remove(id)
+                      : undefined
+                  }
                 />
               ))}
             </ul>
+          )}
+          {meeting.status !== "LIVE" && (
+            <AddActionItemForm
+              members={members}
+              adding={editor.adding}
+              onAdd={(item) =>
+                editor.add({
+                  ...item,
+                  workspaceId: meeting.workspaceId,
+                  meetingId: meeting.id,
+                })
+              }
+            />
           )}
         </section>
       )}

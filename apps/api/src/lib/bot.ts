@@ -85,6 +85,17 @@ const CHAT_MEETING_TOOLS: readonly MeetingToolName[] = CHAT_TOOL_NAMES.filter(
   (name) => name !== "search_meetings",
 );
 
+/**
+ * The tools that change action items. Each acts as the asker (credited as the
+ * creator, or checked for permission to change or delete), so they are offered
+ * only when the asker is known.
+ */
+const ACTION_ITEM_WRITE_TOOLS: ReadonlySet<MeetingToolName> = new Set([
+  "create_action_item",
+  "update_action_item",
+  "delete_action_item",
+]);
+
 /** Hits of each kind a search hands the model. */
 const SEARCH_HITS_PER_KIND = 5;
 
@@ -114,8 +125,9 @@ export type GenerateBotResponseOptions = {
   /** When given, the model call is written to the workspace call log. */
   callMeta?: AiCallMeta;
   /**
-   * The asker. Required for `create_action_item`, which credits them as the
-   * item's creator; without it that tool is not offered.
+   * The asker. Required for the action item tools, which credit them as an
+   * item's creator or check their permission to change or delete one; without
+   * it those tools are not offered.
    */
   userId?: string;
   /** Broadcaster for the action item list when the bot adds an item. */
@@ -481,12 +493,13 @@ action items with their CURRENT status) and past chat.
           },
         ]
       : [];
-    // Adding an action item needs someone to credit it to, so a caller that
-    // passes no asker gets the read-only tools only.
+    // Changing action items needs someone to act as, so a caller that passes
+    // no asker gets the read-only tools only.
     const meetingTools = allowSearch
       ? availableTools(
           CHAT_MEETING_TOOLS.filter(
-            (name) => userId !== undefined || name !== "create_action_item",
+            (name) =>
+              userId !== undefined || !ACTION_ITEM_WRITE_TOOLS.has(name),
           ),
           {},
         )
@@ -532,7 +545,10 @@ search_workspace or list_meetings can be passed to get_meeting.${
           canAdd
             ? `
 create_action_item adds an action item; use it only when someone explicitly asks you to
-add, track or assign one, and confirm what you added.`
+add, track or assign one, and confirm what you added. To change an existing item (its
+wording, owner, due date, or marking it done) call list_action_items for its id, then
+update_action_item; delete_action_item removes one, only when someone asks for that.
+Confirm what you changed.`
             : ""
         }
 ${TOOL_DATA_RULE}`;

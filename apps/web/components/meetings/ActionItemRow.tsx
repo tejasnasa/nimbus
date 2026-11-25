@@ -1,9 +1,10 @@
 /**
  * @module web/components/meetings/ActionItemRow
  * @description One action item with its controls: a checkbox to mark it done,
- * the owner as a select over the workspace's members, and a due date with a
- * clear button. Used by both the meeting detail and the workspace action items
- * view, so the two behave identically.
+ * its text, reworded in place, the owner as a select over the workspace's
+ * members, a due date with a clear button, and a delete button that asks once
+ * before it acts. Used by both the meeting detail and the workspace action
+ * items view, so the two behave identically.
  *
  * Each change is sent on its own and the row is disabled while it is saved. The
  * row never edits its own copy: the parent swaps in the server's item, so what
@@ -12,11 +13,19 @@
  * @important A spoken owner name that matched no member is shown as a note
  *            under the select ("Said: Bob") rather than lost, while the select
  *            reads "Unassigned" because no member owns the item yet.
+ *
+ * @important Delete is shown only to someone the API lets delete the item (an
+ *            admin, its owner or its creator); the API still decides.
  */
 "use client";
 
-import type { ActionItemDTO, Member } from "@nimbus/types";
+import {
+  ACTION_ITEM_TEXT_MAX,
+  type ActionItemDTO,
+  type Member,
+} from "@nimbus/types";
 import Select from "@nimbus/ui/Select";
+import { useState } from "react";
 import type { ActionItemChange } from "../../lib/meetingApi";
 
 /** Today as `YYYY-MM-DD` in the viewer's calendar. */
@@ -33,6 +42,7 @@ function today(): string {
  * @param props.pending - Whether a change to this item is being saved.
  * @param props.onChange - Saves a change to the item.
  * @param props.onOpenMeeting - When given, shows a link to the item's meeting.
+ * @param props.onDelete - When given, shows a delete button for the item.
  */
 export default function ActionItemRow({
   item,
@@ -40,16 +50,26 @@ export default function ActionItemRow({
   pending,
   onChange,
   onOpenMeeting,
+  onDelete,
 }: {
   item: ActionItemDTO;
   members: Member[];
   pending: boolean;
   onChange: (itemId: string, change: ActionItemChange) => void;
   onOpenMeeting?: (meetingId: string) => void;
+  onDelete?: (itemId: string) => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const done = item.status === "DONE";
   const overdue = !done && item.dueDate !== null && item.dueDate < today();
   const unmatchedName = item.ownerUserId === null ? item.ownerName : null;
+
+  const saveText = () => {
+    const text = draft?.trim() ?? "";
+    setDraft(null);
+    if (text && text !== item.text) onChange(item.id, { text });
+  };
 
   return (
     <li
@@ -67,11 +87,96 @@ export default function ActionItemRow({
           className="mt-0.5 h-4 w-4 shrink-0 accent-(--primary) hover:cursor-pointer disabled:cursor-not-allowed"
         />
         <div className="min-w-0 flex-1 space-y-2">
-          <p
-            className={`text-sm ${done ? "text-(--muted-foreground) line-through" : ""}`}
-          >
-            {item.text}
-          </p>
+          {draft !== null ? (
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveText();
+              }}
+            >
+              <input
+                autoFocus
+                aria-label="Action item text"
+                value={draft}
+                maxLength={ACTION_ITEM_TEXT_MAX}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setDraft(null);
+                }}
+                className="h-8 min-w-0 flex-1 rounded-lg border border-(--border) bg-(--muted)/50 px-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={!draft.trim()}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-(--primary) hover:cursor-pointer hover:bg-(--muted) disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft(null)}
+                className="rounded-lg px-2 py-1 text-xs text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted)"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-start gap-2">
+              <p
+                className={`min-w-0 flex-1 text-sm ${done ? "text-(--muted-foreground) line-through" : ""}`}
+              >
+                {item.text}
+              </p>
+              <button
+                type="button"
+                disabled={pending}
+                aria-label={`Edit "${item.text}"`}
+                onClick={() => setDraft(item.text)}
+                className="shrink-0 rounded-lg px-2 py-0.5 text-xs text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted) disabled:cursor-not-allowed"
+              >
+                Edit
+              </button>
+              {onDelete && !confirmingDelete && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  aria-label={`Delete "${item.text}"`}
+                  onClick={() => setConfirmingDelete(true)}
+                  className="shrink-0 rounded-lg px-2 py-0.5 text-xs text-(--destructive) hover:cursor-pointer hover:bg-(--destructive)/10 disabled:cursor-not-allowed"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+          {onDelete && confirmingDelete && (
+            <div
+              role="group"
+              aria-label="Confirm delete"
+              className="flex flex-wrap items-center gap-2 text-xs"
+            >
+              <span>Delete this action item?</span>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  onDelete(item.id);
+                }}
+                className="rounded-lg bg-(--destructive) px-2 py-1 font-medium text-white hover:cursor-pointer disabled:cursor-not-allowed"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="rounded-lg px-2 py-1 text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted)"
+              >
+                Keep it
+              </button>
+            </div>
+          )}
           {onOpenMeeting && item.meetingId && (
             <button
               type="button"

@@ -194,6 +194,8 @@ export default function WorkspaceMeetingsPanel({
         <ActionItemsView
           workspaceId={workspaceId}
           members={members}
+          userId={userId}
+          isAdmin={isAdmin}
           onOpenMeeting={(id) => open(id)}
         />
       ) : (

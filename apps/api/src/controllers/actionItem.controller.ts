@@ -1,9 +1,9 @@
 /**
  * @module api/controllers/actionItem
  * @description The REST surface of action items: listing a workspace's, and
- * changing or deleting one.
+ * adding, changing or deleting one.
  *
- * Any member may change an item's status, owner, due date or text. Deleting is
+ * Any member may add an item, or change one's status, owner, due date or text. Deleting is
  * for an admin, the item's owner or whoever created it. Every change is
  * announced to the workspace as `meeting:action-items`.
  *
@@ -15,10 +15,13 @@
  *
  * @important An owner must be a current member of the item's workspace.
  *            Assigning or clearing an owner also clears the name as spoken, so
- *            the item never shows a stale name next to a different owner.
+ *            the item never shows a stale name next to a different owner. The
+ *            rules for adding, changing and deleting live in
+ *            `lib/meeting/actionItems`, shared with the assistant's tools.
  */
 import { prisma } from "@nimbus/db";
 import {
+  actionItemCreateSchema,
   actionItemListQuerySchema,
   actionItemPatchSchema,
   ServerResponse,
@@ -27,7 +30,9 @@ import {
 } from "@nimbus/types";
 import {
   actionItemInclude,
-  broadcastActionItems,
+  addActionItem,
+  changeActionItem,
+  removeActionItem,
   toActionItemDTOs,
 } from "../lib/meeting/actionItems";
 import type { MeetingBroadcaster } from "../lib/meeting/lifecycle";
@@ -91,6 +96,47 @@ export async function listActionItems(userId: string, query: unknown) {
   }
 }
 
+/** Maps a refused change or deletion onto its response. */
+function refusal(outcome: { status: 400 | 403 | 404; message: string }) {
+  if (outcome.status === 400) return ServerResponse.badRequest(outcome.message);
+  if (outcome.status === 403) return ServerResponse.forbidden(outcome.message);
+  return notFoundItem();
+}
+
+/**
+ * Adds an action item by hand, credited to the caller.
+ *
+ * @param userId - The authenticated user.
+ * @param body - The raw request body: `workspaceId`, `text`, and optionally
+ *               `meetingId`, `ownerUserId`, `dueDate`.
+ * @param deps.io - Broadcaster for `meeting:action-items`.
+ * @returns 201 with the new item; 400 for an invalid body or an owner who is
+ *          not a member; 404 for a non-member or a meeting elsewhere.
+ */
+export async function createActionItem(
+  userId: string,
+  body: unknown,
+  deps: { io?: MeetingBroadcaster } = {},
+) {
+  const parsed = actionItemCreateSchema.safeParse(body);
+  if (!parsed.success) return ServerResponse.badRequest("Invalid action item");
+
+  try {
+    const outcome = await addActionItem(parsed.data, { userId, io: deps.io });
+    if (!outcome.ok) {
+      return outcome.status === 400
+        ? ServerResponse.badRequest(outcome.message)
+        : ServerResponse.notFound(outcome.message);
+    }
+    return ServerResponse.created<ActionItemDTO>(
+      outcome.value,
+      "Action item added",
+    );
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+}
+
 /**
  * Changes an action item.
  *
@@ -111,58 +157,15 @@ export async function patchActionItem(
   if (!parsed.success) return ServerResponse.badRequest("Invalid change");
 
   try {
-    const item = await prisma.actionItem.findUnique({ where: { id: itemId } });
-    if (!item) return notFoundItem();
-    const access = await requireWorkspaceRole(userId, item.workspaceId);
-    if (!access.ok) return notFoundItem();
-
-    const { status, ownerUserId, dueDate, text } = parsed.data;
-    if (ownerUserId) {
-      const owner = await prisma.workspaceMember.findUnique({
-        where: {
-          userId_workspaceId: {
-            userId: ownerUserId,
-            workspaceId: item.workspaceId,
-          },
-        },
-        select: { userId: true },
-      });
-      if (!owner) {
-        return ServerResponse.badRequest(
-          "The owner must be a member of this workspace",
-        );
-      }
-    }
-
-    const updated = await prisma.actionItem.update({
-      where: { id: itemId },
-      data: {
-        ...(text !== undefined ? { text } : {}),
-        ...(dueDate !== undefined
-          ? {
-              dueDate:
-                dueDate === null ? null : new Date(`${dueDate}T00:00:00Z`),
-            }
-          : {}),
-        ...(ownerUserId !== undefined ? { ownerUserId, ownerName: null } : {}),
-        ...(status === "OPEN" ? { status, completedAt: null } : {}),
-        ...(status === "DONE"
-          ? {
-              status,
-              completedAt:
-                item.status === "DONE" ? item.completedAt : new Date(),
-            }
-          : {}),
-      },
-      include: actionItemInclude,
+    const outcome = await changeActionItem(itemId, parsed.data, {
+      userId,
+      io: deps.io,
     });
-    const [dto] = await toActionItemDTOs([updated]);
-    await broadcastActionItems(deps.io, {
-      workspaceId: item.workspaceId,
-      meetingId: item.meetingId,
-      changed: [dto!],
-    });
-    return ServerResponse.ok<ActionItemDTO>(dto!, "Action item updated");
+    if (!outcome.ok) return refusal(outcome);
+    return ServerResponse.ok<ActionItemDTO>(
+      outcome.value,
+      "Action item updated",
+    );
   } catch (error) {
     return ServerResponse.internalError(error);
   }
@@ -183,30 +186,10 @@ export async function deleteActionItem(
   deps: { io?: MeetingBroadcaster } = {},
 ) {
   try {
-    const item = await prisma.actionItem.findUnique({ where: { id: itemId } });
-    if (!item) return notFoundItem();
-    const access = await requireWorkspaceRole(userId, item.workspaceId);
-    if (!access.ok) return notFoundItem();
-
-    const allowed =
-      access.role !== "MEMBER" ||
-      item.ownerUserId === userId ||
-      item.createdById === userId;
-    if (!allowed) {
-      return ServerResponse.forbidden(
-        "Only an admin, the owner or the creator can delete an action item",
-      );
-    }
-
-    await prisma.actionItem.deleteMany({ where: { id: itemId } });
-    await broadcastActionItems(deps.io, {
-      workspaceId: item.workspaceId,
-      meetingId: item.meetingId,
-      changed: [],
-      removedIds: [itemId],
-    });
+    const outcome = await removeActionItem(itemId, { userId, io: deps.io });
+    if (!outcome.ok) return refusal(outcome);
     return ServerResponse.ok<{ id: string }>(
-      { id: itemId },
+      { id: outcome.value.id },
       "Action item deleted",
     );
   } catch (error) {

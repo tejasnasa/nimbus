@@ -2,8 +2,8 @@
  * @module api/lib/meeting/tools
  * @description The meeting tool registry: the functions a model may call to
  * read the workspace's meeting record (transcripts, notes, decisions, action
- * items) and to act on it (add an action item, create a document, draw the
- * discussion). One registry serves the in-call assistant and Nimbus in chat;
+ * items) and to act on it (add, change or delete an action item, create a
+ * document, draw the discussion). One registry serves the in-call assistant and Nimbus in chat;
  * each caller picks the tools it offers by name.
  *
  * Every tool has a zod schema for its arguments and a matching strict JSON
@@ -24,8 +24,11 @@
  *            fenced text is data, never instructions: transcripts and notes are
  *            words people said, and anyone can say anything.
  *
- * @important The write tools (`create_action_item`, `create_document`,
- *            `draw_discussion`) commit or start their work before they return.
+ * @important The write tools (`create_action_item`, `update_action_item`,
+ *            `delete_action_item`, `create_document`, `draw_discussion`) commit
+ *            or start their work before they return. Changing and deleting an
+ *            item go through `changeActionItem` and `removeActionItem`, the
+ *            same rules the REST routes apply, confined to this workspace.
  *            A document or a diagram is generated in the background and
  *            announced in chat, so a slow generation never holds up an answer.
  */
@@ -43,7 +46,10 @@ import { BOT_USER_EMAIL } from "../botUser";
 import {
   actionItemInclude,
   broadcastActionItems,
+  changeActionItem,
+  removeActionItem,
   toActionItemDTOs,
+  type ActionItemChange,
 } from "./actionItems";
 import { buildLiveDiagramPrompt, runMeetingDiagram } from "./diagram";
 import { runMarkdownDocument } from "./documents";
@@ -72,6 +78,8 @@ export const MEETING_TOOL_NAMES = [
   "list_decisions",
   "list_action_items",
   "create_action_item",
+  "update_action_item",
+  "delete_action_item",
   "create_document",
   "draw_discussion",
 ] as const;
@@ -83,9 +91,9 @@ export type MeetingToolName = (typeof MEETING_TOOL_NAMES)[number];
 export const VOICE_TOOL_NAMES: readonly MeetingToolName[] = MEETING_TOOL_NAMES;
 
 /**
- * The tools Nimbus can offer in chat: the read-only ones plus adding an
- * action item. Chat has its own document tool, and there is no current meeting
- * to read or draw.
+ * The tools Nimbus can offer in chat: the read-only ones plus adding, changing
+ * and deleting action items. Chat has its own document tool, and there is no
+ * current meeting to read or draw.
  */
 export const CHAT_TOOL_NAMES: readonly MeetingToolName[] = [
   "search_meetings",
@@ -94,6 +102,8 @@ export const CHAT_TOOL_NAMES: readonly MeetingToolName[] = [
   "list_decisions",
   "list_action_items",
   "create_action_item",
+  "update_action_item",
+  "delete_action_item",
 ];
 
 /** Who is asking, where, and with what to broadcast. */
@@ -265,6 +275,21 @@ const createActionItemSchema = z.object({
   text: z.string().trim().min(1).max(ACTION_ITEM_TEXT_MAX),
   owner_name: z.string().trim().min(1).max(120).nullish(),
   due: isoDate.nullish(),
+});
+
+/** Clears a field in `update_action_item`, as opposed to null for "leave it". */
+const CLEAR = "none";
+
+const updateActionItemSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  text: z.string().trim().min(1).max(ACTION_ITEM_TEXT_MAX).nullish(),
+  owner_name: z.string().trim().min(1).max(120).nullish(),
+  due: z.union([isoDate, z.literal(CLEAR)]).nullish(),
+  status: z.enum(["OPEN", "DONE"]).nullish(),
+});
+
+const deleteActionItemSchema = z.object({
+  id: z.string().trim().min(1).max(64),
 });
 
 const createDocumentSchema = z.object({
@@ -546,7 +571,7 @@ export const MEETING_TOOLS: readonly MeetingTool[] = [
   {
     name: "list_action_items",
     description:
-      "Action items in this workspace with their owners, due dates and status, newest first.",
+      "Action items in this workspace with their ids, owners, due dates and status, newest first. Use an id to change or delete an item.",
     kind: "read",
     needsMeeting: false,
     parameters: {
@@ -596,6 +621,7 @@ export const MEETING_TOOLS: readonly MeetingTool[] = [
       const items = await toActionItemDTOs(rows);
       return {
         action_items: items.map((item) => ({
+          id: item.id,
           text: item.text,
           owner: item.ownerName,
           due: item.dueDate,
@@ -652,8 +678,127 @@ export const MEETING_TOOLS: readonly MeetingTool[] = [
         changed: [dto!],
       }).catch(() => undefined);
       return {
-        created: { text: dto!.text, owner: dto!.ownerName, due: dto!.dueDate },
+        created: {
+          id: dto!.id,
+          text: dto!.text,
+          owner: dto!.ownerName,
+          due: dto!.dueDate,
+        },
       };
+    },
+  },
+  {
+    name: "update_action_item",
+    description:
+      "Changes an existing action item: its text, owner, due date or status. Find its id with list_action_items first. Only when someone asks for the change.",
+    kind: "write",
+    needsMeeting: false,
+    parameters: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "The item's id, from list_action_items.",
+        },
+        text: nullableString("New wording, or null to leave it."),
+        owner_name: nullableString(
+          `The new owner, as they were named, "${CLEAR}" to remove the owner, or null to leave it.`,
+        ),
+        due: nullableString(
+          `New due date as YYYY-MM-DD resolved against today's date, "${CLEAR}" to remove it, or null to leave it.`,
+        ),
+        status: {
+          type: ["string", "null"],
+          enum: ["OPEN", "DONE", null],
+          description:
+            "DONE to complete it, OPEN to reopen it, or null to leave it.",
+        },
+      },
+      required: ["id", "text", "owner_name", "due", "status"],
+      additionalProperties: false,
+    },
+    schema: updateActionItemSchema,
+    async run(args: z.infer<typeof updateActionItemSchema>, context) {
+      const change: ActionItemChange = {};
+      if (args.text) change.text = args.text;
+      if (args.status) change.status = args.status;
+      if (args.due) change.dueDate = args.due === CLEAR ? null : args.due;
+      if (args.owner_name) {
+        if (args.owner_name.toLowerCase() === CLEAR) {
+          change.ownerUserId = null;
+        } else {
+          const ownerUserId = resolveOwner(
+            args.owner_name,
+            await memberCandidates(context.workspaceId),
+          );
+          if (!ownerUserId) {
+            throw new ToolRefusal(
+              `Nobody in this workspace is called ${args.owner_name}.`,
+            );
+          }
+          change.ownerUserId = ownerUserId;
+        }
+      }
+      if (Object.keys(change).length === 0) {
+        throw new ToolRefusal("Nothing to change was given.");
+      }
+
+      const outcome = await changeActionItem(args.id, change, {
+        userId: context.userId,
+        io: context.io,
+        workspaceId: context.workspaceId,
+      });
+      if (!outcome.ok) {
+        throw new ToolRefusal(
+          outcome.status === 404
+            ? "No action item with that id in this workspace."
+            : outcome.message,
+        );
+      }
+      const item = outcome.value;
+      return {
+        updated: {
+          id: item.id,
+          text: item.text,
+          owner: item.ownerName,
+          due: item.dueDate,
+          status: item.status,
+        },
+      };
+    },
+  },
+  {
+    name: "delete_action_item",
+    description:
+      "Deletes an action item. Find its id with list_action_items first. Only when someone explicitly asks for it to be removed.",
+    kind: "write",
+    needsMeeting: false,
+    parameters: {
+      type: "object",
+      properties: {
+        id: {
+          type: "string",
+          description: "The item's id, from list_action_items.",
+        },
+      },
+      required: ["id"],
+      additionalProperties: false,
+    },
+    schema: deleteActionItemSchema,
+    async run(args: z.infer<typeof deleteActionItemSchema>, context) {
+      const outcome = await removeActionItem(args.id, {
+        userId: context.userId,
+        io: context.io,
+        workspaceId: context.workspaceId,
+      });
+      if (!outcome.ok) {
+        throw new ToolRefusal(
+          outcome.status === 404
+            ? "No action item with that id in this workspace."
+            : outcome.message,
+        );
+      }
+      return { deleted: { text: outcome.value.text } };
     },
   },
   {

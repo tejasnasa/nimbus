@@ -114,8 +114,33 @@ describe("FormSwitch", () => {
       await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
 
       expect(
-        await screen.findByText("Please verify your email before signing in."),
+        await screen.findByText(
+          "Please verify your email before signing in. We've sent you a new link.",
+        ),
       ).toBeInTheDocument();
+    });
+
+    it("resends the verification email to the address that was refused", async () => {
+      const user = userEvent.setup();
+      capture("/api/auth/sign-in/email", fail(403, "Email not verified"));
+      const bodies = capture("/api/auth/send-verification-email");
+      render(<FormSwitch />);
+
+      await user.type(loginEmail(), "ada@example.com");
+      await user.type(loginPassword(), "supersecret");
+      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(
+        await within(loginCard()).findByRole("button", {
+          name: "Resend verification email",
+        }),
+      );
+
+      expect(
+        await screen.findByText("Sent again to ada@example.com."),
+      ).toBeInTheDocument();
+      expect(bodies).toEqual([
+        { email: "ada@example.com", callbackURL: "/email-verified" },
+      ]);
     });
   });
 

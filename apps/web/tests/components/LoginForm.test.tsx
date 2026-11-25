@@ -26,11 +26,17 @@ function Harness({
   onOpenSignup,
   onOpenForgotPassword,
   onSubmit = vi.fn(),
+  unverifiedEmail,
+  resendState,
+  onResendVerification,
 }: {
   firstError?: string;
   onOpenSignup?: () => void;
   onOpenForgotPassword?: () => void;
   onSubmit?: (values: LoginValues) => void;
+  unverifiedEmail?: string | null;
+  resendState?: "idle" | "sending" | "sent" | "error";
+  onResendVerification?: () => void;
 }) {
   const form = useForm<LoginValues>({
     defaultValues: { email: "", password: "" },
@@ -44,6 +50,9 @@ function Harness({
       onSubmit={form.handleSubmit((values) => onSubmit(values))}
       openSignup={onOpenSignup}
       openForgotPassword={onOpenForgotPassword}
+      unverifiedEmail={unverifiedEmail}
+      resendState={resendState}
+      onResendVerification={onResendVerification}
     />
   );
 }
@@ -72,6 +81,41 @@ describe("LoginForm", () => {
     render(<Harness firstError="Invalid email or password" />);
 
     expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
+  });
+
+  it("offers to resend the verification email for an unverified address", async () => {
+    const user = userEvent.setup();
+    const onResendVerification = vi.fn();
+    const { rerender } = render(
+      <Harness
+        unverifiedEmail="ada@example.com"
+        onResendVerification={onResendVerification}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Resend verification email" }),
+    );
+    expect(onResendVerification).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <Harness
+        unverifiedEmail="ada@example.com"
+        resendState="sent"
+        onResendVerification={onResendVerification}
+      />,
+    );
+    expect(screen.getByTestId("resend-verification-status")).toHaveTextContent(
+      "Sent again to ada@example.com.",
+    );
+  });
+
+  it("offers no resend without an unverified address", () => {
+    render(<Harness onResendVerification={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("button", { name: "Resend verification email" }),
+    ).toBeNull();
   });
 
   it("shows no error banner when there is nothing to report", () => {

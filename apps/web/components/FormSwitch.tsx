@@ -30,6 +30,9 @@ export default function FormSwitch() {
     firstError: loginFirstError,
     isSubmitting: loginIsSubmitting,
     onSubmit: loginOnSubmit,
+    unverifiedEmail,
+    resendState,
+    resendVerification,
   } = useLoginForm();
 
   return (
@@ -59,6 +62,9 @@ export default function FormSwitch() {
             onSubmit={loginOnSubmit}
             openSignup={() => setFormType("signup")}
             openForgotPassword={() => setFormType("forgot")}
+            unverifiedEmail={unverifiedEmail}
+            resendState={resendState}
+            onResendVerification={() => void resendVerification()}
             isActive={formType === "login"}
           />
         </div>

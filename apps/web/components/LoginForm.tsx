@@ -6,6 +6,7 @@ import google from "../assets/google.svg";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
 import { loginSchema } from "@nimbus/types";
+import type { ResendState } from "../hooks/useLoginForm";
 import { authClient } from "../lib/auth-client";
 import Login from "@nimbus/ui/icons/Login";
 import Error from "@nimbus/ui/icons/Error";
@@ -13,8 +14,9 @@ import Error from "@nimbus/ui/icons/Error";
 /**
  * @module web/components/LoginForm
  * @description Presentational sign-in card driven by `useLoginForm`: email +
- * password fields, forgot-password link, error banner, Google OAuth
- * (`callbackURL: /home`), and a switch to signup. All logic lives in the
+ * password fields, forgot-password link, error banner (with a resend link for
+ * an unverified email), Google OAuth (`callbackURL: /home`), and a switch to
+ * signup. All logic lives in the
  * hook — this component only renders props.
  */
 /** Controlled props from `useLoginForm` plus view-switch callbacks. */
@@ -25,6 +27,12 @@ interface LoginFormProps {
   onSubmit: (e: React.FormEvent) => void;
   openSignup?: () => void;
   openForgotPassword?: () => void;
+  /** The address that still needs verifying, when sign-in was refused for it. */
+  unverifiedEmail?: string | null;
+  /** Where a resend of the verification email stands. */
+  resendState?: ResendState;
+  /** Sends the verification email again. */
+  onResendVerification?: () => void;
   /**
    * Whether this is the card currently shown. Inactive cards stay mounted for
    * the crossfade but must not be reachable by keyboard or a screen reader.
@@ -39,6 +47,9 @@ export default function LoginForm({
   onSubmit,
   openSignup,
   openForgotPassword,
+  unverifiedEmail,
+  resendState = "idle",
+  onResendVerification,
   isActive = true,
 }: LoginFormProps) {
   return (
@@ -101,6 +112,27 @@ export default function LoginForm({
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
             <Error className="w-4 h-4 text-(--destructive) shrink-0" />
             <span className="text-xs text-(--destructive)">{firstError}</span>
+          </div>
+        )}
+        {unverifiedEmail && onResendVerification && (
+          <div className="flex items-center justify-between gap-2 text-xs text-(--muted-foreground)">
+            <span role="status" data-testid="resend-verification-status">
+              {resendState === "sent"
+                ? `Sent again to ${unverifiedEmail}.`
+                : resendState === "error"
+                  ? "Could not send it. Try again in a minute."
+                  : "No email?"}
+            </span>
+            <button
+              type="button"
+              onClick={onResendVerification}
+              disabled={resendState === "sending"}
+              className="font-medium text-(--primary) hover:underline hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resendState === "sending"
+                ? "Sending…"
+                : "Resend verification email"}
+            </button>
           </div>
         )}
         <Button

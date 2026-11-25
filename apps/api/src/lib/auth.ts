@@ -108,6 +108,10 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendOnSignUp: true,
+    // A sign-in with the right password but an unverified address mails a
+    // fresh link before refusing, so an expired or lost first link is never a
+    // dead end. better-auth only does this after the password checks out.
+    sendOnSignIn: true,
     callbackURL: `${process.env.FRONTEND_URL}/email-verified`,
     sendVerificationEmail: async ({ user, url }) => {
       // NOTE: rewrite better-auth's callback to the frontend route — the raw

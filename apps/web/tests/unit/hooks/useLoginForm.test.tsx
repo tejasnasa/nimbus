@@ -2,7 +2,8 @@
  * @module web/tests/unit/hooks/useLoginForm
  * @description Sign-in form: Zod validation surfaced through `firstError`, the
  * `callbackURL: "/home"` payload, the dedicated message for unverified emails
- * (403), and the generic server/network failure branches.
+ * (403) and resending their verification link, and the generic server/network
+ * failure branches.
  *
  * `authClient` is mocked rather than driven over the network: the hook's
  * contract is better-auth's callback interface (`onSuccess` / `onError` with a
@@ -20,6 +21,7 @@ type LoginValues = { email: string; password: string };
 const { authClientMock } = vi.hoisted(() => ({
   authClientMock: {
     signIn: { email: vi.fn() },
+    sendVerificationEmail: vi.fn(),
   },
 }));
 
@@ -132,8 +134,56 @@ describe("useLoginForm", () => {
     });
 
     expect(result.current.firstError).toBe(
-      "Please verify your email before signing in.",
+      "Please verify your email before signing in. We've sent you a new link.",
     );
+    expect(result.current.unverifiedEmail).toBe("ada@example.com");
+  });
+
+  it("resends the verification email to the refused address", async () => {
+    failSignIn(403, "Email not verified");
+    authClientMock.sendVerificationEmail.mockResolvedValue({
+      data: { status: true },
+      error: null,
+    });
+    const { result } = renderHook(() => useLoginForm());
+    fillCredentials(result);
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+
+    await act(async () => {
+      await result.current.resendVerification();
+    });
+
+    expect(authClientMock.sendVerificationEmail).toHaveBeenCalledWith({
+      email: "ada@example.com",
+      callbackURL: "/email-verified",
+    });
+    expect(result.current.resendState).toBe("sent");
+  });
+
+  it("reports a failed resend, and offers none before a 403", async () => {
+    const { result } = renderHook(() => useLoginForm());
+    await act(async () => {
+      await result.current.resendVerification();
+    });
+    expect(authClientMock.sendVerificationEmail).not.toHaveBeenCalled();
+    expect(result.current.unverifiedEmail).toBeNull();
+
+    failSignIn(403, "Email not verified");
+    authClientMock.sendVerificationEmail.mockResolvedValue({
+      data: null,
+      error: { status: 429, message: "Too many requests" },
+    });
+    fillCredentials(result);
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+    await act(async () => {
+      await result.current.resendVerification();
+    });
+
+    expect(result.current.resendState).toBe("error");
   });
 
   it("shows the server message for any other rejection", async () => {

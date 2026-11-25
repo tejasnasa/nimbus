@@ -633,6 +633,10 @@ function DangerZonePanel({ email }: { email: string }) {
               workspaces will be removed too, leaving gaps. This action cannot
               be undone.
             </p>
+            <p className="text-sm text-(--muted-foreground) mb-3">
+              To keep a workspace you own, transfer ownership to another member
+              first, from that workspace&rsquo;s Settings &rarr; Permissions.
+            </p>
             <p className="text-sm text-(--muted-foreground) mb-6">
               Type <span className="font-mono">{expectedEmail}</span> below to
               confirm.

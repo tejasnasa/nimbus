@@ -10,6 +10,7 @@
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../../app";
+import { env } from "../../lib/env";
 import {
   addMember,
   as,
@@ -137,6 +138,92 @@ describe("security: RBAC", () => {
 
       expect(res.status).toBe(200);
       await expect(roleOf(member.id)).resolves.toBeUndefined();
+    });
+  });
+
+  describe("leaving", () => {
+    it.each(["MEMBER", "ADMIN"] as const)("lets a %s leave on their own", async (role) => {
+      const leaver = role === "MEMBER" ? member : admin;
+
+      const res = await as(app, leaver)
+        .delete(`/api/workspace/leave/${wsId}`)
+        .send({ memberId: leaver.id });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toBe("Left workspace");
+      await expect(roleOf(leaver.id)).resolves.toBeUndefined();
+    });
+
+    it("keeps the OWNER until ownership is transferred", async () => {
+      const res = await as(app, owner)
+        .delete(`/api/workspace/leave/${wsId}`)
+        .send({ memberId: owner.id });
+
+      expect(res.status).toBe(403);
+      expect(res.body.message).toMatch(/transfer ownership/i);
+      await expect(roleOf(owner.id)).resolves.toBe("OWNER");
+    });
+
+    it("answers 403 to a non-member trying to leave", async () => {
+      const outsider = await mintUser(app);
+
+      const res = await as(app, outsider)
+        .delete(`/api/workspace/leave/${wsId}`)
+        .send({ memberId: outsider.id });
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("ownership transfer", () => {
+    const transfer = (user: TestUser, memberId: string) =>
+      as(app, user).put(`/api/workspace/transfer/${wsId}`).send({ memberId });
+
+    it("hands the workspace to a member and makes the old owner an ADMIN", async () => {
+      const res = await transfer(owner, member.id);
+
+      expect(res.status).toBe(200);
+      await expect(roleOf(member.id)).resolves.toBe("OWNER");
+      await expect(roleOf(owner.id)).resolves.toBe("ADMIN");
+      expect(
+        await testPrisma.workspaceMember.count({ where: { workspaceId: wsId, role: "OWNER" } }),
+      ).toBe(1);
+    });
+
+    it("lets the old owner leave once it is handed on", async () => {
+      await transfer(owner, admin.id);
+
+      const res = await as(app, owner)
+        .delete(`/api/workspace/leave/${wsId}`)
+        .send({ memberId: owner.id });
+
+      expect(res.status).toBe(200);
+      await expect(roleOf(owner.id)).resolves.toBeUndefined();
+      await expect(roleOf(admin.id)).resolves.toBe("OWNER");
+    });
+
+    it.each(["admin", "member"] as const)("forbids an %s transferring ownership", async (who) => {
+      const caller = who === "admin" ? admin : member;
+
+      const res = await transfer(caller, caller.id === admin.id ? member.id : admin.id);
+
+      expect(res.status).toBe(403);
+      await expect(roleOf(owner.id)).resolves.toBe("OWNER");
+    });
+
+    it("refuses the owner themself, Nimbus and a non-member", async () => {
+      const outsider = await mintUser(app);
+
+      expect((await transfer(owner, owner.id)).status).toBe(400);
+      expect((await transfer(owner, env.BOT_USERID)).status).toBe(400);
+      expect((await transfer(owner, outsider.id)).status).toBe(404);
+      await expect(roleOf(owner.id)).resolves.toBe("OWNER");
+    });
+
+    it("rejects a transfer with no memberId", async () => {
+      const res = await as(app, owner).put(`/api/workspace/transfer/${wsId}`).send({});
+
+      expect(res.status).toBe(400);
     });
   });
 

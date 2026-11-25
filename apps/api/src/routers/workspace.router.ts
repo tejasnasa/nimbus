@@ -1,9 +1,9 @@
 /**
  * @module api/routers/workspace
  * @description Workspace REST endpoints (`/api/workspace/*`): create (Zod
- * validated), list, join, invite rotation, role/member management, update,
- * delete, and slug lookup. All routes inherit `authCheck` from the master
- * router; `req.user` is guaranteed present.
+ * validated), list, join, invite rotation, role/member management, leaving,
+ * ownership transfer, update, delete, and slug lookup. All routes inherit
+ * `authCheck` from the master router; `req.user` is guaranteed present.
  */
 import {
   workspaceJoinSchema,
@@ -22,6 +22,7 @@ import {
   joinWorkspace,
   regenerateInviteCode,
   removeMember,
+  transferOwnership,
   updateMemberRole,
   updateWorkspace,
 } from "../controllers/workspace.controller";
@@ -91,6 +92,20 @@ workspaceRouter.delete(
 
     const io = req.app.get("io") as Server | undefined;
     const response = await removeMember(wsid, id, memberId, { io });
+
+    return res.status(response.statusCode).json(response);
+  },
+);
+
+workspaceRouter.put(
+  "/transfer/:wsid",
+  validate(workspaceMemberSchema),
+  async (req, res) => {
+    const { wsid } = req.params;
+    const { id } = req.user!;
+    const { memberId } = req.body;
+
+    const response = await transferOwnership(wsid, id, memberId);
 
     return res.status(response.statusCode).json(response);
   },

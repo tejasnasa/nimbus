@@ -2,11 +2,15 @@
  * @module api/controllers/workspace
  * @description Workspace lifecycle + RBAC: creation transaction (workspace,
  * OWNER membership, seeded CANVAS/MARKDOWN docs, Nimbus ADMIN), member
- * reads scoped by membership, invite join, and ADMIN/OWNER-gated mutations.
- * Role ladder: OWNER (sole, immutable) > ADMIN > MEMBER.
+ * reads scoped by membership, invite join, leaving, ownership transfer, and
+ * ADMIN/OWNER-gated mutations. Role ladder: OWNER (sole) > ADMIN > MEMBER.
  *
- * @important Role invariants — OWNER can never be reassigned, demoted, or
- *            removed; ADMINs cannot promote to ADMIN. Creation requires
+ * @important Role invariants — there is exactly one OWNER. The role cannot be
+ *            granted, demoted or removed through `updateMemberRole` or
+ *            `removeMember`; the only way it moves is `transferOwnership`,
+ *            where the OWNER hands it to another member and becomes an ADMIN
+ *            in the same transaction. The OWNER cannot leave without handing
+ *            it on first. ADMINs cannot promote to ADMIN. Creation requires
  *            BOT_USERID for the bot membership row, and that row must exist:
  *            `ensureBotUser` creates it at boot. If it has gone missing,
  *            creation rolls back and answers with a curated 500 rather than
@@ -27,6 +31,7 @@ import { ServerResponse } from "@nimbus/types";
 import { generateSlug } from "@nimbus/utils";
 import cuid from "cuid";
 import { destroyChatImages } from "../lib/cloudinary";
+import { env } from "../lib/env";
 import { removeAllFromCall, removeFromCall } from "../lib/livekit/revocation";
 import {
   evictUserFromWorkspace,
@@ -462,11 +467,13 @@ export const updateMemberRole = async (
 };
 
 /**
- * Removes a member (ADMIN/OWNER only; OWNER is unremovable).
+ * Removes a member, or lets a member leave. ADMIN/OWNER may remove anyone but
+ * the OWNER; any member but the OWNER may remove themself. The OWNER has to
+ * transfer ownership before leaving.
  *
  * @param wsid - Workspace cuid.
  * @param id - Acting user's ID.
- * @param memberId - Member to remove.
+ * @param memberId - Member to remove; the caller's own ID to leave.
  * @param deps.io - Socket.IO server, used to take the member's live sockets out
  *                  of the workspace's rooms; omitted where there is none.
  */
@@ -487,8 +494,13 @@ export const removeMember = async (
     }
 
     const loggedInUser = workspace.members.find((m) => m.userId === id);
+    const leaving = loggedInUser !== undefined && memberId === id;
 
-    if (loggedInUser?.role !== "ADMIN" && loggedInUser?.role !== "OWNER") {
+    if (
+      !leaving &&
+      loggedInUser?.role !== "ADMIN" &&
+      loggedInUser?.role !== "OWNER"
+    ) {
       return ServerResponse.forbidden("Access denied");
     }
 
@@ -499,7 +511,11 @@ export const removeMember = async (
     }
 
     if (member.role === "OWNER") {
-      return ServerResponse.forbidden("You cannot remove owner");
+      return ServerResponse.forbidden(
+        leaving
+          ? "Transfer ownership to another member before leaving"
+          : "You cannot remove owner",
+      );
     }
 
     await prisma.workspaceMember.delete({
@@ -516,7 +532,75 @@ export const removeMember = async (
     await removeFromCall(wsid, memberId);
     if (deps.io) await evictUserFromWorkspace(deps.io, wsid, memberId);
 
-    return ServerResponse.ok({}, "Member removed");
+    return ServerResponse.ok({}, leaving ? "Left workspace" : "Member removed");
+  } catch (error) {
+    return ServerResponse.internalError(error);
+  }
+};
+
+/**
+ * Hands the workspace to another member. OWNER only; the new owner must be a
+ * current member other than the caller and Nimbus. The caller becomes an
+ * ADMIN in the same transaction, so the workspace always has exactly one
+ * OWNER.
+ *
+ * @param wsid - Workspace cuid.
+ * @param id - Acting user's ID (must be the OWNER).
+ * @param memberId - The member who becomes OWNER.
+ * @returns 200 with both new roles; 403 for a non-owner; 404 for a missing
+ *          workspace or member; 400 for the caller themself or Nimbus.
+ */
+export const transferOwnership = async (
+  wsid: string,
+  id: string,
+  memberId: string,
+) => {
+  try {
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: wsid },
+      include: { members: true },
+    });
+
+    if (!workspace) {
+      return ServerResponse.notFound("Workspace not found");
+    }
+
+    const loggedInUser = workspace.members.find((m) => m.userId === id);
+
+    if (loggedInUser?.role !== "OWNER") {
+      return ServerResponse.forbidden("Only the owner can transfer ownership");
+    }
+
+    if (memberId === id) {
+      return ServerResponse.badRequest("You already own this workspace");
+    }
+
+    if (memberId === env.BOT_USERID) {
+      return ServerResponse.badRequest("Nimbus cannot own a workspace");
+    }
+
+    const member = workspace.members.find((m) => m.userId === memberId);
+
+    if (!member) {
+      return ServerResponse.notFound("Member not found");
+    }
+
+    // Demote first so the two writes never leave two owners, even briefly.
+    await prisma.$transaction([
+      prisma.workspaceMember.update({
+        where: { userId_workspaceId: { userId: id, workspaceId: wsid } },
+        data: { role: "ADMIN" },
+      }),
+      prisma.workspaceMember.update({
+        where: { userId_workspaceId: { userId: memberId, workspaceId: wsid } },
+        data: { role: "OWNER" },
+      }),
+    ]);
+
+    return ServerResponse.ok(
+      { ownerId: memberId, previousOwnerRole: "ADMIN" as const },
+      "Ownership transferred",
+    );
   } catch (error) {
     return ServerResponse.internalError(error);
   }

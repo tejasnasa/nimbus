@@ -79,6 +79,7 @@ const ROUTES = [
   { method: "put", path: `/api/workspace/regenerate-invite/${R}` },
   { method: "put", path: `/api/workspace/role/${R}` },
   { method: "delete", path: `/api/workspace/leave/${R}` },
+  { method: "put", path: `/api/workspace/transfer/${R}` },
   { method: "put", path: `/api/workspace/update/${R}` },
   { method: "delete", path: `/api/workspace/delete/${R}` },
   { method: "get", path: "/api/workspace/1" },

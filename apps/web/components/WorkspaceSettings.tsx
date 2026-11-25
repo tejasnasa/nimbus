@@ -44,8 +44,8 @@ import { useWorkspacePermissions } from "../hooks/useWorkspacePermissions";
  * searchable, in the viewer's caption language where translations are stored;
  * `initialTab="Meetings"` lands here from the call card), Captions (the viewer's own live caption look and
  * language, when a user is given), and Permissions (invite
- * copy/regenerate + danger-zone delete). New docs open via the
- * `DocEditorRefContext` add-tab bridge; the create dialog closes through the
+ * copy/regenerate, leaving or handing on ownership, and danger-zone delete).
+ * New docs open via the `DocEditorRefContext` add-tab bridge; the create dialog closes through the
  * hidden `close-doc-dialog` click in `useWorkspaceDocumentForm`.
  */
 import CaptionSettingsPanel from "./CaptionSettingsPanel";
@@ -54,6 +54,7 @@ import DocumentRow from "./DocumentRow";
 import DocumentSearch from "./DocumentSearch";
 import WorkspaceAiPanel from "./WorkspaceAiPanel";
 import WorkspaceMeetingsPanel from "./WorkspaceMeetingsPanel";
+import WorkspaceMembershipControls from "./WorkspaceMembershipControls";
 import WorkspaceUsagePanel from "./WorkspaceUsagePanel";
 
 /** The chat message "From an image…" posts alongside the uploaded picture. */
@@ -607,6 +608,11 @@ export default function WorkspaceSettings({
                       </Button>
                     </div>
                   </div>
+
+                  <WorkspaceMembershipControls
+                    workspace={workspace}
+                    userId={userId}
+                  />
 
                   <div className="p-4 rounded-xl border border-(--destructive)/20 bg-(--destructive)/5">
                     <div className="flex items-center gap-3 mb-3">

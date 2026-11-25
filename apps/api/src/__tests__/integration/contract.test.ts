@@ -41,6 +41,7 @@ const ROUTE_CONTRACT = [
   ["put", "/api/workspace/regenerate-invite/:wsid"],
   ["put", "/api/workspace/role/:wsid"],
   ["delete", "/api/workspace/leave/:wsid"],
+  ["put", "/api/workspace/transfer/:wsid"],
   ["put", "/api/workspace/update/:wsid"],
   ["delete", "/api/workspace/delete/:wsid"],
   ["get", "/api/workspace/:slugId"],

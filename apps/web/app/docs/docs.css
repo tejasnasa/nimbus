@@ -347,3 +347,13 @@
 .docs-menu > summary::-webkit-details-marker {
   display: none;
 }
+
+/* The desktop sidebar outgrows short viewports, so it scrolls on its own
+ * beneath the sticky site header instead of running off the screen. */
+.docs-sidebar {
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+}

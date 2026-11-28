@@ -1,6 +1,6 @@
 /**
  * @module ui/components/Input
- * @description Styled single-line text input with muted background, border,
+ * @description Styled single-line text input with panel background, hairline border,
  * and focus-ring treatment shared by all auth and workspace forms.
  */
 import { InputHTMLAttributes } from "react";
@@ -18,7 +18,7 @@ export default function Input({
   return (
     <input
       {...props}
-      className={`bg-(--muted)/50 h-11 rounded-xl px-4 py-3 text-sm border border-(--border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:border-(--primary)/30 transition-all duration-200 placeholder:text-(--muted-foreground)/50 ${className}`}
+      className={`bg-(--panel) h-11 rounded-[11px] px-4 py-3 text-sm border border-(--line-3) focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-(--violet)/20 focus-visible:border-(--violet) transition-all duration-200 placeholder:text-(--text-dim) ${className}`}
     />
   );
 }

@@ -60,7 +60,7 @@ export default function OptionMenu({
 
       {open && (
         <div
-          className={`absolute z-50 mt-1 rounded-xl border border-(--border) bg-(--card) shadow-xl shadow-(--primary)/5 p-1.5 backdrop-blur-xl ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
+          className={`absolute z-50 mt-1 rounded-xl border border-(--line-3) bg-(--surface-1) shadow-xl shadow-black/40 p-1.5 backdrop-blur-xl ${direction === "left" ? "right-0" : "left-0"} ${className || ""}`}
           style={{ animation: "scale-in 0.15s ease-out" }}
         >
           {items.map((item, i) => (
@@ -77,7 +77,7 @@ export default function OptionMenu({
                 ${
                   item.destructive
                     ? "text-(--destructive) hover:bg-(--destructive)/10"
-                    : "text-(--foreground) hover:bg-(--muted)/60"
+                    : "text-(--foreground) hover:bg-(--surface-3)"
                 }`}
             >
               {item.icon && (

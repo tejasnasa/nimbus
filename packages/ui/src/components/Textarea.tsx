@@ -1,6 +1,6 @@
 /**
  * @module ui/components/Textarea
- * @description Multi-line input matching the Input component's muted/focus-ring
+ * @description Multi-line input matching the Input component's panel/violet focus-ring
  * styling. The height is fixed per `size` and the field is not resizable, so
  * `size` decides how much of a long answer is visible while it is being
  * written.
@@ -35,7 +35,7 @@ export default function Textarea({ className, size = "sm", ...props }: Props) {
   return (
     <textarea
       {...props}
-      className={`bg-(--muted)/50 ${heights[size]} rounded-xl px-4 py-3 text-sm border border-(--border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:border-(--primary)/30 transition-all duration-200 resize-none placeholder:text-(--muted-foreground)/50 ${className ?? ""}`}
+      className={`bg-(--panel) ${heights[size]} rounded-[11px] px-4 py-3 text-sm border border-(--line-3) focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-(--violet)/20 focus-visible:border-(--violet) transition-all duration-200 resize-none placeholder:text-(--text-dim) ${className ?? ""}`}
     ></textarea>
   );
 }

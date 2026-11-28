@@ -240,7 +240,7 @@ export default function Select({
           }}
           onKeyDown={handleKeyDown}
           data-testid={id}
-          className={`w-full h-11 rounded-xl pl-4 pr-10 text-sm text-left border bg-(--muted)/50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:border-(--primary)/30 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${invalid ? "border-(--destructive)/60" : "border-(--border)"} ${triggerClassName}`}
+          className={`w-full h-11 rounded-[11px] pl-4 pr-10 text-sm text-left border bg-(--panel) cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-(--violet)/20 focus-visible:border-(--violet) transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${invalid ? "border-(--destructive)/60" : "border-(--line-3)"} ${triggerClassName}`}
         >
           <span
             className={
@@ -268,7 +268,7 @@ export default function Select({
             role="listbox"
             id={listboxId}
             aria-labelledby={labelId}
-            className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-(--border) bg-(--card) shadow-xl shadow-(--primary)/5 p-1.5 backdrop-blur-xl"
+            className="absolute z-50 left-0 right-0 mt-1 rounded-xl border border-(--line-3) bg-(--surface-1) shadow-xl shadow-black/40 p-1.5 backdrop-blur-xl"
             style={{ animation: "scale-in 0.15s ease-out" }}
           >
             {options.map((option, index) => {
@@ -285,7 +285,7 @@ export default function Select({
                     if (!option.disabled) setActiveIndex(index);
                   }}
                   onClick={() => choose(option.value, option.disabled)}
-                  className={`flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-sm cursor-pointer transition-all duration-150 text-(--foreground) ${isActive ? "bg-(--primary)/15 text-(--primary)" : "hover:bg-(--muted)/60"} ${option.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                  className={`flex w-full items-center justify-between gap-2.5 rounded-lg px-3 py-2 text-sm cursor-pointer transition-all duration-150 text-(--foreground) ${isActive ? "bg-(--surface-4) text-(--violet-soft)" : "hover:bg-(--surface-3)"} ${option.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   <span className="min-w-0 truncate">{option.label}</span>
                   {isSelected && (

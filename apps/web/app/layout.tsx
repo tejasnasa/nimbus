@@ -1,19 +1,29 @@
 /**
  * @module web/app/layout
- * @description Root layout: JetBrains Mono font, global CSS, single
+ * @description Root layout: JetBrains Mono, Inter and Space Grotesk fonts (exposed as CSS variables), global CSS, single
  * app-wide `SocketProvider`, Vercel Analytics/SpeedInsights, full SEO/OG/
  * Twitter metadata, and JSON-LD (WebSite + WebApplication) for search.
  */
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { SocketProvider } from "../providers/socketProvider";
 import "./globals.css";
 
 const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains-mono",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
 });
 
 export const metadata: Metadata = {
@@ -78,7 +88,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      className={`${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable}`}
+    >
       <body className={jetBrainsMono.className}>
         <SocketProvider>
           {children}

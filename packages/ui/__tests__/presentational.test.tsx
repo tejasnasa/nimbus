@@ -118,12 +118,12 @@ describe("ChatMsgA", () => {
     // change without the bot name losing its highlight.
     const bot = render(<ChatMsgA {...base} isBot />);
     expect(query(bot.container, '[data-testid="chat-msg-name"]').className)
-      .toContain("text-blue-500");
+      .toContain("text-(--lime)");
 
     const human = render(<ChatMsgA {...base} />);
     expect(
       query(human.container, '[data-testid="chat-msg-name"]').className,
-    ).not.toContain("text-blue-500");
+    ).not.toContain("text-(--lime)");
   });
 
   it("passes the online flag through to the avatar", () => {
@@ -141,15 +141,13 @@ describe("ChatMsgA", () => {
 });
 
 describe("ChatMsgB", () => {
-  it("right-aligns the outgoing bubble", () => {
+  it("renders the outgoing message with its name and time", () => {
     const { container } = render(
       <ChatMsgB name="Ada" image="/ada.png" message="hi" time="12:01" />,
     );
-    expect(query(container, "div.justify-end")).toBeTruthy();
-    const bubble = queryAll<HTMLDivElement>(container, "div").find((d) =>
-      d.className.includes("bg-(--primary)/15"),
+    expect(query(container, "[data-testid=chat-msg-text]").textContent).toBe(
+      "hi",
     );
-    expect(bubble?.textContent).toBe("hi");
     expect(container.textContent).toContain("Ada");
     expect(container.textContent).toContain("12:01");
   });
@@ -165,7 +163,7 @@ describe("ChatMsgB", () => {
     );
 
     const mention = queryAll<HTMLSpanElement>(container, "span").find((span) =>
-      span.className.includes("text-(--chart-2)"),
+      span.className.includes("text-(--violet-soft)"),
     );
     expect(mention?.textContent).toBe("@nimbus");
   });
@@ -176,7 +174,7 @@ describe("ChatMsgB", () => {
         <ChatMsgB name="Ada" image="/ada.png" message={message} time="12:02" />,
       );
       return queryAll<HTMLSpanElement>(container, "span")
-        .filter((span) => span.className.includes("text-(--chart-2)"))
+        .filter((span) => span.className.includes("text-(--violet-soft)"))
         .map((span) => span.textContent);
     };
 

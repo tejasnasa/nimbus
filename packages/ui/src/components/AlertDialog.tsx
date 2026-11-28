@@ -193,7 +193,7 @@ export default function AlertDialog({
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div
-              className="absolute inset-0 bg-(--background)/60 backdrop-blur-md"
+              className="absolute inset-0 bg-[rgba(6,5,8,0.7)] backdrop-blur-[3px]"
               onClick={closeDialog}
               style={{ animation: "fade-in 0.2s ease-out" }}
               aria-hidden="true"

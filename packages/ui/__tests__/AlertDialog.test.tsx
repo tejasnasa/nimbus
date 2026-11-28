@@ -72,7 +72,7 @@ describe("AlertDialog", () => {
 
     expect(document.body.textContent).toContain("Are you sure?");
     const overlay = inBody("div.fixed.inset-0");
-    expect(overlay.querySelector(".backdrop-blur-md")).toBeTruthy();
+    expect(overlay.querySelector("[class*='backdrop-blur']")).toBeTruthy();
   });
 
   it("closes on Escape", () => {

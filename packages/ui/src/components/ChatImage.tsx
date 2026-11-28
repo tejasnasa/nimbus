@@ -42,7 +42,7 @@ export default function ChatImage({
       target="_blank"
       rel="noopener noreferrer"
       data-testid="chat-image-link"
-      className={`block mb-1 w-fit max-w-[85%] overflow-hidden rounded-xl border border-(--border) ${alignEnd ? "ml-auto" : ""}`}
+      className={`block mb-1 w-fit max-w-full overflow-hidden rounded-xl border border-(--line-3) ${alignEnd ? "ml-auto" : ""}`}
     >
       <img
         src={chatImageThumbnailUrl(url)}

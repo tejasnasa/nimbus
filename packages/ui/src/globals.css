@@ -44,4 +44,42 @@ body {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.542 0.034 322.5);
+
+  /* Refreshed surface ramp, hairlines, and brand accents. */
+  --surface-1: #131116;
+  --surface-2: #16131a;
+  --surface-3: #1a1620;
+  --panel: #0f0d12;
+  --line-1: #221e26;
+  --line-2: #2a2530;
+  --line-3: #2f2936;
+  --text-soft: #d8d1db;
+  --text-dim: #6f6676;
+  --violet: #b48bf0;
+  --violet-soft: #c9a6f5;
+  --brand: #7c3aed;
+  --lime: #7ccf00;
+  --violet-pale: #e4d2fb;
+  --text-body: #c9c2cc;
+  --text-strong: #e7e1ea;
+  --surface-4: #1f1b24;
+  --grid-line: #17141b;
+  --ink: #0c0b0f;
+
+  /* Per-person colours used for cursors, captions and avatars. */
+  --pink: #f0a6ca;
+  --sky: #7dd3fc;
+  --amber: #fdba74;
+  --lilac: #c4b5fd;
+}
+
+/* ═══ Font Families ═══
+ * The `--font-*` source variables are set on `<html>` by `next/font` in the
+ * app's root layout; these aliases make them available as `font-sans`,
+ * `font-display` and `font-mono` utilities.
+ */
+@theme inline {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
 }

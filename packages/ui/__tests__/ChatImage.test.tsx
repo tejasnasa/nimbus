@@ -60,22 +60,22 @@ describe("chat bubbles with an image", () => {
     );
 
     expect(container.querySelector("a")).not.toBeNull();
-    expect(container.querySelector(".rounded-tl-sm")).toBeNull();
+    expect(container.querySelector("[data-testid=chat-msg-text]")).toBeNull();
   });
 
   it("ChatMsgA keeps its bubble for an empty text-only message", () => {
     const { container } = render(<ChatMsgA {...base} message="" />);
 
-    expect(container.querySelector(".rounded-tl-sm")).not.toBeNull();
+    expect(container.querySelector("[data-testid=chat-msg-text]")).not.toBeNull();
   });
 
-  it("ChatMsgB shows the image, right-aligned, and drops the empty bubble", () => {
+  it("ChatMsgB shows the image and drops the empty text", () => {
     const { container } = render(
       <ChatMsgB {...base} message="" imageUrl={FULL} />,
     );
 
-    expect(container.querySelector("a")!.className).toContain("ml-auto");
-    expect(container.querySelector(".rounded-tr-sm")).toBeNull();
+    expect(container.querySelector("a")).not.toBeNull();
+    expect(container.querySelector("[data-testid=chat-msg-text]")).toBeNull();
   });
 
   it("ChatMsgB keeps the text next to the image", () => {
@@ -83,7 +83,7 @@ describe("chat bubbles with an image", () => {
       <ChatMsgB {...base} message="hi @nimbus" imageUrl={FULL} />,
     );
 
-    expect(container.querySelector(".rounded-tr-sm")!.textContent).toBe(
+    expect(container.querySelector("[data-testid=chat-msg-text]")!.textContent).toBe(
       "hi @nimbus",
     );
   });

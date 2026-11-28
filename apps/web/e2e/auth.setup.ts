@@ -39,8 +39,8 @@ for (const role of ["owner", "member"] as const) {
 
     await page.goto("/login");
     await login.getByLabel("Email").fill(user.email);
-    await login.getByLabel("Password").fill(state.password);
-    await login.getByRole("button", { name: "Login" }).click();
+    await login.getByLabel("Password", { exact: true }).fill(state.password);
+    await login.getByRole("button", { name: "Sign in" }).click();
 
     await page.waitForURL("**/home", { timeout: 30_000 });
 

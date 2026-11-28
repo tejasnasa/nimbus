@@ -56,7 +56,7 @@ test.describe("public surface", () => {
 
     // Public by design — it is the page someone reaches for when something is
     // broken, so it has to work without a session.
-    await expect(page.getByRole("heading", { name: "Get in touch" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /found a bug/i })).toBeVisible();
     await expect(page.getByLabel("Message")).toBeVisible();
 
     // The submission is deliberately never exercised: it is a live outbound

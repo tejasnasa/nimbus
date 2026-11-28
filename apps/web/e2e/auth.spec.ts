@@ -38,8 +38,8 @@ test.describe("auth", () => {
 
     await page.goto("/login");
     await login.getByLabel("Email").fill(e2eState.users.owner.email);
-    await login.getByLabel("Password").fill(e2eState.password);
-    await login.getByRole("button", { name: "Login" }).click();
+    await login.getByLabel("Password", { exact: true }).fill(e2eState.password);
+    await login.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(/\/home$/);
 
@@ -63,8 +63,8 @@ test.describe("auth", () => {
 
     await page.goto("/login");
     await login.getByLabel("Email").fill(e2eState.users.owner.email);
-    await login.getByLabel("Password").fill("definitely-not-the-password");
-    await login.getByRole("button", { name: "Login" }).click();
+    await login.getByLabel("Password", { exact: true }).fill("definitely-not-the-password");
+    await login.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(/\/login$/);
     await expect(login.getByText(/invalid|incorrect|password/i).first()).toBeVisible();
@@ -86,8 +86,8 @@ test.describe("auth", () => {
 
     await page.goto("/login");
     await login.getByLabel("Email").fill("not-an-email");
-    await login.getByLabel("Password").fill("whatever");
-    await login.getByRole("button", { name: "Login" }).click();
+    await login.getByLabel("Password", { exact: true }).fill("whatever");
+    await login.getByRole("button", { name: "Sign in" }).click();
 
     // Zod runs in the resolver, so the client never reaches the API.
     await expect(page).toHaveURL(/\/login$/);
@@ -122,7 +122,7 @@ test.describe("auth", () => {
     const page = await context.newPage();
 
     const login = card(page, "Welcome back");
-    const forgot = card(page, "Forgot password?");
+    const forgot = card(page, "Forgot your password?");
 
     await page.goto("/login");
     await expect(forgot).toHaveCSS("opacity", "0");

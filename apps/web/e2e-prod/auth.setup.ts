@@ -39,8 +39,8 @@ for (const role of ["owner", "member"] as const) {
 
     const login = card(page, "Welcome back");
     await login.getByLabel("Email").fill(user.email);
-    await login.getByLabel("Password").fill(user.password);
-    await login.getByRole("button", { name: "Login" }).click();
+    await login.getByLabel("Password", { exact: true }).fill(user.password);
+    await login.getByRole("button", { name: "Sign in" }).click();
 
     try {
       await expect(page).toHaveURL(/\/home$/, { timeout: 30_000 });

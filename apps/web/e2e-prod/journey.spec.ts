@@ -87,13 +87,13 @@ test.describe("journey", () => {
     const name = `${SMOKE_WORKSPACE_PREFIX} ui ${Date.now().toString(36)}`;
 
     await page.goto("/home");
-    await page.getByRole("button", { name: "Create Workspace" }).click();
-    await page.getByLabel("Title").fill(name);
+    await page.getByRole("button", { name: "New workspace" }).click();
+    await page.getByLabel("Name", { exact: true }).fill(name);
     await page
       .getByLabel("Description")
       .fill("Created by the production smoke suite.");
-    // `exact` matters: the trigger that opened this dialog also says "Create".
-    await page.getByRole("button", { name: "Create", exact: true }).click();
+    // `exact` keeps the match to the dialog's submit button.
+    await page.getByRole("button", { name: "Create workspace", exact: true }).click();
 
     // The redirect is the signal that the whole transaction committed: the
     // workspace, the creator as OWNER, both seeded documents, and the Nimbus
@@ -230,13 +230,13 @@ test.describe("journey", () => {
 
     await memberPage.goto("/home");
     await memberPage
-      .getByRole("button", { name: "or join with invite code" })
+      .getByRole("button", { name: "Join with a code" })
       .click();
     await memberPage
       .getByPlaceholder("Paste invite code here")
       .fill(record.inviteCode);
-    // `exact` matters: the trigger that opened this dialog also says "join".
-    await memberPage.getByRole("button", { name: "Join", exact: true }).click();
+    // `exact` matters: the "Join with a code" trigger also says "Join".
+    await memberPage.getByRole("button", { name: "Join workspace", exact: true }).click();
 
     await expect(memberPage).toHaveURL(`/workspace/${workspace.slugId}`);
     await expect(

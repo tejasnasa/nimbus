@@ -17,10 +17,10 @@ test.describe("workspace", () => {
 
     await expect(page.locator(`[id="${e2eState.workspace.slugId}"]`)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Create Workspace" }),
+      page.getByRole("button", { name: "New workspace" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "or join with invite code" }),
+      page.getByRole("button", { name: "Join with a code" }),
     ).toBeVisible();
   });
 
@@ -46,12 +46,11 @@ test.describe("workspace", () => {
   }) => {
     await page.goto("/home");
 
-    await page.getByRole("button", { name: "Create Workspace" }).click();
-    await page.getByLabel("Title").fill("E2E Created Workspace");
+    await page.getByRole("button", { name: "New workspace" }).click();
+    await page.getByLabel("Name", { exact: true }).fill("E2E Created Workspace");
     await page.getByLabel("Description").fill("Created by the end-to-end suite.");
-    // `exact` matters: the "Create Workspace" trigger that opened this dialog
-    // also contains "Create".
-    await page.getByRole("button", { name: "Create", exact: true }).click();
+    // `exact` keeps the match to the dialog's submit button.
+    await page.getByRole("button", { name: "Create workspace", exact: true }).click();
 
     // `useWorkspaceForm` routes to the new room on success; a 500 from the
     // creation transaction leaves us on `/home` with a root form error.
@@ -73,10 +72,10 @@ test.describe("workspace", () => {
   }) => {
     await page.goto("/home");
 
-    await page.getByRole("button", { name: "or join with invite code" }).click();
+    await page.getByRole("button", { name: "Join with a code" }).click();
     await page.getByPlaceholder("Paste invite code here").fill("NOT-A-REAL-CODE");
-    // `exact` matters: the trigger that opened this dialog also contains "join".
-    await page.getByRole("button", { name: "Join", exact: true }).click();
+    // `exact` matters: the "Join with a code" trigger also contains "Join".
+    await page.getByRole("button", { name: "Join workspace", exact: true }).click();
 
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByText(/invalid|not found|invite/i).first()).toBeVisible();

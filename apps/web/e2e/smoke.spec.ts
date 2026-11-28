@@ -38,7 +38,7 @@ test.describe("smoke", () => {
     // Public, and not bounced to /login: this is the page someone reaches for
     // when something is broken, so it has to be reachable without an account.
     await expect(
-      page.getByRole("heading", { name: "Get in touch" }),
+      page.getByRole("heading", { name: /found a bug/i }),
     ).toBeVisible();
     await expect(page.getByLabel("Message")).toBeVisible();
 

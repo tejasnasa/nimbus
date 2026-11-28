@@ -32,41 +32,25 @@ export default async function SettingsPage() {
   const initialFreeUsage = await getFreeUsage();
 
   return (
-    <main className="min-h-dvh bg-(--background) text-(--foreground) relative">
-      <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
-      <div className="absolute top-0 right-0 w-125 h-125 bg-(--primary)/8 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-100 h-100 bg-(--sidebar-primary)/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-dvh bg-(--background) font-sans text-(--foreground)">
+      <UserNavbar
+        id={session.user.id}
+        avatar={session.user.image}
+        name={session.user.name}
+        backLink={{ href: "/home", label: "← Back to workspaces" }}
+      />
 
-      <div className="relative z-10">
-        <UserNavbar
-          id={session.user.id}
-          avatar={session.user.image}
-          name={session.user.name}
+      <main className="mx-auto max-w-7xl px-5 pt-11 pb-20 sm:px-10">
+        <AccountSettings
+          user={{
+            id: session.user.id,
+            name: session.user.name,
+            email: session.user.email,
+            image: session.user.image,
+          }}
+          initialFreeUsage={initialFreeUsage}
         />
-
-        <div className="max-w-350 mx-auto px-8 pt-12 mb-20">
-          <div className="mb-12 animate-slide-up">
-            <h1 className="text-6xl font-bold tracking-tight mb-3">
-              Account Settings
-            </h1>
-            <p className="text-lg text-(--muted-foreground)">
-              Manage your profile, password and active sessions
-            </p>
-          </div>
-
-          <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
-            <AccountSettings
-              user={{
-                id: session.user.id,
-                name: session.user.name,
-                email: session.user.email,
-                image: session.user.image,
-              }}
-              initialFreeUsage={initialFreeUsage}
-            />
-          </div>
-        </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

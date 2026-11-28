@@ -50,7 +50,7 @@ describe("Navbar", () => {
   it("renders the brand link home", () => {
     const { container } = setup();
     const brand = query<HTMLAnchorElement>(container, "a[href='/']");
-    expect(brand.textContent).toContain("Nimbus");
+    expect(brand.textContent).toContain("nimbus");
     expect(brand.querySelector("svg")).toBeTruthy();
   });
 

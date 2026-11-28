@@ -1,7 +1,7 @@
 /**
  * @module web/tests/components/ViewWorkspaces
- * @description Dashboard grid behaviour: the "New Workspace" card always leads,
- * every workspace renders by default, and the "My Workspaces" toggle narrows the
+ * @description Dashboard grid behaviour: the "New workspace" action is always available,
+ * every workspace renders by default, and the "My workspaces" toggle narrows the
  * grid to the ones the current user owns (OWNER role), not just belongs to.
  */
 import "./testUtils";
@@ -55,22 +55,22 @@ function renderGrid() {
 }
 
 describe("ViewWorkspaces", () => {
-  it("leads with the create-workspace affordance and lists every workspace", () => {
+  it("offers the create-workspace action and lists every workspace", () => {
     renderGrid();
 
     expect(
-      screen.getByRole("heading", { name: "New Workspace" }),
+      screen.getByRole("button", { name: /New workspace/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Alpha/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Beta/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Gamma/ })).toBeInTheDocument();
   });
 
-  it("narrows to owned workspaces when 'My Workspaces' is selected", async () => {
+  it("narrows to owned workspaces when 'My workspaces' is selected", async () => {
     const user = userEvent.setup();
     renderGrid();
 
-    await user.click(screen.getByRole("button", { name: "My Workspaces" }));
+    await user.click(screen.getByRole("button", { name: "My workspaces" }));
 
     expect(screen.getByRole("link", { name: /Alpha/ })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Beta/ })).not.toBeInTheDocument();
@@ -81,7 +81,7 @@ describe("ViewWorkspaces", () => {
     const user = userEvent.setup();
     renderGrid();
 
-    await user.click(screen.getByRole("button", { name: "My Workspaces" }));
+    await user.click(screen.getByRole("button", { name: "My workspaces" }));
 
     expect(screen.queryByRole("link", { name: /Beta/ })).not.toBeInTheDocument();
   });
@@ -90,8 +90,8 @@ describe("ViewWorkspaces", () => {
     const user = userEvent.setup();
     renderGrid();
 
-    await user.click(screen.getByRole("button", { name: "My Workspaces" }));
-    await user.click(screen.getByRole("button", { name: "All Workspaces" }));
+    await user.click(screen.getByRole("button", { name: "My workspaces" }));
+    await user.click(screen.getByRole("button", { name: "All workspaces" }));
 
     expect(screen.getByRole("link", { name: /Beta/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Gamma/ })).toBeInTheDocument();
@@ -101,10 +101,10 @@ describe("ViewWorkspaces", () => {
     const user = userEvent.setup();
     renderGrid();
 
-    await user.click(screen.getByRole("button", { name: "My Workspaces" }));
+    await user.click(screen.getByRole("button", { name: "My workspaces" }));
 
     expect(
-      screen.getByRole("heading", { name: "New Workspace" }),
+      screen.getByRole("button", { name: /New workspace/ }),
     ).toBeInTheDocument();
   });
 });

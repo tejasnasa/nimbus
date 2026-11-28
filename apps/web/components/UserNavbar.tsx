@@ -14,16 +14,19 @@ import { useRouter } from "next/navigation";
 /**
  * @param props.id - User ID (fallback avatar hash).
  * @param props.avatar - Custom avatar URL (nullable).
- * @param props.name - Display name in the menu header.
+ * @param props.name - Display name in the account pill and menu header.
+ * @param props.backLink - Optional link back to a parent page, shown in place of Docs.
  */
 export default function UserNavbar({
   id,
   avatar,
   name,
+  backLink,
 }: {
   id: string;
   avatar?: string | null;
   name: string;
+  backLink?: { href: string; label: string };
 }) {
   const router = useRouter();
 
@@ -53,6 +56,7 @@ export default function UserNavbar({
       id={id}
       avatar={avatar}
       name={name}
+      backLink={backLink}
     />
   );
 }

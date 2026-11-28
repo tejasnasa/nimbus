@@ -1,6 +1,6 @@
 /**
  * @module web/tests/components/CreateWorkspaceCard
- * @description The dashboard's "New Workspace" card drives two flows on top of
+ * @description The dashboard's "New workspace" and "Join with a code" actions drive two flows on top of
  * the real `useWorkspaceForm` / `useWorkspaceJoinForm` hooks. These tests cover
  * the dialog wiring, the Zod guards that must run before any request, the
  * request payloads, navigation on success, and — critically — that a rejected
@@ -58,13 +58,10 @@ describe("CreateWorkspaceCard", () => {
     render(<CreateWorkspaceCard />);
 
     expect(
-      screen.getByRole("heading", { name: "New Workspace" }),
+      screen.getByRole("button", { name: /New workspace/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create Workspace" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "or join with invite code" }),
+      screen.getByRole("button", { name: "Join with a code" }),
     ).toBeInTheDocument();
   });
 
@@ -73,12 +70,12 @@ describe("CreateWorkspaceCard", () => {
       const user = userEvent.setup();
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "Create Workspace");
+      await openDialog(user, "New workspace");
 
       expect(
         screen.getByRole("heading", { name: "Create Workspace" }),
       ).toBeInTheDocument();
-      expect(screen.getByLabelText("Title")).toBeInTheDocument();
+      expect(screen.getByLabelText("Name")).toBeInTheDocument();
       expect(screen.getByLabelText("Description")).toBeInTheDocument();
     });
 
@@ -87,10 +84,10 @@ describe("CreateWorkspaceCard", () => {
       const bodies = capture("/api/workspace/create");
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "Create Workspace");
-      await user.type(screen.getByLabelText("Title"), "Design Guild");
+      await openDialog(user, "New workspace");
+      await user.type(screen.getByLabelText("Name"), "Design Guild");
       await user.type(screen.getByLabelText("Description"), "Shared drafts");
-      await user.click(screen.getByRole("button", { name: "Create" }));
+      await user.click(screen.getByRole("button", { name: "Create workspace" }));
 
       expect(bodies[0]).toMatchObject({
         name: "Design Guild",
@@ -104,9 +101,9 @@ describe("CreateWorkspaceCard", () => {
       const bodies = capture("/api/workspace/create");
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "Create Workspace");
-      await user.type(screen.getByLabelText("Title"), "ab");
-      await user.click(screen.getByRole("button", { name: "Create" }));
+      await openDialog(user, "New workspace");
+      await user.type(screen.getByLabelText("Name"), "ab");
+      await user.click(screen.getByRole("button", { name: "Create workspace" }));
 
       expect(
         await screen.findByText("Workspace name must be at least 3 characters"),
@@ -123,9 +120,9 @@ describe("CreateWorkspaceCard", () => {
       );
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "Create Workspace");
-      await user.type(screen.getByLabelText("Title"), "Design Guild");
-      await user.click(screen.getByRole("button", { name: "Create" }));
+      await openDialog(user, "New workspace");
+      await user.type(screen.getByLabelText("Name"), "Design Guild");
+      await user.click(screen.getByRole("button", { name: "Create workspace" }));
 
       expect(
         await screen.findByText("You already own a workspace with that name"),
@@ -140,7 +137,7 @@ describe("CreateWorkspaceCard", () => {
       const bodies = capture("/api/workspace/join");
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "or join with invite code");
+      await openDialog(user, "Join with a code");
 
       expect(
         screen.getByRole("heading", { name: "Join Workspace" }),
@@ -149,7 +146,7 @@ describe("CreateWorkspaceCard", () => {
         screen.getByPlaceholderText("Paste invite code here"),
         "invite-code",
       );
-      await user.click(screen.getByRole("button", { name: "Join" }));
+      await user.click(screen.getByRole("button", { name: "Join workspace" }));
 
       expect(bodies[0]).toMatchObject({ inviteCode: "invite-code" });
       expect(push).toHaveBeenCalledWith("/workspace/1");
@@ -160,7 +157,7 @@ describe("CreateWorkspaceCard", () => {
       capture("/api/workspace/join", fail(404, "Invalid invite code"));
       render(<CreateWorkspaceCard />);
 
-      await openDialog(user, "or join with invite code");
+      await openDialog(user, "Join with a code");
 
       expect(
         screen.getByRole("heading", { name: "Join Workspace" }),
@@ -169,7 +166,7 @@ describe("CreateWorkspaceCard", () => {
         screen.getByPlaceholderText("Paste invite code here"),
         "nope",
       );
-      await user.click(screen.getByRole("button", { name: "Join" }));
+      await user.click(screen.getByRole("button", { name: "Join workspace" }));
 
       expect(await screen.findByText("Invalid invite code")).toBeInTheDocument();
       expect(push).not.toHaveBeenCalled();

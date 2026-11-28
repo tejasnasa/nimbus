@@ -43,7 +43,7 @@ describe("UserNavbar", () => {
   it("renders the signed-in user's identity", () => {
     render(<UserNavbar id="user-1" name="Ada Lovelace" avatar={null} />);
 
-    expect(screen.getByRole("link", { name: /Nimbus/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /nimbus/ })).toBeInTheDocument();
     expect(screen.getByAltText("Ada Lovelace")).toBeInTheDocument();
   });
 

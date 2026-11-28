@@ -1,22 +1,71 @@
 "use client";
 
-import Button from "@nimbus/ui/Button";
 import AlertDialog from "@nimbus/ui/AlertDialog";
-import Input from "@nimbus/ui/Input";
-import Textarea from "@nimbus/ui/Textarea";
+import { Spinner } from "@nimbus/ui/icons/Spinner";
 import { useWorkspaceForm } from "../hooks/useWorkspaceForm";
 import { useWorkspaceJoinForm } from "../hooks/useWorkspaceJoinForm";
+import { AuthError, authInputClass } from "./AuthParts";
 /**
  * @module web/components/CreateWorkspaceCard
- * @description Dashboard "New Workspace" card: dotted-tile entry point with
- * two `AlertDialog` flows — create (name/description via `useWorkspaceForm`)
- * and join-by-invite-code (via `useWorkspaceJoinForm`). Rendered first in the
- * `ViewWorkspaces` masonry grid.
+ * @description Dashboard "Join with a code" and "New workspace" actions, each
+ * opening an `AlertDialog` — create (name/description via `useWorkspaceForm`)
+ * and join-by-invite-code (via `useWorkspaceJoinForm`). Rendered in the
+ * toolbar of `ViewWorkspaces`.
  */
-import Plus from "@nimbus/ui/icons/Plus";
-import Error from "@nimbus/ui/icons/Error";
-import Signup from "@nimbus/ui/icons/Signup";
 
+const secondaryButton =
+  "min-h-11 cursor-pointer rounded-xl border border-(--line-3) bg-transparent px-4 text-sm font-medium text-(--foreground) transition-colors hover:bg-(--surface-3) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet)";
+
+const primaryButton =
+  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-(--brand) px-4.5 text-sm font-semibold text-white transition-colors hover:bg-(--brand)/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet) disabled:cursor-default disabled:opacity-60";
+
+const panelClass =
+  "relative z-50 flex w-[min(460px,calc(100vw-2rem))] flex-col gap-4.5 rounded-[20px] border border-(--line-3) bg-(--surface-2) p-6.5 font-sans shadow-[0_40px_100px_rgba(0,0,0,0.6)]";
+
+const labelClass = "flex flex-col gap-2 text-[13px] font-medium text-(--text-soft)";
+
+/** Title, supporting line and close button shared by both dialogs. */
+function DialogHeader({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-1.5">
+        <h2 className="font-display text-2xl font-semibold">{title}</h2>
+        <p className="text-sm text-(--muted-foreground)">{sub}</p>
+      </div>
+      <button
+        type="button"
+        data-alert-dialog-close
+        aria-label="Close"
+        className="size-8.5 shrink-0 cursor-pointer rounded-[9px] bg-(--surface-4) text-lg text-(--text-body) transition-colors hover:text-(--foreground) focus-visible:outline-2 focus-visible:outline-(--violet)"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+  );
+}
+
+/** Cancel / confirm row shared by both dialogs. */
+function DialogActions({
+  cta,
+  loading,
+}: {
+  cta: string;
+  loading: boolean;
+}) {
+  return (
+    <div className="flex justify-end gap-2.5">
+      <button type="button" data-alert-dialog-close className={secondaryButton}>
+        Cancel
+      </button>
+      <button type="submit" disabled={loading} className={primaryButton}>
+        {loading && <Spinner className="h-4 w-4" />}
+        {cta}
+      </button>
+    </div>
+  );
+}
+
+/** Toolbar buttons that open the join and create dialogs. */
 export default function CreateWorkspaceCard() {
   const {
     register: creationRegister,
@@ -32,157 +81,82 @@ export default function CreateWorkspaceCard() {
   } = useWorkspaceJoinForm();
 
   return (
-    <div className="group p-6 rounded-2xl border-4 border-dotted border-(--border) bg-(--card)/40 backdrop-blur-sm flex flex-col justify-between text-center hover:border-(--primary)/50 hover:bg-(--card)/40 transition-all duration-300">
-      <div className="flex-1 flex flex-col items-center justify-center py-6">
-        <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-(--primary)/20 to-(--sidebar-primary)/20 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-          <Plus className="w-7 h-7 text-(--primary-foreground)" />
-        </div>
-        <h2 className="text-xl font-semibold mb-2 tracking-tight">
-          New Workspace
-        </h2>
-        <p className="text-sm text-(--muted-foreground) leading-relaxed max-w-50">
-          Organise your docs, team, and projects
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-2 mt-4">
-        <AlertDialog
-          trigger={
-            <Button
-              className="hover:cursor-pointer w-full rounded-xl"
-              size="md"
-            >
-              Create Workspace
-            </Button>
-          }
-        >
-          <div className="relative z-50 w-120 rounded-2xl border border-(--border) bg-(--card) p-6 shadow-2xl shadow-(--primary)/10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-(--primary) to-(--sidebar-primary) flex items-center justify-center shrink-0">
-                <Plus className="w-5 h-5 text-(--primary-foreground)" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">Create Workspace</h2>
-                <p className="text-xs text-(--muted-foreground)">
-                  Set up a new space for your team
-                </p>
-              </div>
-            </div>
-            <form onSubmit={creationOnSubmit}>
-              <div className="flex flex-col gap-2 mb-4">
-                <label
-                  htmlFor="title"
-                  className="text-sm font-medium text-(--muted-foreground)"
-                >
-                  Title
-                </label>
-                <Input
-                  placeholder="Tejas's Workspace"
-                  id="title"
-                  className="w-full"
-                  {...creationRegister("name")}
-                />
-              </div>
-              <div className="flex flex-col gap-2 mb-4">
-                <label
-                  htmlFor="description"
-                  className="text-sm font-medium text-(--muted-foreground)"
-                >
-                  Description
-                </label>
-                <Textarea
-                  placeholder="Describe your workspace..."
-                  id="description"
-                  className="w-full"
-                  {...creationRegister("description")}
-                />
-              </div>
-
-              {creationFirstError && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20 mb-4">
-                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-                  <span className="text-xs text-(--destructive)">
-                    {creationFirstError}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
-                <Button
-                  data-alert-dialog-close
-                  className="bg-transparent hover:bg-(--muted) border border-(--border) text-(--foreground) hover:cursor-pointer rounded-xl"
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="hover:cursor-pointer rounded-xl"
-                  loading={creationIsSubmitting}
-                >
-                  Create
-                </Button>
-              </div>
-            </form>
-          </div>
-        </AlertDialog>
-
-        <AlertDialog
-          trigger={
-            <button className="text-(--muted-foreground) text-sm hover:underline transition-colors hover:cursor-pointer mx-auto">
-              or join with invite code
-            </button>
-          }
-        >
-          <div className="relative z-50 w-100 rounded-2xl border border-(--border) bg-(--card) p-6 shadow-2xl shadow-(--primary)/10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-linear-to-br from-(--chart-2) to-(--primary) flex items-center justify-center shrink-0">
-                <Signup className="w-5 h-5 text-(--primary-foreground)" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">Join Workspace</h2>
-                <p className="text-xs text-(--muted-foreground)">
-                  Enter the invite code to join
-                </p>
-              </div>
-            </div>
-            <form onSubmit={joinOnSubmit}>
-              <Input
-                placeholder="Paste invite code here"
+    <>
+      <AlertDialog
+        trigger={
+          <button type="button" className={secondaryButton}>
+            Join with a code
+          </button>
+        }
+      >
+        <div className={panelClass}>
+          <DialogHeader
+            title="Join Workspace"
+            sub="Ask a workspace admin for its invite code."
+          />
+          <form onSubmit={joinOnSubmit} className="flex flex-col gap-4.5">
+            <label htmlFor="inviteCode" className={labelClass}>
+              Invite code
+              <input
                 id="inviteCode"
-                className="w-full text-center tracking-wider my-2"
+                placeholder="Paste invite code here"
+                className={`${authInputClass} font-mono`}
                 {...joinRegister("inviteCode")}
               />
+            </label>
+            {joinFirstError && <AuthError message={joinFirstError} />}
+            <DialogActions cta="Join workspace" loading={joinIsSubmitting} />
+          </form>
+        </div>
+      </AlertDialog>
 
-              {joinFirstError && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20 mt-3">
-                  <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-                  <span className="text-xs text-(--destructive)">
-                    {joinFirstError}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
-                <Button
-                  data-alert-dialog-close
-                  className="bg-transparent hover:bg-(--muted) border border-(--border) text-(--foreground) hover:cursor-pointer rounded-xl"
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  className="hover:cursor-pointer rounded-xl"
-                  loading={joinIsSubmitting}
-                >
-                  Join
-                </Button>
-              </div>
-            </form>
-          </div>
-        </AlertDialog>
-      </div>
-    </div>
+      <AlertDialog
+        trigger={
+          <button type="button" className={primaryButton}>
+            <span aria-hidden="true" className="text-lg leading-none">
+              +
+            </span>
+            New workspace
+          </button>
+        }
+      >
+        <div className={panelClass}>
+          <DialogHeader
+            title="Create Workspace"
+            sub="A shared room for your team’s docs, boards, chat and calls."
+          />
+          <form onSubmit={creationOnSubmit} className="flex flex-col gap-4.5">
+            <label htmlFor="title" className={labelClass}>
+              Name
+              <input
+                id="title"
+                placeholder="Tejas's Workspace"
+                className={authInputClass}
+                {...creationRegister("name")}
+              />
+            </label>
+            <label htmlFor="description" className={labelClass}>
+              Description
+              <textarea
+                id="description"
+                rows={3}
+                placeholder="Describe your workspace..."
+                className={`${authInputClass} resize-none py-3`}
+                {...creationRegister("description")}
+              />
+            </label>
+            <p className="text-[13px] leading-normal text-(--muted-foreground)">
+              It starts with a blank doc, a blank whiteboard, and Nimbus as a
+              member.
+            </p>
+            {creationFirstError && <AuthError message={creationFirstError} />}
+            <DialogActions
+              cta="Create workspace"
+              loading={creationIsSubmitting}
+            />
+          </form>
+        </div>
+      </AlertDialog>
+    </>
   );
 }

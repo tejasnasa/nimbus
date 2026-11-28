@@ -1,23 +1,24 @@
-import Button from "@nimbus/ui/Button";
-import Input from "@nimbus/ui/Input";
-import OrContinueWith from "@nimbus/ui/OrContinueWith";
-import Image from "next/image";
-import google from "../assets/google.svg";
+import { loginSchema } from "@nimbus/types";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
-import { loginSchema } from "@nimbus/types";
 import type { ResendState } from "../hooks/useLoginForm";
-import { authClient } from "../lib/auth-client";
-import Login from "@nimbus/ui/icons/Login";
-import Error from "@nimbus/ui/icons/Error";
+import {
+  AuthDivider,
+  AuthError,
+  AuthField,
+  AuthHeading,
+  AuthSubmit,
+} from "./AuthParts";
+import GoogleButton from "./GoogleButton";
+import PasswordField from "./PasswordField";
 
 /**
  * @module web/components/LoginForm
- * @description Presentational sign-in card driven by `useLoginForm`: email +
- * password fields, forgot-password link, error banner (with a resend link for
- * an unverified email), Google OAuth (`callbackURL: /home`), and a switch to
- * signup. All logic lives in the
- * hook — this component only renders props.
+ * @description Presentational sign-in card driven by `useLoginForm`: Google
+ * OAuth (`callbackURL: /home`), email + password fields with a show/hide
+ * toggle, forgot-password link, error banner (with a resend link for an
+ * unverified email), and a switch to signup. All logic lives in the hook —
+ * this component only renders props.
  */
 /** Controlled props from `useLoginForm` plus view-switch callbacks. */
 interface LoginFormProps {
@@ -53,67 +54,43 @@ export default function LoginForm({
   isActive = true,
 }: LoginFormProps) {
   return (
-    <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-(--primary) to-(--sidebar-primary) flex items-center justify-center mb-5 shadow-lg shadow-(--primary)/20">
-          <Login className="w-7 h-7 text-(--primary-foreground)" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-1">Welcome back</h1>
-        <p className="text-sm text-(--muted-foreground)">
-          Log in to continue to your workspaces
-        </p>
-      </div>
+    <section className="flex w-full max-w-[400px] flex-col gap-[22px]">
+      <AuthHeading title="Welcome back">
+        Sign in to pick up where your team left off.
+      </AuthHeading>
 
       <form
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-[22px]"
         onSubmit={onSubmit}
         inert={!isActive}
         aria-hidden={isActive ? undefined : true}
       >
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="login-email"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Email
-          </label>
-          <Input
-            placeholder="tejas@example.com"
-            className="w-full"
-            id="login-email"
-            {...register("email")}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="login-password"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Password
-          </label>
-          <div className="flex flex-col gap-2">
-            <Input
-              placeholder="••••••••"
-              type="password"
-              className="w-full"
-              id="login-password"
-              {...register("password")}
-            />
+        <GoogleButton>Continue with Google</GoogleButton>
+        <AuthDivider />
+
+        <AuthField
+          label="Email"
+          id="login-email"
+          placeholder="tejas@example.com"
+          {...register("email")}
+        />
+        <PasswordField
+          label="Password"
+          id="login-password"
+          placeholder="••••••••"
+          labelAside={
             <button
               type="button"
               onClick={openForgotPassword}
-              className="text-xs text-(--muted-foreground) hover:text-(--foreground) transition-colors text-right hover:cursor-pointer"
+              className="cursor-pointer text-(--violet-soft) hover:underline"
             >
               Forgot password?
             </button>
-          </div>
-        </div>
-        {firstError && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
-            <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-            <span className="text-xs text-(--destructive)">{firstError}</span>
-          </div>
-        )}
+          }
+          {...register("password")}
+        />
+
+        {firstError && <AuthError message={firstError} />}
         {unverifiedEmail && onResendVerification && (
           <div className="flex items-center justify-between gap-2 text-xs text-(--muted-foreground)">
             <span role="status" data-testid="resend-verification-status">
@@ -127,7 +104,7 @@ export default function LoginForm({
               type="button"
               onClick={onResendVerification}
               disabled={resendState === "sending"}
-              className="font-medium text-(--primary) hover:underline hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+              className="cursor-pointer font-medium text-(--violet-soft) hover:underline disabled:cursor-not-allowed disabled:opacity-60"
             >
               {resendState === "sending"
                 ? "Sending…"
@@ -135,48 +112,20 @@ export default function LoginForm({
             </button>
           </div>
         )}
-        <Button
-          className="font-semibold w-full mt-1 hover:cursor-pointer"
-          size="lg"
-          loading={isSubmitting}
-        >
-          Login
-        </Button>
-      </form>
 
-      <div
-        className="flex flex-col items-center gap-4 mt-4"
-        inert={!isActive}
-        aria-hidden={isActive ? undefined : true}
-      >
-        <OrContinueWith />
-        <Button
-          size="sm"
-          className="bg-white text-black transition-colors hover:bg-gray-200 w-full border border-(--border) cursor-pointer"
-          onClick={async () => {
-            await authClient.signIn.social({
-              provider: "google",
-              callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/home`,
-            });
-          }}
-        >
-          <Image
-            src={google}
-            alt="Google"
-            width={18}
-            height={18}
-            className="inline"
-          />
-          Continue with Google
-        </Button>
+        <AuthSubmit loading={isSubmitting} arrow>
+          Sign in
+        </AuthSubmit>
+
         <button
+          type="button"
           onClick={openSignup}
-          className="text-sm text-(--muted-foreground) hover:text-(--foreground) hover:cursor-pointer transition-colors mt-2"
+          className="cursor-pointer text-center text-sm text-(--muted-foreground)"
         >
-          Don&apos;t have an account?{" "}
-          <span className="text-(--primary) font-medium">Sign up</span>
+          New to Nimbus?{" "}
+          <span className="font-semibold text-(--foreground)">Sign up</span>
         </button>
-      </div>
+      </form>
     </section>
   );
 }

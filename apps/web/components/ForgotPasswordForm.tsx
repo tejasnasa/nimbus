@@ -1,16 +1,19 @@
 "use client";
 
-import Button from "@nimbus/ui/Button";
-import Input from "@nimbus/ui/Input";
-import Error from "@nimbus/ui/icons/Error";
-import Login from "@nimbus/ui/icons/Login";
 import { useForgotPasswordForm } from "../hooks/useForgotPasswordForm";
+import {
+  AuthError,
+  AuthField,
+  AuthHeading,
+  AuthSubmit,
+} from "./AuthParts";
 
 /**
  * @module web/components/ForgotPasswordForm
  * @description Self-contained reset-request card (owns
- * `useForgotPasswordForm`): email field → `sent` confirmation state with a
- * back-to-login link. Rendered inside `FormSwitch`.
+ * `useForgotPasswordForm`): email field → `sent` "check your inbox"
+ * confirmation with a way back to try another address, and a back-to-login
+ * link. Rendered inside `FormSwitch`.
  */
 interface ForgotPasswordFormProps {
   openLogin: () => void;
@@ -21,90 +24,108 @@ interface ForgotPasswordFormProps {
   isActive?: boolean;
 }
 
+function BackToSignIn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-(--muted-foreground) hover:text-(--foreground)"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M19 12H5M11 18l-6-6 6-6" />
+      </svg>
+      Back to login
+    </button>
+  );
+}
+
 export default function ForgotPasswordForm({
   openLogin,
   isActive = true,
 }: ForgotPasswordFormProps) {
-  const { register, firstError, isSubmitting, onSubmit, sent } =
+  const { register, firstError, isSubmitting, onSubmit, sent, email, reset } =
     useForgotPasswordForm();
 
-  return (
-    <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-(--primary) to-(--sidebar-primary) flex items-center justify-center mb-5 shadow-lg shadow-(--primary)/20">
-          <Login className="w-7 h-7 text-(--primary-foreground)" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-1">
-          Forgot password?
-        </h1>
-        <p className="text-sm text-(--muted-foreground) text-center">
-          Enter your email and we&apos;ll send you a reset link.
-        </p>
-      </div>
-
-      {sent ? (
-        <div
-          className="flex flex-col items-center gap-4 py-2"
-          inert={!isActive}
-          aria-hidden={isActive ? undefined : true}
-        >
-          <p className="text-sm text-center text-(--muted-foreground)">
-            If an account exists for that email, a reset link has been sent.
-            Check your inbox.
-          </p>
-          <button
-            onClick={openLogin}
-            className="text-sm text-(--primary) font-medium hover:underline hover:cursor-pointer mt-2"
+  if (sent) {
+    return (
+      <section
+        className="flex w-full max-w-[400px] flex-col gap-[22px]"
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
+        <div className="relative flex size-14 items-center justify-center rounded-2xl border border-(--line-2) bg-(--surface-1)">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#d8c2f7"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            Back to login
-          </button>
+            <rect x="3" y="5" width="18" height="14" rx="3" />
+            <path d="M3.5 7l8.5 6 8.5-6" />
+          </svg>
+          <span className="absolute -top-1.5 -right-1.5 size-[18px] rounded-full border-[3px] border-(--background) bg-(--lime)" />
         </div>
-      ) : (
-        <form
-          className="flex flex-col gap-5"
-          onSubmit={onSubmit}
-          inert={!isActive}
-          aria-hidden={isActive ? undefined : true}
-        >
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="forgot-email"
-              className="text-sm font-medium text-(--muted-foreground)"
-            >
-              Email
-            </label>
-            <Input
-              placeholder="tejas@example.com"
-              className="w-full"
-              id="forgot-email"
-              {...register("email")}
-            />
-          </div>
-
-          {firstError && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
-              <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-              <span className="text-xs text-(--destructive)">{firstError}</span>
-            </div>
-          )}
-
-          <Button
-            className="font-semibold w-full mt-1 hover:cursor-pointer"
-            size="lg"
-            loading={isSubmitting}
-          >
-            Send reset link
-          </Button>
-
+        <AuthHeading title="Check your inbox">
+          If an account exists for{" "}
+          <span className="text-(--foreground)">{email}</span>, a reset link has
+          been sent.
+        </AuthHeading>
+        <div className="rounded-[14px] border border-(--line-1) bg-(--surface-1) px-4 py-3.5 text-sm text-(--muted-foreground)">
+          Check spam, or{" "}
           <button
             type="button"
-            onClick={openLogin}
-            className="text-sm text-(--muted-foreground) hover:text-(--foreground) hover:cursor-pointer transition-colors text-center"
+            onClick={reset}
+            className="cursor-pointer font-medium text-(--foreground) hover:underline"
           >
-            Back to <span className="text-(--primary) font-medium">Login</span>
+            try another email
           </button>
-        </form>
-      )}
+          .
+        </div>
+        <BackToSignIn onClick={openLogin} />
+      </section>
+    );
+  }
+
+  return (
+    <section className="flex w-full max-w-[400px] flex-col gap-[22px]">
+      <AuthHeading title="Forgot your password?">
+        Enter the email you signed up with and we&apos;ll send you a link to
+        set a new one.
+      </AuthHeading>
+
+      <form
+        className="flex flex-col gap-[22px]"
+        onSubmit={onSubmit}
+        inert={!isActive}
+        aria-hidden={isActive ? undefined : true}
+      >
+        <AuthField
+          label="Email"
+          id="forgot-email"
+          placeholder="tejas@example.com"
+          {...register("email")}
+        />
+
+        {firstError && <AuthError message={firstError} />}
+
+        <AuthSubmit loading={isSubmitting}>Send reset link</AuthSubmit>
+        <BackToSignIn onClick={openLogin} />
+      </form>
     </section>
   );
 }

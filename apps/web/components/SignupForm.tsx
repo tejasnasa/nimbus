@@ -1,20 +1,22 @@
 import { signupSchema } from "@nimbus/types";
-import Button from "@nimbus/ui/Button";
-import Error from "@nimbus/ui/icons/Error";
-import Signup from "@nimbus/ui/icons/Signup";
-import Input from "@nimbus/ui/Input";
-import OrContinueWith from "@nimbus/ui/OrContinueWith";
 import VerifyEmailDialog from "@nimbus/ui/VerifyEmailDialog";
-import Image from "next/image";
 import { UseFormRegister } from "react-hook-form";
 import z from "zod";
-import google from "../assets/google.svg";
-import { authClient } from "../lib/auth-client";
+import {
+  AuthDivider,
+  AuthError,
+  AuthField,
+  AuthHeading,
+  AuthSubmit,
+  PasswordStrengthMeter,
+} from "./AuthParts";
+import GoogleButton from "./GoogleButton";
 
 /**
  * @module web/components/SignupForm
- * @description Presentational signup card driven by `useSignupForm`: name +
- * email + password, Google OAuth, switch to login, and the
+ * @description Presentational signup card driven by `useSignupForm`: Google
+ * OAuth, name + email + password with a strength meter computed from the typed
+ * password, a note about email verification, switch to login, and the
  * `VerifyEmailDialog` for the submitted address. Logic lives in the hook.
  */
 /** Controlled props from `useSignupForm` plus view-switch callbacks. */
@@ -27,6 +29,8 @@ interface SignupFormProps {
   showVerifyDialog: boolean;
   setShowVerifyDialog: (open: boolean) => void;
   submittedEmail: string;
+  /** The password as typed, for the strength meter. */
+  password?: string;
   /**
    * Whether this is the card currently shown. Inactive cards stay mounted for
    * the crossfade but must not be reachable by keyboard or a screen reader.
@@ -43,21 +47,14 @@ export default function SignupForm({
   showVerifyDialog,
   setShowVerifyDialog,
   submittedEmail,
+  password = "",
   isActive = true,
 }: SignupFormProps) {
   return (
-    <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-(--chart-2) to-(--primary) flex items-center justify-center mb-5 shadow-lg shadow-(--chart-2)/20">
-          <Signup className="w-7 h-7 text-(--primary-foreground)" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-1">
-          Create your account
-        </h1>
-        <p className="text-sm text-(--muted-foreground)">
-          Get started with Nimbus for free
-        </p>
-      </div>
+    <section className="flex w-full max-w-[400px] flex-col gap-5">
+      <AuthHeading title="Create your account">
+        Free to start. Bring your team when you&apos;re ready.
+      </AuthHeading>
 
       <form
         className="flex flex-col gap-5"
@@ -65,97 +62,70 @@ export default function SignupForm({
         inert={!isActive}
         aria-hidden={isActive ? undefined : true}
       >
+        <GoogleButton>Sign up with Google</GoogleButton>
+        <AuthDivider />
+
+        <AuthField
+          label="Name"
+          id="signup-name"
+          placeholder="Tejas Nasa"
+          {...register("name")}
+        />
+        <AuthField
+          label="Email"
+          id="signup-email"
+          placeholder="tejas@example.com"
+          {...register("email")}
+        />
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="signup-name"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Name
-          </label>
-          <Input
-            placeholder="Tejas Nasa"
-            className="w-full"
-            id="signup-name"
-            {...register("name")}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="signup-email"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Email
-          </label>
-          <Input
-            placeholder="tejas@example.com"
-            className="w-full"
-            id="signup-email"
-            {...register("email")}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="signup-password"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Password
-          </label>
-          <Input
-            placeholder="••••••••"
-            type="password"
-            className="w-full"
+          <AuthField
+            label="Password"
             id="signup-password"
+            type="password"
+            placeholder="••••••••"
+            aria-describedby="signup-password-strength"
             {...register("password")}
           />
-        </div>
-        {firstError && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
-            <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-            <span className="text-xs text-(--destructive)">{firstError}</span>
-          </div>
-        )}
-        <Button
-          className="font-semibold w-full mt-1"
-          size="lg"
-          loading={isSubmitting}
-        >
-          Create Account
-        </Button>
-      </form>
-
-      <div
-        className="flex flex-col items-center gap-4 mt-4"
-        inert={!isActive}
-        aria-hidden={isActive ? undefined : true}
-      >
-        <OrContinueWith />
-        <Button
-          size="sm"
-          className="bg-white text-black transition-colors hover:bg-gray-200 w-full border border-(--border) cursor-pointer"
-          onClick={async () => {
-            await authClient.signIn.social({
-              provider: "google",
-              callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/home`,
-            });
-          }}
-        >
-          <Image
-            src={google}
-            alt="Google"
-            width={18}
-            height={18}
-            className="inline"
+          <PasswordStrengthMeter
+            password={password}
+            id="signup-password-strength"
           />
-          Continue with Google
-        </Button>
+        </div>
+
+        {firstError && <AuthError message={firstError} />}
+        <AuthSubmit loading={isSubmitting} arrow>
+          Create account
+        </AuthSubmit>
+
+        <p className="flex items-start gap-2.5 rounded-[11px] border border-(--line-1) bg-(--surface-1) px-3.5 py-3 text-[13px] leading-normal text-(--muted-foreground)">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--violet)"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-0.5 shrink-0"
+            aria-hidden="true"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="M3.5 6.5l8.5 6.5 8.5-6.5" />
+          </svg>
+          We&apos;ll email you a link to verify your address before your first
+          sign-in.
+        </p>
+
         <button
+          type="button"
           onClick={openLogin}
-          className="text-sm text-(--muted-foreground) hover:text-(--foreground) hover:cursor-pointer transition-colors mt-2"
+          className="cursor-pointer text-center text-sm text-(--muted-foreground)"
         >
           Already have an account?{" "}
-          <span className="text-(--primary) font-medium">Sign in</span>
+          <span className="font-semibold text-(--foreground)">Sign in</span>
         </button>
-      </div>
+      </form>
 
       <VerifyEmailDialog
         open={showVerifyDialog}

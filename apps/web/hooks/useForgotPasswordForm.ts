@@ -6,6 +6,8 @@ import { z } from "zod";
  * @module web/hooks/useForgotPasswordForm
  * @description Password-reset request form: sends the reset link (redirecting
  * to `/reset-password`) and flips `sent` so the UI can show confirmation.
+ * `email` is the address typed, and `reset` returns from the confirmation to
+ * the form so another address can be tried.
  */
 import { authClient } from "../lib/auth-client";
 import { forgotSchema } from "@nimbus/types";
@@ -17,6 +19,7 @@ export function useForgotPasswordForm() {
     defaultValues: { email: "" },
   });
   const [sent, setSent] = useState(false);
+  const watchedEmail = form.watch("email");
 
   const { email, root } = form.formState.errors;
   const firstError = email?.message || root?.message;
@@ -54,5 +57,7 @@ export function useForgotPasswordForm() {
     isSubmitting: form.formState.isSubmitting,
     onSubmit,
     sent,
+    email: watchedEmail,
+    reset: () => setSent(false),
   };
 }

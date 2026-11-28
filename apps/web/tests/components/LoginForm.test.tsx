@@ -69,7 +69,7 @@ describe("LoginForm", () => {
 
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
     await user.type(screen.getByLabelText("Password"), "supersecret");
-    await user.click(screen.getByRole("button", { name: "Login" }));
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       email: "ada@example.com",

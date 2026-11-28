@@ -7,7 +7,8 @@ import { z } from "zod";
 /**
  * @module web/hooks/useResetPasswordForm
  * @description Password-reset completion: submits the new password with the
- * emailed token, flips `done`, and routes to `/login` after 2.5s.
+ * emailed token, flips `done`, and routes to `/login` after 2.5s. The typed
+ * password is exposed so the form can show a strength meter.
  */
 import { authClient } from "../lib/auth-client";
 
@@ -21,6 +22,7 @@ export function useResetPasswordForm(token: string) {
     defaultValues: { password: "", confirmPassword: "" },
   });
   const [done, setDone] = useState(false);
+  const watchedPassword = form.watch("password");
   // The pending redirect is cancellable: a user who leaves the page inside the
   // delay window must not still be navigated away from whatever they moved to.
   const redirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,5 +75,6 @@ export function useResetPasswordForm(token: string) {
     isSubmitting: form.formState.isSubmitting,
     onSubmit,
     done,
+    password: watchedPassword,
   };
 }

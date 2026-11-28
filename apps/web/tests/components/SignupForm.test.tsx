@@ -78,7 +78,7 @@ describe("SignupForm", () => {
     await user.type(screen.getByLabelText("Name"), "Ada Lovelace");
     await user.type(screen.getByLabelText("Email"), "ada@example.com");
     await user.type(screen.getByLabelText("Password"), "supersecret1!");
-    await user.click(screen.getByRole("button", { name: "Create Account" }));
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       name: "Ada Lovelace",
@@ -152,7 +152,7 @@ describe("SignupForm", () => {
     render(<Harness />);
 
     await user.click(
-      screen.getByRole("button", { name: /Continue with Google/ }),
+      screen.getByRole("button", { name: /Sign up with Google/ }),
     );
 
     expect(bodies).toHaveLength(1);

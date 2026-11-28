@@ -65,10 +65,9 @@ describe("ForgotPasswordForm", () => {
     await user.click(screen.getByRole("button", { name: "Send reset link" }));
 
     expect(
-      await screen.findByText(
-        /If an account exists for that email, a reset link has been sent/i,
-      ),
+      await screen.findByText(/a reset link has been sent/i),
     ).toBeInTheDocument();
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
     expect(bodies[0]).toMatchObject({
       email: "ada@example.com",
       redirectTo: `${FRONTEND_URL}/reset-password`,

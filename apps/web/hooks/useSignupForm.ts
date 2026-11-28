@@ -6,7 +6,8 @@ import { z } from "zod";
 /**
  * @module web/hooks/useSignupForm
  * @description Email signup form: on success opens the verification dialog
- * (`showVerifyDialog`) for the watched email address.
+ * (`showVerifyDialog`) for the watched email address. The typed password is
+ * exposed so the form can show a strength meter.
  */
 import { authClient } from "../lib/auth-client";
 
@@ -18,6 +19,7 @@ export function useSignupForm() {
   });
   const [showVerifyDialog, setShowVerifyDialog] = useState(false);
   const watchedEmail = form.watch("email");
+  const watchedPassword = form.watch("password");
 
   const { name, email, password, root } = form.formState.errors;
   const firstError =
@@ -60,5 +62,6 @@ export function useSignupForm() {
     showVerifyDialog,
     setShowVerifyDialog,
     submittedEmail: watchedEmail,
+    password: watchedPassword,
   };
 }

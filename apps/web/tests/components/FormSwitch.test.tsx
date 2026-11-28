@@ -34,7 +34,7 @@ const card = (heading: string) =>
 
 const loginCard = () => card("Welcome back");
 const signupCard = () => card("Create your account");
-const forgotCard = () => card("Forgot password?");
+const forgotCard = () => card("Forgot your password?");
 
 const loginEmail = () => within(loginCard()).getByPlaceholderText("tejas@example.com");
 const loginPassword = () => within(loginCard()).getByPlaceholderText("••••••••");
@@ -68,7 +68,7 @@ describe("FormSwitch", () => {
 
       await user.type(loginEmail(), "not-an-email");
       await user.type(loginPassword(), "supersecret");
-      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(within(loginCard()).getByRole("button", { name: "Sign in" }));
 
       expect(await screen.findByText("Enter a valid email.")).toBeInTheDocument();
       expect(bodies).toHaveLength(0);
@@ -81,7 +81,7 @@ describe("FormSwitch", () => {
 
       await user.type(loginEmail(), "ada@example.com");
       await user.type(loginPassword(), "supersecret");
-      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(within(loginCard()).getByRole("button", { name: "Sign in" }));
 
       await screen.findByRole("heading", { name: "Welcome back" });
       expect(bodies[0]).toMatchObject({
@@ -97,7 +97,7 @@ describe("FormSwitch", () => {
 
       await user.type(loginEmail(), "ada@example.com");
       await user.type(loginPassword(), "supersecret");
-      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(within(loginCard()).getByRole("button", { name: "Sign in" }));
 
       expect(
         await screen.findByText("Invalid email or password"),
@@ -111,7 +111,7 @@ describe("FormSwitch", () => {
 
       await user.type(loginEmail(), "ada@example.com");
       await user.type(loginPassword(), "supersecret");
-      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(within(loginCard()).getByRole("button", { name: "Sign in" }));
 
       expect(
         await screen.findByText(
@@ -128,7 +128,7 @@ describe("FormSwitch", () => {
 
       await user.type(loginEmail(), "ada@example.com");
       await user.type(loginPassword(), "supersecret");
-      await user.click(within(loginCard()).getByRole("button", { name: "Login" }));
+      await user.click(within(loginCard()).getByRole("button", { name: "Sign in" }));
       await user.click(
         await within(loginCard()).findByRole("button", {
           name: "Resend verification email",
@@ -170,7 +170,7 @@ describe("FormSwitch", () => {
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "onlyletters");
       await user.click(
-        within(signupCard()).getByRole("button", { name: "Create Account" }),
+        within(signupCard()).getByRole("button", { name: "Create account" }),
       );
 
       expect(
@@ -191,7 +191,7 @@ describe("FormSwitch", () => {
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "supersecret1!");
       await user.click(
-        within(signupCard()).getByRole("button", { name: "Create Account" }),
+        within(signupCard()).getByRole("button", { name: "Create account" }),
       );
 
       expect(
@@ -216,7 +216,7 @@ describe("FormSwitch", () => {
       await user.type(signupEmail(), "ada@example.com");
       await user.type(signupPassword(), "supersecret1!");
       await user.click(
-        within(signupCard()).getByRole("button", { name: "Create Account" }),
+        within(signupCard()).getByRole("button", { name: "Create account" }),
       );
 
       expect(await screen.findByText("User already exists")).toBeInTheDocument();

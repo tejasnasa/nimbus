@@ -49,9 +49,9 @@ describe("ResetPasswordForm", () => {
     server.use(resetEndpoint(bodies));
     render(<ResetPasswordForm token="reset-token" />);
 
-    await user.type(screen.getByLabelText("New Password"), "supersecret1!");
-    await user.type(screen.getByLabelText("Confirm Password"), "different1!");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.type(screen.getByLabelText("New password"), "supersecret1!");
+    await user.type(screen.getByLabelText("Confirm password"), "different1!");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
     expect(bodies).toHaveLength(0);
@@ -61,9 +61,9 @@ describe("ResetPasswordForm", () => {
     const user = userEvent.setup();
     render(<ResetPasswordForm token="reset-token" />);
 
-    await user.type(screen.getByLabelText("New Password"), "short");
-    await user.type(screen.getByLabelText("Confirm Password"), "short");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.type(screen.getByLabelText("New password"), "short");
+    await user.type(screen.getByLabelText("Confirm password"), "short");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(
       screen.getByText("Password must be at least 8 characters"),
@@ -76,12 +76,12 @@ describe("ResetPasswordForm", () => {
     server.use(resetEndpoint(bodies));
     render(<ResetPasswordForm token="reset-token" />);
 
-    await user.type(screen.getByLabelText("New Password"), "supersecret1!");
-    await user.type(screen.getByLabelText("Confirm Password"), "supersecret1!");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.type(screen.getByLabelText("New password"), "supersecret1!");
+    await user.type(screen.getByLabelText("Confirm password"), "supersecret1!");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(
-      await screen.findByText(/Password updated! Redirecting you to login/i),
+      await screen.findByText(/Redirecting you to login/i),
     ).toBeInTheDocument();
     expect(bodies[0]).toMatchObject({
       newPassword: "supersecret1!",
@@ -93,9 +93,9 @@ describe("ResetPasswordForm", () => {
     const user = userEvent.setup();
     render(<ResetPasswordForm token="reset-token" />);
 
-    await user.type(screen.getByLabelText("New Password"), "supersecret1!");
-    await user.type(screen.getByLabelText("Confirm Password"), "supersecret1!");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.type(screen.getByLabelText("New password"), "supersecret1!");
+    await user.type(screen.getByLabelText("Confirm password"), "supersecret1!");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/login"), {
       timeout: 4000,
@@ -107,14 +107,14 @@ describe("ResetPasswordForm", () => {
     server.use(resetEndpoint([], fail(400, "Invalid token")));
     render(<ResetPasswordForm token="stale-token" />);
 
-    await user.type(screen.getByLabelText("New Password"), "supersecret1!");
-    await user.type(screen.getByLabelText("Confirm Password"), "supersecret1!");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.type(screen.getByLabelText("New password"), "supersecret1!");
+    await user.type(screen.getByLabelText("Confirm password"), "supersecret1!");
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(await screen.findByText("Invalid token")).toBeInTheDocument();
     expect(
-      screen.queryByText(/Password updated! Redirecting you to login/i),
+      screen.queryByText(/Redirecting you to login/i),
     ).toBeNull();
-    expect(screen.getByLabelText("New Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("New password")).toBeInTheDocument();
   });
 });

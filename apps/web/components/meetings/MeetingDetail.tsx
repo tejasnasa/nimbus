@@ -24,6 +24,7 @@
  */
 "use client";
 
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import type { MeetingDetailDTO, Member, SegmentDTO } from "@nimbus/types";
 import AlertDialog from "@nimbus/ui/AlertDialog";
 import Button from "@nimbus/ui/Button";
@@ -125,7 +126,7 @@ export default function MeetingDetail({
     <button
       type="button"
       onClick={onBack}
-      className="text-xs font-medium text-(--primary) hover:cursor-pointer hover:underline"
+      className="text-xs font-medium text-(--violet-soft) hover:cursor-pointer hover:underline"
     >
       ← Back to meetings
     </button>
@@ -135,7 +136,7 @@ export default function MeetingDetail({
     return (
       <div className="space-y-3" data-testid="meeting-detail">
         {back}
-        <p className="text-sm text-(--muted-foreground)">Loading meeting…</p>
+        <LogoSpinner label="Loading meeting…" centered />
       </div>
     );
   }
@@ -168,7 +169,7 @@ export default function MeetingDetail({
 
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-semibold">{meetingTitle(meeting)}</h2>
+          <h2 className="font-display text-lg font-semibold">{meetingTitle(meeting)}</h2>
           <span
             data-testid="meeting-status"
             className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone(meeting.status)}`}
@@ -209,13 +210,13 @@ export default function MeetingDetail({
       {summary && (
         <section className="space-y-4" aria-label="Notes">
           <div>
-            <h3 className="mb-1 text-sm font-semibold">Summary</h3>
+            <h3 className="font-display mb-1 text-sm font-semibold">Summary</h3>
             <p className="whitespace-pre-wrap text-sm">{summary.summary}</p>
           </div>
 
           {meeting.decisions.length > 0 && (
             <div>
-              <h3 className="mb-1 text-sm font-semibold">Decisions</h3>
+              <h3 className="font-display mb-1 text-sm font-semibold">Decisions</h3>
               <ul className="list-disc space-y-1 pl-5 text-sm">
                 {meeting.decisions.map((decision) => (
                   <li key={decision.id}>{decision.text}</li>
@@ -226,7 +227,7 @@ export default function MeetingDetail({
 
           {summary.openQuestions.length > 0 && (
             <div>
-              <h3 className="mb-1 text-sm font-semibold">Open questions</h3>
+              <h3 className="font-display mb-1 text-sm font-semibold">Open questions</h3>
               <ul className="list-disc space-y-1 pl-5 text-sm">
                 {summary.openQuestions.map((question) => (
                   <li key={question}>{question}</li>
@@ -237,12 +238,12 @@ export default function MeetingDetail({
 
           {summary.topics.length > 0 && (
             <div>
-              <h3 className="mb-1 text-sm font-semibold">Topics</h3>
+              <h3 className="font-display mb-1 text-sm font-semibold">Topics</h3>
               <ul className="flex flex-wrap gap-1.5">
                 {summary.topics.map((topic) => (
                   <li
                     key={topic}
-                    className="rounded-full bg-(--muted) px-2 py-0.5 text-xs"
+                    className="rounded-full bg-(--surface-4) px-2 py-0.5 text-xs"
                   >
                     {topic}
                   </li>
@@ -255,7 +256,7 @@ export default function MeetingDetail({
 
       {(meeting.actionItems.length > 0 || summary) && (
         <section aria-label="Action items" className="space-y-2">
-          <h3 className="text-sm font-semibold">Action items</h3>
+          <h3 className="font-display text-sm font-semibold">Action items</h3>
           {editor.error && (
             <p role="alert" className="text-xs text-(--destructive)">
               {editor.error}
@@ -322,7 +323,7 @@ export default function MeetingDetail({
             disabled={summary === null || actions.diagram.kind === "pending"}
             loading={actions.diagram.kind === "pending"}
             onClick={() => void actions.draw()}
-            className="rounded-xl bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted)"
+            className="rounded-xl bg-transparent border border-(--line-2) text-(--foreground) hover:bg-(--surface-3)"
           >
             Draw this discussion
           </Button>
@@ -351,13 +352,13 @@ export default function MeetingDetail({
               <AlertDialog open={confirming} onOpenChange={setConfirming}>
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="relative z-50 w-100 rounded-2xl border border-(--border) bg-(--card) shadow-2xl p-6"
+                  className="relative z-50 w-100 rounded-2xl border border-(--line-2) bg-(--surface-1) shadow-2xl p-6"
                 >
                   <div className="mb-4 flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-(--destructive)/15">
                       <Delete className="h-5 w-5 text-(--destructive)" />
                     </div>
-                    <h3 className="font-semibold">Delete meeting</h3>
+                    <h3 className="font-display font-semibold">Delete meeting</h3>
                   </div>
                   <p className="mb-6 text-sm text-(--muted-foreground)">
                     Delete this meeting with its transcript and notes? Its
@@ -368,7 +369,7 @@ export default function MeetingDetail({
                       size="sm"
                       type="button"
                       onClick={() => setConfirming(false)}
-                      className="rounded-xl border border-(--border) bg-transparent text-(--foreground) hover:bg-(--muted)"
+                      className="rounded-xl border border-(--line-2) bg-transparent text-(--foreground) hover:bg-(--surface-3)"
                     >
                       Cancel
                     </Button>
@@ -433,7 +434,7 @@ export default function MeetingDetail({
 
       <section aria-label="Transcript" className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h3 className="text-sm font-semibold">Transcript</h3>
+          <h3 className="font-display text-sm font-semibold">Transcript</h3>
           <Select
             id="meeting-transcript-language"
             label="Transcript language"
@@ -469,7 +470,7 @@ function Transcript({
 }) {
   if (state.kind === "loading") {
     return (
-      <p className="text-xs text-(--muted-foreground)">Loading transcript…</p>
+      <LogoSpinner label="Loading transcript…" size={20} centered />
     );
   }
   if (state.kind === "error") {
@@ -481,7 +482,7 @@ function Transcript({
         <button
           type="button"
           onClick={onRetry}
-          className="text-xs font-medium text-(--primary) hover:cursor-pointer hover:underline"
+          className="text-xs font-medium text-(--violet-soft) hover:cursor-pointer hover:underline"
         >
           Try again
         </button>
@@ -497,7 +498,7 @@ function Transcript({
   }
   return (
     <ol
-      className="max-h-96 space-y-1.5 overflow-y-auto rounded-xl border border-(--border) px-4 py-3 text-xs scrollbar-thin"
+      className="max-h-96 space-y-1.5 overflow-y-auto rounded-xl border border-(--line-2) px-4 py-3 text-xs scrollbar-thin"
       data-testid="transcript-lines"
     >
       {state.segments.map((segment: SegmentDTO) => {
@@ -508,7 +509,7 @@ function Transcript({
             data-seq={segment.seq}
             ref={focused ? focusRef : undefined}
             aria-current={focused ? "true" : undefined}
-            className={`flex gap-3 rounded-md px-1 ${focused ? "bg-(--primary)/15" : ""}`}
+            className={`flex gap-3 rounded-md px-1 ${focused ? "bg-(--violet)/15" : ""}`}
           >
             <span className="w-10 shrink-0 font-mono text-(--muted-foreground)">
               {clock(segment.startMs)}

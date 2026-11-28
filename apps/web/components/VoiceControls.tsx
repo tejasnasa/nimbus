@@ -4,10 +4,10 @@
  * is already on the call (from the server's roster) and a **Start meeting**
  * button, or **Join meeting** when someone is already there.
  *
- * Once in, it reads top to bottom: the people on the call (a green ring while
+ * Once in, it reads top to bottom: the people on the call (a lime ring while
  * someone speaks, a red dot while they are muted, a badge on the assistant),
  * the assistant's panel (`AssistantPanel`), the running transcript, and a
- * centred bar with the mute, deafen and leave controls. An error from the
+ * row with the mute, deafen and leave controls. An error from the
  * provider (a refused microphone, a failed join) is shown inline, and a dropped
  * call offers **Rejoin**. Rendered inside `VoiceDock`.
  */
@@ -19,7 +19,7 @@ import HeadphonesOff from "@nimbus/ui/icons/HeadphonesOff";
 import Microphone from "@nimbus/ui/icons/Microphone";
 import MicrophoneOff from "@nimbus/ui/icons/MicrophoneOff";
 import PhoneHangUp from "@nimbus/ui/icons/PhoneHangUp";
-import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import { avatarFor } from "../lib/nimbusAvatar";
 import { ConnectionState } from "livekit-client";
 import { useVoice } from "../providers/VoiceProvider";
 import AssistantPanel from "./meeting/AssistantPanel";
@@ -35,14 +35,14 @@ function describeRoster(names: string[]): string {
 
 /** Shared look of the primary join and rejoin buttons. */
 const JOIN_BUTTON_CLASS =
-  "px-3 py-1.5 rounded-lg text-xs font-semibold bg-(--primary) text-(--primary-foreground) hover:cursor-pointer hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed";
+  "min-h-11.5 w-full rounded-xl bg-(--brand) text-[15px] font-semibold text-white transition-colors hover:cursor-pointer hover:bg-(--brand)/90 disabled:cursor-not-allowed disabled:opacity-60";
 
-/** Shared look of the round call controls; `off` marks a control switched off. */
+/** Shared look of the call controls; `off` marks a control switched off. */
 function controlClass(off: boolean): string {
-  return `grid h-10 w-10 place-items-center rounded-full transition-colors hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+  return `grid h-10 flex-1 place-items-center rounded-[10px] transition-colors hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
     off
-      ? "bg-red-500/15 text-red-500 hover:bg-red-500/25"
-      : "bg-(--muted) text-(--foreground) hover:bg-(--muted)/70"
+      ? "bg-red-500/18 text-red-300 hover:bg-red-500/25"
+      : "bg-(--surface-4) text-(--foreground) hover:bg-(--surface-4)/70"
   }`;
 }
 
@@ -65,7 +65,7 @@ export default function VoiceControls() {
   } = useVoice();
 
   const errorMessage = error ? (
-    <p role="alert" className="text-xs text-red-500 leading-snug">
+    <p role="alert" className="text-xs leading-snug text-red-400">
       {error}
     </p>
   ) : null;
@@ -77,19 +77,23 @@ export default function VoiceControls() {
 
   if (!inCall) {
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          {voiceUsers.length > 0 && (
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col items-center gap-2.5 py-4 text-center">
+          {voiceUsers.length > 0 ? (
             <AvatarGroup
               users={voiceUsers.map((user) => ({
-                image: user.image || getAvatarForUser(user.userId),
+                image: avatarFor(user.userId, user.image),
               }))}
               max={4}
             />
+          ) : (
+            <span className="grid size-13 place-items-center rounded-2xl bg-(--surface-4) text-(--violet)">
+              <Microphone className="size-6" />
+            </span>
           )}
           <span
             data-testid="call-roster"
-            className="text-xs font-semibold text-(--muted-foreground) truncate"
+            className="text-sm text-(--text-body)"
           >
             {describeRoster(voiceUsers.map((user) => user.name))}
           </span>
@@ -97,7 +101,7 @@ export default function VoiceControls() {
         <button
           onClick={() => void join()}
           disabled={isJoining}
-          className={`${JOIN_BUTTON_CLASS} self-start`}
+          className={JOIN_BUTTON_CLASS}
         >
           {canRejoin
             ? "Rejoin"
@@ -113,43 +117,50 @@ export default function VoiceControls() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {isReconnecting ? (
         <p className="flex items-center gap-2 text-xs font-semibold text-(--muted-foreground)">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+          <span className="h-2 w-2 animate-pulse rounded-full bg-(--amber) motion-reduce:animate-none" />
           Reconnecting...
         </p>
       ) : (
-        <div className="flex items-center gap-3 min-w-0">
-          <ul aria-label="On the call" className="flex items-center">
-            {participants.map((participant, i) => (
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <ul
+            aria-label="On the call"
+            className="flex flex-wrap items-start gap-2.5"
+          >
+            {participants.map((participant) => (
               <li
                 key={participant.userId}
                 data-testid="call-participant"
                 data-muted={participant.isMuted}
                 title={`${participant.name}${participant.isMuted ? " (muted)" : ""}`}
-                className="relative -ml-2.5 first:ml-0"
-                style={{ zIndex: participants.length - i }}
+                className="relative flex w-12 flex-col items-center gap-1"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={
-                    participant.image || getAvatarForUser(participant.userId)
-                  }
+                  src={avatarFor(
+                    participant.userId,
+                    participant.image,
+                    participant.isAgent,
+                  )}
                   alt={participant.name}
-                  className={`h-9 w-9 rounded-full border-2 object-cover transition-colors ${
+                  className={`size-11 rounded-[13px] object-cover transition-shadow duration-300 ${
                     speakingUsers.has(participant.userId)
-                      ? "border-(--chart-2)"
-                      : "border-(--card)"
+                      ? "ring-2 ring-(--lime)"
+                      : "ring-1 ring-(--line-2)"
                   }`}
                 />
+                <span className="w-full truncate text-center text-[11px] text-(--muted-foreground)">
+                  {participant.name.split(" ")[0]}
+                </span>
                 {participant.isAgent && (
-                  <span className="absolute -top-1 -right-1 rounded-full bg-(--primary) px-1 text-[8px] font-semibold uppercase leading-3 text-(--primary-foreground)">
+                  <span className="absolute -top-1 -right-1 rounded-full bg-(--lime) px-1 text-[8px] font-semibold uppercase leading-3 text-(--ink)">
                     Bot
                   </span>
                 )}
                 {participant.isMuted && (
-                  <span className="absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full border-2 border-(--card) bg-red-500">
+                  <span className="absolute top-7 right-0 grid size-4 place-items-center rounded-full border-2 border-(--surface-2) bg-red-500">
                     <MicrophoneOff className="h-2 w-2 text-white" />
                     <span className="sr-only">muted</span>
                   </span>
@@ -169,7 +180,7 @@ export default function VoiceControls() {
       <LiveTranscript />
       {errorMessage}
 
-      <div className="flex items-center justify-center gap-3 border-t border-(--border) pt-3">
+      <div className="flex items-center gap-2">
         <button
           onClick={toggleMute}
           disabled={isReconnecting}
@@ -198,7 +209,7 @@ export default function VoiceControls() {
         </button>
         <button
           onClick={leave}
-          className="flex h-10 items-center gap-1.5 rounded-full bg-red-500 px-4 text-xs font-semibold text-white hover:cursor-pointer hover:bg-red-600"
+          className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-red-500/18 px-3 text-[13px] font-semibold text-red-300 transition-colors hover:cursor-pointer hover:bg-red-500/28"
           title="Leave call"
           aria-label="Leave call"
         >

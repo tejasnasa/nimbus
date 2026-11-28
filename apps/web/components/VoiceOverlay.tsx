@@ -16,7 +16,7 @@
  *            badge lives.
  */
 "use client";
-import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import { avatarFor } from "../lib/nimbusAvatar";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { useVoice } from "../providers/VoiceProvider";
@@ -103,7 +103,7 @@ export default function VoiceOverlay() {
   const speakersList = Array.from(activeSpeakers.values());
   const badges =
     speakersList.length === 0 ? null : (
-      <div className="absolute top-24 right-6 z-50 flex flex-col pointer-events-none">
+      <div className="absolute top-16 right-5 z-50 flex flex-col gap-2 pointer-events-none">
         {speakersList.map((speaker) => {
           // Read the participant now rather than trusting the snapshot taken when
           // they started speaking: an avatar can land after that moment, and the
@@ -118,26 +118,27 @@ export default function VoiceOverlay() {
           return (
             <div
               key={speaker.userId}
-              className="flex items-center bg-(--background)/85 backdrop-blur-md p-1 rounded-full border border-(--chart-3)/30 shadow-[0_4px_16px_rgba(16,185,129,0.15)] animate-fade-in transition-all duration-300 transform scale-100 hover:scale-105"
+              className="flex items-center gap-2 rounded-full border border-(--line-3) bg-(--surface-1)/90 py-1.25 pr-2.5 pl-1.25 font-sans animate-fade-in backdrop-blur-md"
             >
-              <div className="relative">
-                <div className="absolute -inset-1 rounded-full bg-(--chart-3)/20 animate-ping opacity-75" />
-                {/* `unoptimized`: avatars come from arbitrary hosts, so none can be
+              {/* `unoptimized`: avatars come from arbitrary hosts, so none can be
                   pre-registered for the image optimiser. */}
-                <Image
-                  src={image || getAvatarForUser(speaker.userId)}
-                  alt={name}
-                  width={40}
-                  height={40}
-                  unoptimized
-                  className="w-10 h-10 rounded-full border-2 border-(--chart-3) object-cover shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                />
-                {isAgent && (
-                  <span className="absolute -bottom-1 -right-1 rounded-full bg-(--primary) px-1.5 text-[9px] font-semibold uppercase leading-4 text-(--primary-foreground)">
-                    Agent
-                  </span>
-                )}
-              </div>
+              <Image
+                src={avatarFor(speaker.userId, image, isAgent)}
+                alt={name}
+                width={26}
+                height={26}
+                unoptimized
+                className="size-6.5 rounded-full object-cover ring-2 ring-(--lime)"
+              />
+              <span className="text-xs text-(--foreground)">{name}</span>
+              {isAgent && (
+                <span
+                  data-testid="agent-badge"
+                  className="rounded-[5px] bg-(--lime)/15 px-1.5 py-px font-mono text-[10px] text-lime-400"
+                >
+                  Agent
+                </span>
+              )}
             </div>
           );
         })}

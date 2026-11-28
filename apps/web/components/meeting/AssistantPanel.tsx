@@ -2,7 +2,8 @@
  * @module web/components/meeting/AssistantPanel
  * @description The in-call assistant's section of the call card. It starts and
  * stops Nimbus, and while Nimbus is in the call it shows what the assistant is
- * doing (joining, listening, thinking, speaking) with a small status dot, a
+ * doing (a spinner while it joins; then listening, thinking or speaking with a
+ * small status dot, and level bars that move while it speaks), a
  * one-line reminder that saying its name is how to ask it something, a
  * **Stop talking** action while it speaks, and a toggle that mutes Nimbus's
  * voice for this viewer only.
@@ -27,7 +28,8 @@
 
 import type { AssistantState, MeetingEndReason } from "@nimbus/types";
 import { AGENT_RPC_STOP } from "@nimbus/types";
-import Cloud from "@nimbus/ui/icons/Cloud";
+import Logo from "@nimbus/ui/Logo";
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import Speaker from "@nimbus/ui/icons/Speaker";
 import SpeakerOff from "@nimbus/ui/icons/SpeakerOff";
 import { useState } from "react";
@@ -49,13 +51,26 @@ const STATE_LABEL: Record<AssistantState, string> = {
 
 /** The status dot's colour and motion for each state. */
 const STATE_DOT: Record<AssistantState, string> = {
-  joining: "bg-amber-500 animate-pulse",
-  listening: "bg-(--chart-2)",
-  thinking: "bg-(--primary) animate-pulse",
-  speaking: "bg-(--primary) animate-pulse",
+  joining: "bg-(--amber) animate-pulse motion-reduce:animate-none",
+  listening: "bg-(--lime)",
+  thinking: "bg-(--violet) animate-pulse motion-reduce:animate-none",
+  speaking: "bg-(--lime) animate-pulse motion-reduce:animate-none",
   stopped: "bg-(--muted-foreground)",
-  "answered-in-chat": "bg-(--chart-2)",
+  "answered-in-chat": "bg-(--lime)",
 };
+
+/** The state line's text colour for each state. */
+const STATE_TEXT: Record<AssistantState, string> = {
+  joining: "text-(--amber)",
+  listening: "text-(--muted-foreground)",
+  thinking: "text-(--violet-pale)",
+  speaking: "text-lime-400",
+  stopped: "text-(--muted-foreground)",
+  "answered-in-chat": "text-lime-400",
+};
+
+/** Heights of the level bars beside the assistant; they move only while it speaks. */
+const BAR_HEIGHTS = [8, 14, 20, 12, 18, 22, 10, 16];
 
 const END_COPY: Record<MeetingEndReason, string | null> = {
   stopped: null,
@@ -71,7 +86,7 @@ const END_COPY: Record<MeetingEndReason, string | null> = {
 
 /** Small square icon button used for the assistant's in-call actions. */
 const ICON_BUTTON_CLASS =
-  "grid h-7 w-7 place-items-center rounded-lg text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted) hover:text-(--foreground)";
+  "grid h-8 w-8 place-items-center rounded-[9px] text-(--muted-foreground) hover:cursor-pointer hover:bg-(--surface-4) hover:text-(--foreground)";
 
 /**
  * @param props.inCall - Whether the user is connected to the call.
@@ -124,22 +139,55 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
   return (
     <section
       aria-label="Nimbus assistant"
-      className="flex flex-col gap-2 rounded-xl border border-(--border) bg-(--muted)/30 p-3"
+      className={`flex flex-col gap-3 rounded-[14px] border p-3 transition-colors ${
+        live
+          ? "border-(--violet)/30 bg-(--surface-3)"
+          : "border-dashed border-(--line-3)"
+      }`}
     >
-      <div className="flex items-center gap-2.5">
-        <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full bg-(--primary)/15 text-(--primary) ${
-            assistantState === "speaking" ? "ring-2 ring-(--primary)/40" : ""
-          }`}
-        >
-          <Cloud className="h-4 w-4" />
+      <div className="flex items-center gap-3">
+        <span className="relative size-11 shrink-0">
+          {assistantState === "speaking" && active && (
+            <span className="ws-orbit absolute inset-0 rounded-2xl border-2 border-(--lime)" />
+          )}
+          {assistantState === "thinking" && active && (
+            <svg
+              className="ws-spin absolute inset-0"
+              width="44"
+              height="44"
+              viewBox="0 0 52 52"
+              aria-hidden="true"
+            >
+              <circle
+                cx="26"
+                cy="26"
+                r="24"
+                fill="none"
+                stroke="var(--violet)"
+                strokeWidth="2"
+                strokeDasharray="30 120"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+          <span className="absolute inset-1 grid place-items-center rounded-xl bg-(--surface-1)">
+            <Logo size={22} wordmark={false} />
+          </span>
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold leading-tight">Nimbus</p>
-          {live && assistantState ? (
+          <p className="text-[13px] font-semibold leading-tight">
+            {live ? "Nimbus" : "Nimbus assistant"}
+          </p>
+          {live && assistantState === "joining" ? (
+            <LogoSpinner
+              label="Joining the call"
+              size={16}
+              className="mt-1"
+            />
+          ) : live && assistantState ? (
             <p
               data-testid="assistant-state"
-              className="flex items-center gap-1.5 text-[11px] leading-tight text-(--muted-foreground)"
+              className={`mt-0.5 flex items-center gap-1.5 whitespace-nowrap text-xs leading-tight transition-colors ${STATE_TEXT[assistantState]}`}
             >
               <span
                 className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATE_DOT[assistantState]}`}
@@ -147,13 +195,33 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
               {STATE_LABEL[assistantState]}
             </p>
           ) : (
-            <p className="text-[11px] leading-tight text-(--muted-foreground)">
+            <p className="mt-0.5 text-xs leading-tight text-(--muted-foreground)">
               {inCall || live
                 ? "Captions, notes and answers"
                 : "Join the call to start Nimbus."}
             </p>
           )}
         </div>
+        {active && (
+          <div className="flex h-6 items-center gap-0.5" aria-hidden="true">
+            {BAR_HEIGHTS.map((height, i) => (
+              <div
+                key={i}
+                className="ws-bar w-0.75 rounded-xs"
+                style={{
+                  height,
+                  animationDelay: `-${(i * 0.12).toFixed(2)}s`,
+                  animationPlayState:
+                    assistantState === "speaking" ? "running" : "paused",
+                  background:
+                    assistantState === "speaking"
+                      ? "var(--lime)"
+                      : "var(--line-3)",
+                }}
+              />
+            ))}
+          </div>
+        )}
         {live && (
           <button
             type="button"
@@ -169,7 +237,7 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
             className={ICON_BUTTON_CLASS}
           >
             {prefs.muteAssistant ? (
-              <SpeakerOff className="h-4 w-4 text-red-500" />
+              <SpeakerOff className="h-4 w-4 text-red-400" />
             ) : (
               <Speaker className="h-4 w-4" />
             )}
@@ -179,10 +247,10 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
           type="button"
           onClick={() => void (live ? stop() : start())}
           disabled={disabled}
-          className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`shrink-0 rounded-[9px] px-3 py-1.5 text-[13px] font-semibold hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
             live
-              ? "text-(--muted-foreground) hover:bg-red-500/10 hover:text-red-500"
-              : "bg-(--primary) text-(--primary-foreground) hover:opacity-90"
+              ? "border border-(--line-3) text-(--text-body) hover:bg-(--surface-4)"
+              : "bg-(--lime) text-(--ink) hover:opacity-90"
           }`}
         >
           {label}
@@ -194,7 +262,7 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
           type="button"
           data-testid="stop-nimbus"
           onClick={() => void stopTalking()}
-          className="self-start rounded-lg bg-(--primary)/10 px-2.5 py-1 text-xs font-semibold text-(--primary) hover:cursor-pointer hover:bg-(--primary)/20"
+          className="self-start rounded-[9px] bg-(--violet)/15 px-3 py-1.5 text-xs font-semibold text-(--violet-soft) hover:cursor-pointer hover:bg-(--violet)/25"
         >
           Stop talking
         </button>
@@ -203,19 +271,19 @@ export default function AssistantPanel({ inCall }: { inCall: boolean }) {
       {active && (
         <p
           data-testid="wake-hint"
-          className="text-[10px] leading-tight text-(--muted-foreground)"
+          className="text-[11px] leading-tight text-(--muted-foreground)"
         >
           Say &ldquo;Nimbus&rdquo; to ask it something.
         </p>
       )}
 
       {refusal && (
-        <p role="alert" className="text-xs leading-snug text-red-500">
+        <p role="alert" className="text-xs leading-snug text-red-400">
           {refusal.message}
         </p>
       )}
       {(error || rpcError) && (
-        <p role="alert" className="text-xs leading-snug text-red-500">
+        <p role="alert" className="text-xs leading-snug text-red-400">
           {error ?? rpcError}
         </p>
       )}

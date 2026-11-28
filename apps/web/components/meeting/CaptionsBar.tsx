@@ -56,11 +56,11 @@ function CaptionLine({
 }) {
   const [showOriginal, setShowOriginal] = useState(false);
   const fromAssistant = segment.fromAssistant === true;
-  const voice = `${fromAssistant ? "italic text-(--primary)" : ""} ${
+  const voice = `${fromAssistant ? "italic text-(--lime)" : ""} ${
     dimmed ? "opacity-60" : ""
   } transition-opacity`;
   const speaker = (
-    <span className="font-semibold opacity-75">{segment.speakerName}: </span>
+    <span className="font-bold opacity-85">{segment.speakerName}: </span>
   );
 
   if (!translation) {
@@ -118,13 +118,13 @@ export default function CaptionsBar() {
 
   const surface = prefs.highContrast
     ? "bg-black text-white border-white"
-    : "bg-(--background)/90 text-(--foreground) border-(--border)";
+    : "bg-(--ink)/92 text-(--text-strong) border-(--line-2)";
 
   return (
     <div className="absolute bottom-20 left-1/2 z-50 w-[min(42rem,calc(100%-2rem))] -translate-x-1/2">
       <CatchUpCard />
       <div
-        className={`rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-md ${surface}`}
+        className={`rounded-[14px] border px-4.5 py-3 font-sans shadow-xl backdrop-blur-md ${surface}`}
       >
         <div
           data-testid="captions"

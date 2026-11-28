@@ -151,8 +151,10 @@ describe("MeetingDetail: the notes", () => {
     );
     renderDetail();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Nimbus is writing the notes",
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Nimbus is writing the notes",
+      ),
     );
     expect(screen.getByTestId("meeting-status")).toHaveTextContent(
       "Writing notes…",

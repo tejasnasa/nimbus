@@ -131,10 +131,7 @@ describe("VoiceOverlay", () => {
   });
 
   it("badges the assistant as an agent", () => {
-    setVoice(
-      ["agent-1"],
-      [person("agent-1", "Nimbus", { isAgent: true })],
-    );
+    setVoice(["agent-1"], [person("agent-1", "Nimbus", { isAgent: true })]);
 
     render(<VoiceOverlay />);
 
@@ -147,7 +144,7 @@ describe("VoiceOverlay", () => {
 
     render(<VoiceOverlay />);
 
-    expect(screen.queryByText("Agent")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("agent-badge")).not.toBeInTheDocument();
   });
 
   it("keeps a badge for the grace period after the speaker goes quiet", () => {

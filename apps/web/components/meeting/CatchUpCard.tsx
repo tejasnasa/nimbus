@@ -76,7 +76,7 @@ export default function CatchUpCard() {
       type="button"
       aria-label="Dismiss catch me up"
       onClick={dismiss}
-      className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-(--muted-foreground) hover:cursor-pointer hover:bg-(--muted) hover:text-(--foreground)"
+      className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-(--muted-foreground) hover:cursor-pointer hover:bg-(--surface-4) hover:text-(--foreground)"
     >
       ×
     </button>
@@ -87,7 +87,7 @@ export default function CatchUpCard() {
       <section
         aria-label="Catch me up"
         data-testid="catch-up-card"
-        className="mx-auto mb-2 flex w-fit max-w-full items-center gap-2 rounded-full border border-(--border) bg-(--background)/90 py-1 pr-1.5 pl-3 shadow-lg backdrop-blur-md"
+        className="mx-auto mb-2 flex w-fit max-w-full items-center gap-2 rounded-full border border-(--line-3) bg-(--surface-2)/95 py-1 pr-1.5 pl-3 font-sans shadow-lg backdrop-blur-md"
       >
         <p className="truncate text-xs text-(--muted-foreground)">
           Joined partway through?
@@ -95,7 +95,7 @@ export default function CatchUpCard() {
         <button
           type="button"
           onClick={() => void load()}
-          className="shrink-0 rounded-full bg-(--primary) px-3 py-0.5 text-xs font-semibold text-(--primary-foreground) hover:cursor-pointer hover:opacity-90"
+          className="shrink-0 rounded-full bg-(--brand) px-3 py-0.5 text-xs font-semibold text-white hover:cursor-pointer hover:opacity-90"
         >
           Catch me up
         </button>
@@ -108,7 +108,7 @@ export default function CatchUpCard() {
     <section
       aria-label="Catch me up"
       data-testid="catch-up-card"
-      className="mb-2 rounded-2xl border border-(--border) bg-(--background)/90 px-4 py-3 shadow-lg backdrop-blur-md"
+      className="mb-2 rounded-2xl border border-(--line-3) bg-(--surface-2)/95 px-4 py-3 font-sans shadow-lg backdrop-blur-md"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">

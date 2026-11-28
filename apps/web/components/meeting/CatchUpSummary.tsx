@@ -11,6 +11,7 @@
  */
 "use client";
 
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import type { CatchUpState } from "../../hooks/useCatchUp";
 
 /** Lines of a bulleted summary without their bullet markers. */
@@ -35,9 +36,7 @@ export default function CatchUpSummary({
   if (state.kind === "idle") return null;
   if (state.kind === "loading") {
     return (
-      <p role="status" className="text-xs opacity-70">
-        Catching you up…
-      </p>
+      <LogoSpinner label="Catching you up…" size={18} showLabel className="text-xs" />
     );
   }
   if (state.kind === "error") {

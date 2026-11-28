@@ -263,10 +263,10 @@ describe("VoiceControls: in the call", () => {
     renderControls();
 
     expect(screen.getByRole("img", { name: "Grace Hopper" })).toHaveClass(
-      "border-(--chart-2)",
+      "ring-(--lime)",
     );
     expect(screen.getByRole("img", { name: "Ada Lovelace" })).not.toHaveClass(
-      "border-(--chart-2)",
+      "ring-(--lime)",
     );
   });
 

@@ -8,6 +8,7 @@
  */
 "use client";
 
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import type { Member } from "@nimbus/types";
 import { useState } from "react";
 import {
@@ -63,7 +64,7 @@ export default function ActionItemsView({
       <div
         role="group"
         aria-label="Filter action items"
-        className="inline-flex rounded-xl border border-(--border) p-0.5"
+        className="inline-flex rounded-xl border border-(--line-2) p-0.5"
       >
         {SCOPES.map((option) => (
           <button
@@ -73,7 +74,7 @@ export default function ActionItemsView({
             onClick={() => setScope(option.value)}
             className={`rounded-lg px-3 py-1 text-xs font-medium hover:cursor-pointer ${
               scope === option.value
-                ? "bg-(--primary)/15 text-(--primary)"
+                ? "bg-(--violet)/15 text-(--violet-soft)"
                 : "text-(--muted-foreground) hover:text-(--foreground)"
             }`}
           >
@@ -99,9 +100,7 @@ export default function ActionItemsView({
       )}
 
       {list.loading && list.items.length === 0 ? (
-        <p className="text-sm text-(--muted-foreground)">
-          Loading action items…
-        </p>
+        <LogoSpinner label="Loading action items…" centered />
       ) : list.items.length === 0 ? (
         <p
           className="text-sm text-(--muted-foreground)"

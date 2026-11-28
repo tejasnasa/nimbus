@@ -59,7 +59,7 @@ export default function AddActionItemForm({
         e.preventDefault();
         void submit();
       }}
-      className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-(--border) p-3"
+      className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-(--line-2) p-3"
     >
       <div className="flex min-w-48 flex-1 flex-col gap-1">
         <label htmlFor="new-action-item-text" className="text-xs font-medium">
@@ -71,7 +71,7 @@ export default function AddActionItemForm({
           maxLength={ACTION_ITEM_TEXT_MAX}
           placeholder="What needs doing?"
           onChange={(e) => setText(e.target.value)}
-          className="h-8 rounded-lg border border-(--border) bg-(--muted)/50 px-2 text-sm"
+          className="h-8 rounded-lg border border-(--line-2) bg-(--surface-3) px-2 text-sm"
         />
       </div>
       <Select
@@ -98,7 +98,7 @@ export default function AddActionItemForm({
           type="date"
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
-          className="h-8 rounded-lg border border-(--border) bg-(--muted)/50 px-2 text-xs"
+          className="h-8 rounded-lg border border-(--line-2) bg-(--surface-3) px-2 text-xs"
         />
       </div>
       <Button

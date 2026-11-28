@@ -22,6 +22,7 @@
  *            already holds. It only decides what to offer; the API re-checks
  *            every action.
  */
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import type { Member, MeetingSummaryDTO } from "@nimbus/types";
 import { useEffect, useState } from "react";
 import { useMeetingSearch } from "../hooks/useMeetingSearch";
@@ -55,7 +56,7 @@ function MeetingRow({
   return (
     <li
       data-testid={`meeting-row-${meeting.id}`}
-      className="rounded-xl border border-(--border) bg-(--muted)/20"
+      className="rounded-xl border border-(--line-2) bg-(--panel)"
     >
       <button
         type="button"
@@ -156,7 +157,7 @@ export default function WorkspaceMeetingsPanel({
       <div
         role="group"
         aria-label="Meetings view"
-        className="inline-flex rounded-xl border border-(--border) p-0.5"
+        className="inline-flex rounded-xl border border-(--line-2) p-0.5"
       >
         {(
           [
@@ -171,7 +172,7 @@ export default function WorkspaceMeetingsPanel({
             onClick={() => setView(value)}
             className={`rounded-lg px-3 py-1 text-xs font-medium hover:cursor-pointer ${
               view === value
-                ? "bg-(--primary)/15 text-(--primary)"
+                ? "bg-(--violet)/15 text-(--violet-soft)"
                 : "text-(--muted-foreground) hover:text-(--foreground)"
             }`}
           >
@@ -184,7 +185,7 @@ export default function WorkspaceMeetingsPanel({
         <p
           role="status"
           data-testid="meetings-notice"
-          className="rounded-lg border border-(--border) bg-(--muted)/30 px-3 py-2 text-xs text-(--muted-foreground)"
+          className="rounded-lg border border-(--line-2) bg-(--panel) px-3 py-2 text-xs text-(--muted-foreground)"
         >
           {notice}
         </p>
@@ -223,12 +224,12 @@ export default function WorkspaceMeetingsPanel({
               placeholder="Search every transcript"
               aria-label="Search transcripts"
               maxLength={200}
-              className="h-9 min-w-0 flex-1 rounded-xl border border-(--border) bg-(--muted)/50 px-3 text-sm"
+              className="h-9 min-w-0 flex-1 rounded-xl border border-(--line-2) bg-(--surface-3) px-3 text-sm"
             />
             <button
               type="submit"
               disabled={!query.trim()}
-              className="rounded-xl bg-(--primary) px-4 text-xs font-semibold text-(--primary-foreground) hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-xl bg-(--brand) px-4 text-xs font-semibold text-white hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               Search
             </button>
@@ -237,7 +238,7 @@ export default function WorkspaceMeetingsPanel({
           {searching ? (
             <div data-testid="meeting-search-results" className="space-y-2">
               {search.state.kind === "loading" && (
-                <p className="text-sm text-(--muted-foreground)">Searching…</p>
+                <LogoSpinner label="Searching…" size={20} centered />
               )}
               {search.state.kind === "error" && (
                 <p role="alert" className="text-xs text-(--destructive)">
@@ -258,7 +259,7 @@ export default function WorkspaceMeetingsPanel({
                         setQuery("");
                         search.clear();
                       }}
-                      className="text-xs font-medium text-(--primary) hover:cursor-pointer hover:underline"
+                      className="text-xs font-medium text-(--violet-soft) hover:cursor-pointer hover:underline"
                     >
                       Clear search
                     </button>
@@ -270,7 +271,7 @@ export default function WorkspaceMeetingsPanel({
                           type="button"
                           data-testid={`search-hit-${hit.segmentId}`}
                           onClick={() => open(hit.meetingId, hit.seq)}
-                          className="block w-full rounded-xl border border-(--border) bg-(--muted)/20 px-4 py-2 text-left hover:cursor-pointer hover:bg-(--muted)/40"
+                          className="block w-full rounded-xl border border-(--line-2) bg-(--panel) px-4 py-2 text-left hover:cursor-pointer hover:bg-(--surface-3)"
                         >
                           <span className="block text-xs font-medium">
                             {meetingTitle({
@@ -302,9 +303,7 @@ export default function WorkspaceMeetingsPanel({
               )}
 
               {meetings.loading && meetings.meetings.length === 0 ? (
-                <p className="text-sm text-(--muted-foreground)">
-                  Loading meetings…
-                </p>
+                <LogoSpinner label="Loading meetings…" centered />
               ) : meetings.meetings.length === 0 ? (
                 <p
                   className="text-sm text-(--muted-foreground)"

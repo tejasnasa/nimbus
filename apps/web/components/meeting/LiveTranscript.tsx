@@ -59,7 +59,7 @@ export default function LiveTranscript() {
             type="button"
             onClick={() => void catchUp.load()}
             disabled={catchUp.state.kind === "loading"}
-            className="text-xs font-semibold text-(--primary) hover:cursor-pointer hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+            className="text-xs font-semibold text-(--violet-soft) hover:cursor-pointer hover:underline disabled:cursor-not-allowed disabled:opacity-60"
           >
             Catch me up
           </button>
@@ -78,14 +78,14 @@ export default function LiveTranscript() {
             pinnedRef.current =
               el.scrollHeight - el.scrollTop - el.clientHeight < 24;
           }}
-          className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-lg bg-(--muted)/40 p-2 text-xs"
+          className="flex max-h-64 flex-col gap-1.5 overflow-y-auto rounded-xl border border-(--line-1) bg-(--panel) p-3 text-xs leading-normal"
         >
           {segments.length === 0 && (
             <li className="text-(--muted-foreground)">Nothing said yet.</li>
           )}
           {segments.map((segment) => (
             <li key={segment.seq} data-testid="transcript-line">
-              <span className="mr-1 text-(--muted-foreground)">
+              <span className="mr-1 font-mono text-(--text-dim)">
                 {formatOffset(segment.startMs)}
               </span>
               <span className="font-semibold">{segment.speakerName}: </span>

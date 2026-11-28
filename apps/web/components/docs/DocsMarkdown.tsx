@@ -8,8 +8,10 @@
  *
  * @important Uses `MarkdownAsync` because the highlighter is asynchronous.
  *            Everything here runs at build time; the only client JavaScript a
- *            doc page ships is the `Mermaid` component and the sidebar.
+ *            doc page ships is the `Mermaid` component, the code-block Copy
+ *            button and the sidebar.
  */
+import type { Element, ElementContent } from "hast";
 import Link from "next/link";
 import { MarkdownAsync, type Components } from "react-markdown";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
@@ -17,8 +19,17 @@ import rehypePrettyCode from "rehype-pretty-code";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { resolveDocTarget } from "../../lib/docs";
+import { CodeBar } from "./CodeBar";
 import { Mermaid } from "./Mermaid";
 import { MERMAID_TAG, rehypeMermaid } from "./rehypeMermaid";
+
+/** The plain text under a hast node, which is what Copy puts on the clipboard. */
+function hastText(node: Element | ElementContent | undefined): string {
+  if (!node) return "";
+  if (node.type === "text") return node.value;
+  if (node.type !== "element") return "";
+  return node.children.map(hastText).join("");
+}
 
 /** Element overrides for one page; `from` is that page's slug. */
 function componentsFor(from: string): Components & Record<string, unknown> {
@@ -61,6 +72,20 @@ function componentsFor(from: string): Components & Record<string, unknown> {
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img title={title} src={target.href} alt={alt ?? ""} loading="lazy" />
+      );
+    },
+    pre({ node, children, ...props }) {
+      const language = String(
+        (props as Record<string, unknown>)["data-language"] ?? "text",
+      );
+      return (
+        <>
+          <CodeBar
+            language={language}
+            text={hastText(node).replace(/\n$/, "")}
+          />
+          <pre {...props}>{children}</pre>
+        </>
       );
     },
     table({ children }) {

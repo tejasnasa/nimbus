@@ -23,8 +23,7 @@ beforeEach(() => {
 
 /** Fills the form with a valid submission. */
 async function fillForm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("combobox", { name: /category/i }));
-  await user.click(screen.getByRole("option", { name: "Bug report" }));
+  await user.click(screen.getByRole("radio", { name: "Bug report" }));
   await user.type(screen.getByLabelText("Name"), "Ada Lovelace");
   await user.type(screen.getByLabelText("Email"), "ada@example.com");
   await user.type(
@@ -73,7 +72,7 @@ describe("ContactForm", () => {
     await user.click(screen.getByRole("button", { name: "Send message" }));
     await screen.findByText("Message sent");
 
-    await user.click(screen.getByRole("button", { name: "Send another message" }));
+    await user.click(screen.getByRole("button", { name: "Send another" }));
 
     expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument();
     expect(screen.getByLabelText("Message")).toHaveValue("");

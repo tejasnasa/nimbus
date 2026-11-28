@@ -30,10 +30,10 @@ function NavLink({
       <Link
         href={href}
         aria-current={active ? "page" : undefined}
-        className={`block rounded-lg px-3 py-1.5 text-sm transition-colors ${
+        className={`block rounded-[9px] px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--violet) ${
           active
-            ? "bg-(--accent) text-(--foreground)"
-            : "text-(--muted-foreground) hover:bg-(--accent)/60 hover:text-(--foreground)"
+            ? "bg-(--surface-3) font-semibold text-(--foreground)"
+            : "text-(--muted-foreground) hover:bg-(--surface-1) hover:text-(--foreground)"
         }`}
       >
         {title}
@@ -53,17 +53,17 @@ export function DocsNav({ sections }: { sections: DocSection[] }) {
 
   const links = (
     <div className="flex flex-col gap-4">
-      <ul className="flex flex-col gap-0.5">
+      <ul className="flex flex-col gap-1">
         <NavLink href="/docs" title="Overview" active={pathname === "/docs"} />
       </ul>
       {sections.map((section) => (
         <div key={section.dir || "top"}>
           {section.dir && (
-            <p className="mb-1 px-3 text-xs font-medium uppercase tracking-wider text-(--muted-foreground)">
+            <p className="mb-1 px-3 font-mono text-[11px] tracking-[0.12em] text-(--muted-foreground) uppercase">
               {section.title}
             </p>
           )}
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex flex-col gap-1">
             {section.docs.map((doc) => {
               const href = `/docs/${doc.slug}`;
               return (
@@ -84,14 +84,19 @@ export function DocsNav({ sections }: { sections: DocSection[] }) {
   return (
     <nav aria-label="Documentation">
       <details key={pathname} className="docs-menu lg:hidden">
-        <summary className="cursor-pointer rounded-lg border border-(--border) bg-(--card)/40 px-3 py-2 text-sm">
+        <summary className="cursor-pointer rounded-[10px] border border-(--line-2) bg-(--surface-1) px-3 py-2.5 text-sm">
           Documentation
         </summary>
-        <div className="mt-2 rounded-lg border border-(--border) bg-(--card) p-2">
+        <div className="mt-2 rounded-xl border border-(--line-2) bg-(--surface-1) p-2">
           {links}
         </div>
       </details>
-      <div className="docs-sidebar hidden lg:block">{links}</div>
+      <div className="docs-sidebar hidden lg:block">
+        <p className="px-3 pb-2.5 font-mono text-[11px] tracking-[0.12em] text-(--muted-foreground) uppercase">
+          Documentation
+        </p>
+        {links}
+      </div>
     </nav>
   );
 }

@@ -36,7 +36,7 @@ describe("ContactPage", () => {
     render(await ContactPage());
 
     expect(
-      screen.getByRole("heading", { name: "Get in touch" }),
+      screen.getByRole("heading", { name: /found a bug/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("");
     expect(screen.getByLabelText("Email")).toHaveValue("");
@@ -61,7 +61,7 @@ describe("ContactPage", () => {
     render(await ContactPage());
 
     expect(
-      screen.getByRole("heading", { name: "Get in touch" }),
+      screen.getByRole("heading", { name: /found a bug/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument();
   });

@@ -4,28 +4,28 @@
  * off-screen honeypot. Owns its own form state through `useContactForm`, and
  * swaps itself for a confirmation panel once the message is accepted — there is
  * no toast in this app, so the confirmation is rendered state.
+ *
+ * The category is a radio group of pills rather than a dropdown, driven through
+ * `watch`/`setValue` because it is not a native input.
  */
 "use client";
+import { CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } from "@nimbus/types";
+import { Spinner } from "@nimbus/ui/icons/Spinner";
+import { useContactForm, type ContactValues } from "../hooks/useContactForm";
 import {
-  CONTACT_CATEGORIES,
-  CONTACT_CATEGORY_LABELS,
-} from "@nimbus/types";
-import Button from "@nimbus/ui/Button";
-import Chat from "@nimbus/ui/icons/Chat";
-import Error from "@nimbus/ui/icons/Error";
-import Input from "@nimbus/ui/Input";
-import Select from "@nimbus/ui/Select";
-import Textarea from "@nimbus/ui/Textarea";
-import {
-  useContactForm,
-  type ContactValues,
-} from "../hooks/useContactForm";
+  AuthError,
+  AuthField,
+  authInputClass,
+  authPrimaryClass,
+} from "./AuthParts";
 
-/** The dropdown's options, labelled from the same map the mail subject uses. */
-const CATEGORY_OPTIONS = CONTACT_CATEGORIES.map((category) => ({
-  value: category,
-  label: CONTACT_CATEGORY_LABELS[category],
-}));
+/** What to ask for, per category, as the message placeholder. */
+const PLACEHOLDERS: Record<ContactValues["category"], string> = {
+  bug: "What happened, and what did you expect instead?",
+  feature: "What would you like Nimbus to do?",
+  question: "What would you like to know?",
+  other: "What’s on your mind?",
+};
 
 /**
  * @param props.prefill - Name/email seeded from the session, when there is one.
@@ -46,128 +46,154 @@ export default function ContactForm({
     onSubmit,
     sendAnother,
   } = useContactForm(prefill);
+  const category = watch("category");
 
   if (sent) {
     return (
-      <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5">
-        <div className="flex flex-col items-center text-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-(--chart-2) to-(--primary) flex items-center justify-center shadow-lg shadow-(--chart-2)/20">
-            <Chat className="w-7 h-7 text-(--primary-foreground)" />
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight">Message sent</h2>
-          <p className="text-sm text-(--muted-foreground)">
-            Thanks — it is in the inbox now. A reply will go back to the address
-            you gave.
-          </p>
-          <Button
-            className="font-semibold w-full mt-2"
-            size="lg"
-            onClick={sendAnother}
+      <div
+        role="status"
+        className="flex min-h-130 flex-col items-center justify-center gap-4 text-center"
+      >
+        <div className="lp-pop flex size-18 items-center justify-center rounded-full border-2 border-(--lime) bg-[rgba(124,207,0,0.14)]">
+          <svg
+            width="32"
+            height="32"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--lime)"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            Send another message
-          </Button>
+            <path d="M5 12l5 5 9-10" />
+          </svg>
         </div>
-      </section>
+        <h2 className="font-display text-[28px] font-semibold">Message sent</h2>
+        <p className="max-w-85 text-[15px] leading-relaxed text-(--text-body)">
+          Thanks for writing in. You&apos;ll get a reply at the address you
+          gave.
+        </p>
+        <button
+          type="button"
+          onClick={sendAnother}
+          className="min-h-11 cursor-pointer rounded-[11px] border border-(--line-3) px-4.5 text-sm text-(--foreground) transition-colors hover:bg-(--surface-3) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet)"
+        >
+          Send another
+        </button>
+      </div>
     );
   }
 
   return (
-    <section className="glass-card rounded-2xl p-8 shadow-2xl shadow-(--primary)/5 relative">
-      <form className="flex flex-col gap-5" onSubmit={onSubmit} noValidate>
-        <Select
-          id="category"
-          label="Category"
-          value={watch("category") ?? ""}
-          onChange={(value) =>
-            setValue("category", value as ContactValues["category"])
-          }
-          options={CATEGORY_OPTIONS}
-          placeholder="Choose a category"
-          invalid={Boolean(errors.category)}
-        />
+    <form className="relative flex flex-col gap-5" onSubmit={onSubmit} noValidate>
+      <div className="flex flex-col gap-2.5">
+        <span
+          id="contact-category-label"
+          className="text-[13px] font-medium text-(--text-soft)"
+        >
+          Category
+        </span>
+        <div
+          role="radiogroup"
+          aria-labelledby="contact-category-label"
+          aria-invalid={errors.category ? true : undefined}
+          className="flex flex-wrap gap-2"
+        >
+          {CONTACT_CATEGORIES.map((value) => {
+            const on = category === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => setValue("category", value, { shouldValidate: true })}
+                className={`min-h-10 cursor-pointer rounded-full border px-4 text-sm transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet) motion-reduce:transition-none ${
+                  on
+                    ? "border-(--violet) bg-[rgba(180,139,240,0.16)] text-(--foreground)"
+                    : "border-(--line-3) text-(--text-body) hover:border-(--text-dim)"
+                }`}
+              >
+                {CONTACT_CATEGORY_LABELS[value]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="name"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Name
-          </label>
-          <Input
-            placeholder="Ada Lovelace"
-            className="w-full"
+      <div className="flex flex-wrap gap-4">
+        <div className="min-w-50 flex-[1_1_200px]">
+          <AuthField
             id="name"
+            label="Name"
+            placeholder="Ada Lovelace"
             {...register("name")}
           />
         </div>
-
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="email"
-            className="text-sm font-medium text-(--muted-foreground)"
-          >
-            Email
-          </label>
-          <Input
-            placeholder="ada@example.com"
-            className="w-full"
+        <div className="min-w-50 flex-[1_1_200px]">
+          <AuthField
             id="email"
+            label="Email"
+            type="email"
+            placeholder="ada@example.com"
             {...register("email")}
           />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="message"
-            className="text-sm font-medium text-(--muted-foreground)"
+      <div className="flex flex-col gap-2">
+        <label htmlFor="message" className="text-[13px] font-medium text-(--text-soft)">
+          Message
+        </label>
+        <textarea
+          id="message"
+          rows={7}
+          placeholder={PLACEHOLDERS[category ?? "bug"]}
+          className={`${authInputClass} min-h-40 resize-y py-3 leading-[1.55]`}
+          {...register("message")}
+        />
+      </div>
+
+      {firstError && <AuthError message={firstError} />}
+
+      <button type="submit" disabled={isSubmitting} className={authPrimaryClass}>
+        {isSubmitting && <Spinner className="h-4 w-4" />}
+        Send message
+        {!isSubmitting && (
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            Message
-          </label>
-          <Textarea
-            placeholder="What happened, and what did you expect instead?"
-            className="w-full"
-            id="message"
-            size="lg"
-            {...register("message")}
-          />
-        </div>
-
-        {firstError && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--destructive)/10 border border-(--destructive)/20">
-            <Error className="w-4 h-4 text-(--destructive) shrink-0" />
-            <span className="text-xs text-(--destructive)">{firstError}</span>
-          </div>
+            <path d="M4 12l16-8-6 16-3-7z" />
+          </svg>
         )}
+      </button>
 
-        <Button
-          className="font-semibold w-full mt-1"
-          size="lg"
-          loading={isSubmitting}
-        >
-          Send message
-        </Button>
-
-        {/*
-          Off-screen rather than `hidden` or `display: none`: bots commonly skip
-          fields whose computed style hides them, and this one has to stay in the
-          DOM for a parser to fill it. It is `aria-hidden` and untabbable, so no
-          keyboard or screen-reader user can reach it. Whether it was filled is
-          decided on the server.
-        */}
-        <div
-          className="absolute left-[-9999px] top-0"
-          aria-hidden="true"
-        >
-          <label htmlFor="nimbus_hp">Leave this field empty</label>
-          <input
-            id="nimbus_hp"
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            {...register("nimbus_hp")}
-          />
-        </div>
-      </form>
-    </section>
+      {/*
+        Off-screen rather than `hidden` or `display: none`: bots commonly skip
+        fields whose computed style hides them, and this one has to stay in the
+        DOM for a parser to fill it. It is `aria-hidden` and untabbable, so no
+        keyboard or screen-reader user can reach it. Whether it was filled is
+        decided on the server.
+      */}
+      <div className="absolute top-0 left-[-9999px]" aria-hidden="true">
+        <label htmlFor="nimbus_hp">Leave this field empty</label>
+        <input
+          id="nimbus_hp"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          {...register("nimbus_hp")}
+        />
+      </div>
+    </form>
   );
 }

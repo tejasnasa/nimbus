@@ -27,7 +27,7 @@ export default async function Home() {
         name={session!.user.name}
       />
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-8 px-5 pt-12 pb-20 sm:px-10">
+      <main className="mx-auto flex max-w-7xl flex-col gap-8 px-5 pt-16 pb-20 sm:px-10 sm:pt-24">
         <ViewWorkspaces
           workspaces={workspaces}
           id={session!.user.id}

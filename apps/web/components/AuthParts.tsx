@@ -3,7 +3,8 @@
  * @description Presentational building blocks shared by the sign-in, signup,
  * password-reset, email-verified and not-found screens: the top bar with the
  * logo, page heading, labelled field, primary submit button, "or" divider,
- * error banner, password strength meter, and the centred status-page shell.
+ * error banner, password strength meter, the centred status-page shell, its
+ * tile illustration and the outlined secondary action.
  *
  * @important Free of hooks and event handlers on purpose, so server components
  * (the status pages) can render it. Anything interactive lives in its own
@@ -240,5 +241,51 @@ export function StatusShell({
         </div>
       </div>
     </main>
+  );
+}
+
+/** Classes for an outlined secondary action, usable on `button` and `Link`. */
+export const authSecondaryClass =
+  "inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-(--line-3) px-[22px] text-[15px] font-medium text-(--text-body) transition-colors hover:bg-(--surface-3) hover:text-(--foreground) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet)";
+
+/**
+ * The status pages' illustration: a 3×2 grid of quiet tiles with one dashed
+ * tile standing out, carrying a short mark such as `?`, `404` or `!`.
+ *
+ * @param props.mark - Text inside the standout tile.
+ * @param props.tone - `violet` for "not here", `danger` for "broke".
+ */
+export function StatusTiles({
+  mark,
+  tone = "violet",
+}: {
+  mark: string;
+  tone?: "violet" | "danger";
+}) {
+  return (
+    <div
+      className="grid grid-cols-[repeat(3,72px)] gap-2.5"
+      aria-hidden="true"
+    >
+      {[0, 1, 2, 3, 4, 5].map((i) =>
+        i === 4 ? (
+          <span
+            key={i}
+            className={`flex h-[52px] items-center justify-center rounded-xl border-[1.5px] border-dashed font-mono text-[15px] font-bold ${
+              tone === "danger"
+                ? "border-(--destructive)/50 bg-(--destructive)/5 text-red-300"
+                : "border-[#4a3f55] text-(--violet)"
+            }`}
+          >
+            {mark}
+          </span>
+        ) : (
+          <span
+            key={i}
+            className="h-[52px] rounded-xl border border-(--line-1) bg-(--surface-1)"
+          />
+        ),
+      )}
+    </div>
   );
 }

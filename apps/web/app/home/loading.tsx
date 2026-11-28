@@ -16,7 +16,7 @@ export default function Loading() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-8 px-5 pt-12 pb-20 sm:px-10">
+      <main className="mx-auto flex max-w-7xl flex-col gap-8 px-5 pt-16 pb-20 sm:px-10 sm:pt-24">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div className="flex flex-col gap-2.5">
             <Skeleton className="h-3.5 w-44 rounded-md" />

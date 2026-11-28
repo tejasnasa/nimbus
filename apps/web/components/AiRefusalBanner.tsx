@@ -73,7 +73,7 @@ export default function AiRefusalBanner({
     <div
       role="alert"
       data-testid="ai-refusal-banner"
-      className="mx-2 mt-2 flex items-start gap-2 rounded-xl border border-(--destructive)/30 bg-(--destructive)/10 px-3 py-2 text-xs text-(--destructive)"
+      className="mb-2 flex items-start gap-2 rounded-xl border border-(--destructive)/30 bg-(--destructive)/10 px-3 py-2.5 text-xs text-(--destructive)"
     >
       <Error className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
       <div className="flex-1 min-w-0">
@@ -90,7 +90,7 @@ export default function AiRefusalBanner({
           onClick={onCtaClickAction}
           disabled={ctaDisabled}
           data-testid="ai-refusal-cta"
-          className="rounded-lg hover:cursor-pointer"
+          className="rounded-lg bg-(--brand) text-white hover:bg-(--brand)/90 hover:cursor-pointer"
         >
           {ctaLabel}
         </Button>

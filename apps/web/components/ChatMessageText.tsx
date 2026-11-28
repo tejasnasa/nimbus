@@ -50,7 +50,7 @@ export default function ChatMessageText({
         type="button"
         data-testid="chat-doc-link"
         onClick={() => onOpenDocument(documentId!)}
-        className="font-medium text-(--primary) underline underline-offset-2 hover:cursor-pointer"
+        className="my-1 inline-flex after:text-(--muted-foreground) after:content-['·_Open'] items-center gap-2.5 rounded-[10px] border border-(--line-3) bg-(--surface-3) px-3 py-2 text-left text-[13px] text-(--foreground) transition-colors hover:cursor-pointer hover:border-(--violet)"
       >
         {label}
       </button>,

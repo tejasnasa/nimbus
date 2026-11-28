@@ -52,7 +52,7 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
 
   const surface = prefs.highContrast
     ? "bg-black text-white border-white"
-    : "bg-(--background)/90 text-(--foreground) border-(--border)";
+    : "bg-(--background)/90 text-(--foreground) border-(--line-2)";
 
   return (
     <div className="space-y-5" data-testid="caption-settings-panel">
@@ -62,7 +62,7 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
       </p>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Text size</h2>
+        <h2 className="font-display text-base font-semibold">Text size</h2>
         <div className="flex gap-2" role="group" aria-label="Text size">
           {SIZES.map(({ value, label }) => (
             <button
@@ -73,8 +73,8 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
               onClick={() => update({ size: value })}
               className={`rounded-lg border px-3 py-1.5 text-sm transition-colors hover:cursor-pointer ${
                 prefs.size === value
-                  ? "border-(--primary) bg-(--primary) text-(--primary-foreground)"
-                  : "border-(--border) hover:bg-(--muted)"
+                  ? "border-(--violet) bg-(--violet)/15 text-(--foreground)"
+                  : "border-(--line-2) hover:bg-(--surface-3)"
               }`}
             >
               {label}
@@ -86,6 +86,7 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
       <label className="flex items-center gap-2 text-sm hover:cursor-pointer">
         <input
           type="checkbox"
+          className="size-4 accent-(--lime)"
           data-testid="caption-high-contrast"
           checked={prefs.highContrast}
           onChange={(e) => update({ highContrast: e.target.checked })}
@@ -124,6 +125,7 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
       <label className="flex items-center gap-2 text-sm hover:cursor-pointer">
         <input
           type="checkbox"
+          className="size-4 accent-(--lime)"
           data-testid="caption-mute-assistant"
           checked={prefs.muteAssistant}
           onChange={(e) => update({ muteAssistant: e.target.checked })}
@@ -132,7 +134,7 @@ export default function CaptionSettingsPanel({ userId }: { userId: string }) {
       </label>
 
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Preview</h2>
+        <h2 className="font-display text-base font-semibold">Preview</h2>
         <div
           data-testid="caption-preview"
           className={`rounded-xl border p-3 shadow-lg ${surface}`}

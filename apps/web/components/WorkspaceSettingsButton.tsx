@@ -18,9 +18,10 @@ export default function WorkspaceSettingsButton() {
       type="button"
       title="Workspace settings"
       onClick={() => settings.open()}
-      className="p-2 w-9 h-9 hover:cursor-pointer rounded-lg hover:bg-(--muted) transition-all duration-200 hover:text-(--foreground) shrink-0"
+      aria-label="Workspace settings"
+      className="grid size-9 shrink-0 place-items-center rounded-[10px] border border-(--line-2) bg-(--surface-1) text-(--text-body) transition-colors hover:cursor-pointer hover:border-(--line-3) hover:bg-(--surface-3) hover:text-(--foreground)"
     >
-      <Settings />
+      <Settings className="size-4.5" />
     </button>
   );
 }

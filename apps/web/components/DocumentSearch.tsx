@@ -11,8 +11,7 @@
  */
 "use client";
 
-import Markdown from "@nimbus/ui/icons/Markdown";
-import Flow from "@nimbus/ui/icons/Flow";
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import { useState, type FormEvent } from "react";
 import { useDocumentSearch } from "../hooks/useDocumentSearch";
 import { useOpenDocument } from "../hooks/useOpenDocument";
@@ -40,7 +39,7 @@ export default function DocumentSearch({
   };
 
   return (
-    <div className="mb-4 space-y-3" data-testid="document-search">
+    <div className="space-y-3" data-testid="document-search">
       <form onSubmit={submit} role="search" className="flex items-center gap-2">
         <input
           type="search"
@@ -51,11 +50,11 @@ export default function DocumentSearch({
             setText(e.target.value);
             if (!e.target.value.trim()) clear();
           }}
-          className="min-w-0 flex-1 rounded-xl border border-(--border) bg-(--background) px-3 py-2 text-sm outline-none focus:border-(--primary)"
+          className="min-h-10.5 min-w-0 flex-1 rounded-[11px] border border-(--line-3) bg-(--panel) px-3 text-sm text-(--foreground) outline-none transition-shadow placeholder:text-(--text-dim) focus:border-(--violet) focus:ring-[3px] focus:ring-(--violet)/20"
         />
         <button
           type="submit"
-          className="rounded-xl border border-(--border) px-3 py-2 text-sm hover:bg-(--muted) hover:cursor-pointer"
+          className="min-h-10.5 rounded-[11px] border border-(--line-3) px-3.5 text-sm transition-colors hover:bg-(--surface-3) hover:cursor-pointer"
         >
           Search
         </button>
@@ -66,7 +65,7 @@ export default function DocumentSearch({
               setText("");
               clear();
             }}
-            className="rounded-xl px-3 py-2 text-sm text-(--muted-foreground) hover:cursor-pointer hover:underline"
+            className="rounded-[11px] px-3 text-sm text-(--muted-foreground) hover:cursor-pointer hover:underline"
           >
             Clear
           </button>
@@ -74,9 +73,7 @@ export default function DocumentSearch({
       </form>
 
       {state.kind === "loading" && (
-        <p role="status" className="text-xs text-(--muted-foreground)">
-          Searching…
-        </p>
+        <LogoSpinner label="Searching…" size={20} centered />
       )}
       {state.kind === "error" && (
         <p role="alert" className="text-xs text-(--destructive)">
@@ -102,14 +99,16 @@ export default function DocumentSearch({
                   data-testid="document-hit"
                   onClick={() => void open(hit.documentId)}
                   disabled={opener.opening !== null}
-                  className="flex w-full items-start gap-3 rounded-xl p-3 text-left hover:bg-(--muted)/30 hover:cursor-pointer"
+                  className="flex w-full items-start gap-3 rounded-[13px] border border-(--line-1) bg-(--panel) p-3 text-left transition-colors hover:bg-(--grid-line) hover:cursor-pointer"
                 >
-                  <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--muted)/50">
-                    {hit.type === "MARKDOWN" ? (
-                      <Markdown className="size-4 text-(--muted-foreground)" />
-                    ) : (
-                      <Flow className="size-4 text-(--muted-foreground)" />
-                    )}
+                  <div
+                    className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-[9px] bg-(--surface-4) font-mono text-[9px] font-bold ${
+                      hit.type === "MARKDOWN"
+                        ? "text-(--violet)"
+                        : "text-(--lime)"
+                    }`}
+                  >
+                    {hit.type === "MARKDOWN" ? "DOC" : "BRD"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">

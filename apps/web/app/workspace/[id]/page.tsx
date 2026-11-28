@@ -1,4 +1,4 @@
-import Cloud from "@nimbus/ui/icons/Cloud";
+import Logo from "@nimbus/ui/Logo";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { getAiStatus } from "../../../api/ai";
@@ -18,7 +18,7 @@ import { authClient } from "../../../lib/auth-client";
  * @module web/app/workspace/[id]/page
  * @description Workspace room (server component): loads workspace, messages,
  * and documents in parallel-by-await, then composes the two-pane layout —
- * Chat sidebar (settings gear + messages) beside `DocEditor` — inside
+ * Chat sidebar (logo, workspace name, settings gear, messages) beside `DocEditor` — inside
  * `VoiceProvider` (call room + identity) + `MeetingProvider` (assistant meeting) + `DocEditorRefProvider` (add-tab
  * bridge) + `WorkspaceSettingsProvider` (the one settings dialog, openable on any tab from the gear, the chat banner and the call card), with a global `VoiceOverlay` and the floating `VoiceDock` call card. AI status is fetched alongside so the
  * chat composer renders in the right enabled/disabled state on first paint.
@@ -63,30 +63,32 @@ export default async function Workspace({
             initialAiStatus={initialAiStatus}
             userId={session!.user.id}
           >
-            <main className="h-dvh flex bg-(--background) text-(--foreground) overflow-hidden relative">
+            <main className="h-dvh flex bg-(--background) font-sans text-(--foreground) overflow-hidden relative">
               <VoiceOverlay />
               <VoiceDock />
-              <section className="w-90 flex flex-col min-h-0 overflow-hidden border-r border-(--border) bg-(--card)/20 backdrop-blur-sm">
-                <div className="flex justify-between items-center p-4 pb-2">
-                  <div className="flex items-start gap-2">
+              <section
+                aria-label="Chat"
+                className="flex w-90 shrink-0 flex-col min-h-0 overflow-hidden border-r border-(--line-1) bg-(--panel) font-sans"
+              >
+                <div className="flex justify-between items-center gap-2.5 px-4 pt-4 pb-1.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <Link
                       href="/"
-                      className="flex items-center font-semibold text-lg group"
+                      aria-label="All workspaces"
+                      className="flex shrink-0 transition-transform duration-300 hover:scale-110"
                     >
-                      <div className="flex size-9 items-center justify-center rounded-lg text-(--primary-foreground) group-hover:scale-110 transition-transform duration-300">
-                        <Cloud />
-                      </div>
+                      <Logo size={30} wordmark={false} />
                     </Link>
-                    <h1 className="text-2xl ml-2 font-semibold tracking-tight">
+                    <h1 className="truncate font-display text-[22px] font-semibold tracking-[-0.02em]">
                       {workspaceData.name}
                     </h1>
                   </div>
                   <WorkspaceSettingsButton />
                 </div>
-                <div className="text-xs text-(--muted-foreground) px-4 pb-3 leading-relaxed">
+                <p className="px-4 pb-3.5 text-[13px] leading-normal text-(--muted-foreground)">
                   {workspaceData.description}
-                </div>
-                <div className="flex-1 min-h-0 px-2 pb-2">
+                </p>
+                <div className="flex-1 min-h-0">
                   <Chat
                     userId={session!.user?.id}
                     messages={messages}

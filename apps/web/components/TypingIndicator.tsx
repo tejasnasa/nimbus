@@ -37,22 +37,13 @@ export default function TypingIndicator({ names }: { names: string[] }) {
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="h-5 px-2 flex items-center gap-2 text-[11px] text-(--muted-foreground)/70"
+      className="h-5 px-1 flex items-center gap-2 text-xs text-(--muted-foreground)"
     >
       {count > 0 && (
-        <div className="flex items-end gap-0.5" aria-hidden="true">
-          <span
-            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-            style={{ animationDelay: "0ms" }}
-          />
-          <span
-            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-            style={{ animationDelay: "150ms" }}
-          />
-          <span
-            className="w-1 h-1 rounded-full bg-(--muted-foreground)/60 animate-pulse"
-            style={{ animationDelay: "300ms" }}
-          />
+        <div className="flex items-end gap-0.75" aria-hidden="true">
+          <span className="ws-dot" />
+          <span className="ws-dot" style={{ animationDelay: "150ms" }} />
+          <span className="ws-dot" style={{ animationDelay: "300ms" }} />
         </div>
       )}
       <span>{label}</span>

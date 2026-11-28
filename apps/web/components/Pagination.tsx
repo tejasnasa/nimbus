@@ -35,7 +35,7 @@ export default function Pagination({
   if (!hasPrevious && !hasNext) return null;
 
   const buttonClass =
-    "rounded-lg border border-(--border) px-3 py-1 text-xs font-medium hover:cursor-pointer hover:bg-(--muted) disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
+    "rounded-[9px] border border-(--line-3) px-3 py-1.5 text-xs font-medium transition-colors hover:cursor-pointer hover:bg-(--surface-3) disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent";
 
   return (
     <nav
@@ -53,7 +53,7 @@ export default function Pagination({
         Previous
       </button>
       <span
-        className="text-xs text-(--muted-foreground)"
+        className="font-mono text-xs text-(--muted-foreground)"
         data-testid={`${testId}-page`}
       >
         Page {page}

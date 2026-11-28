@@ -1,14 +1,15 @@
 "use client";
 
-import { AIGenOrb } from "@nimbus/ui/AiGenOrb";
-import Error from "@nimbus/ui/icons/Error";
 import { useEffect, useRef } from "react";
 
 /**
  * @module web/components/AiGenOverlay
- * @description Full-pane AI generation status: orb/spinner while
- * starting/thinking, check on complete, error art + Dismiss on failure, with
- * an auto-scrolling reasoning/token log panel.
+ * @description Full-pane AI generation status for a `generating:*` tab: a
+ * turning two-square mark with a breathing lime core while Nimbus works, a lime
+ * check on complete, a red notice on failure, three step pills (Reading,
+ * Reasoning, Writing or Drawing) that follow the stage, and an auto-scrolling
+ * reasoning/token log. A failed generation offers Dismiss. All motion stops
+ * under `prefers-reduced-motion`.
  */
 /** Generation progress for one `generating:*` tab. */
 export type AIGenerationState = {
@@ -26,16 +27,35 @@ interface Props {
   onDismissError: () => void;
 }
 
+/** Position of each stage in the step pills; `complete` is past them all. */
+const STAGE_INDEX = {
+  starting: 0,
+  thinking: 1,
+  error: 0,
+  complete: 3,
+} as const;
+
+/** Colour of the pill dot and border for a step in a given condition. */
+function stepColor(failed: boolean, done: boolean, current: boolean): string {
+  if (failed) return "var(--destructive)";
+  if (done) return "var(--lime)";
+  if (current) return "var(--violet)";
+  return "var(--line-3)";
+}
+
 /**
- * @param props.state - Generation snapshot (stage drives orb/check/error).
+ * @param props.state - Generation snapshot (stage drives mark/check/error).
  * @param props.onDismissError - Removes the failed GENERATING tab.
  */
 export function AiGenOverlay({ state, onDismissError }: Props) {
   const reasoningRef = useRef<HTMLDivElement>(null);
   const isMarkdown = state.type === "MARKDOWN";
+  const failed = state.stage === "error";
+  const complete = state.stage === "complete";
   const showLogPanel = isMarkdown
     ? state.thinkingTokens.length > 0
     : state.stage !== "error";
+  const stageIndex = STAGE_INDEX[state.stage];
 
   useEffect(() => {
     if (reasoningRef.current) {
@@ -43,65 +63,160 @@ export function AiGenOverlay({ state, onDismissError }: Props) {
     }
   }, [state.thinkingTokens]);
 
+  const steps = [
+    "Reading",
+    "Reasoning",
+    isMarkdown ? "Writing" : "Drawing",
+  ] as const;
+
+  const glow = failed
+    ? "radial-gradient(circle, rgba(239,68,68,0.14), transparent 62%)"
+    : complete
+      ? "radial-gradient(circle, rgba(124,207,0,0.16), transparent 62%)"
+      : "radial-gradient(circle, rgba(124,58,237,0.22), transparent 62%)";
+
   return (
-    <div className="relative h-full overflow-hidden animate-fade-in">
-      <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+    <div
+      className="relative h-full overflow-hidden font-sans animate-fade-in"
+      style={{
+        backgroundImage:
+          "linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }}
+    >
       <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at top, color-mix(in oklch, var(--primary) 10%, transparent) 0%, transparent 55%)",
-        }}
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-55 left-1/2 size-160 -translate-x-1/2 rounded-full"
+        style={{ background: glow }}
       />
 
-      <div className="relative z-10 flex h-full flex-col gap-6 overflow-y-auto px-6 py-8 md:px-10">
-        <div className="flex flex-col items-center gap-4 text-center animate-slide-up">
-          <div className="relative flex items-center justify-center w-30 h-30">
-            {state.stage === "error" ? (
-              <div className="animate-scale-in flex items-center justify-center rounded-full w-24 h-24 border-(--destructive) border-2">
-                <Error className="text-(--destructive)" />
-              </div>
-            ) : state.stage === "complete" ? (
-              <div className="animate-scale-in flex items-center justify-center rounded-full w-24 h-24 border-(--primary) border-2">
+      <div className="relative z-10 flex h-full flex-col items-center gap-7.5 overflow-y-auto px-6 py-12 md:px-10">
+        <div className="flex flex-col items-center gap-4.5 text-center animate-slide-up">
+          <div className="relative size-30">
+            {failed ? (
+              <div className="ws-shake absolute inset-3 grid place-items-center rounded-full border-2 border-(--destructive) bg-(--destructive)/8">
                 <svg
-                  className="w-12 h-12 text-(--primary) animate-checkmark"
-                  fill="none"
-                  stroke="currentColor"
+                  width="40"
+                  height="40"
                   viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--destructive)"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  aria-hidden="true"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={3}
-                    d="M5 13l4 4L19 7"
-                  />
+                  <path d="M12 7v6M12 17h.01" />
+                </svg>
+              </div>
+            ) : complete ? (
+              <div className="lp-pop absolute inset-3 grid place-items-center rounded-full border-2 border-(--lime) bg-(--lime)/10">
+                <svg
+                  width="44"
+                  height="44"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--lime)"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12l5 5 9-10" />
                 </svg>
               </div>
             ) : (
-              <AIGenOrb />
+              <svg
+                width="120"
+                height="120"
+                viewBox="0 0 120 120"
+                className="absolute inset-0"
+                aria-hidden="true"
+              >
+                <rect
+                  className="ws-spin-a"
+                  x="18"
+                  y="18"
+                  width="62"
+                  height="62"
+                  rx="18"
+                  fill="none"
+                  stroke="var(--violet)"
+                  strokeWidth="5"
+                />
+                <rect
+                  className="ws-spin-b"
+                  x="40"
+                  y="40"
+                  width="62"
+                  height="62"
+                  rx="18"
+                  fill="none"
+                  stroke="var(--violet)"
+                  strokeWidth="5"
+                  opacity="0.8"
+                />
+                <circle
+                  className="ws-breathe"
+                  cx="60"
+                  cy="60"
+                  r="12"
+                  fill="var(--lime)"
+                />
+              </svg>
             )}
           </div>
 
-          <div>
-            <p className="mb-1 text-sm text-(--muted-foreground)">
+          <div className="flex flex-col gap-2">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-(--muted-foreground)">
               {isMarkdown ? "Rich Text Document" : "Canvas"}
             </p>
-            <h2 className="text-2xl font-semibold text-(--foreground)">
-              {state.stage === "error"
+            <h2 className="font-display text-[34px] font-semibold tracking-[-0.03em] text-(--foreground)">
+              {failed
                 ? `Couldn't finish "${state.label}"`
-                : state.stage === "complete"
+                : complete
                   ? `Created "${state.label}"`
                   : `Creating "${state.label}"`}
             </h2>
-            <p className="mt-2 text-sm text-(--muted-foreground)">
+            <p role="status" className="text-[15px] text-(--text-body)">
               {state.errorMessage || state.status || "Preparing generation..."}
             </p>
           </div>
         </div>
 
+        <ul
+          className="flex flex-wrap justify-center gap-2"
+          aria-label="Progress"
+        >
+          {steps.map((label, i) => {
+            const done = !failed && stageIndex > i;
+            const current = !failed && stageIndex === i;
+            const color = stepColor(failed, done, current);
+            return (
+              <li
+                key={label}
+                className="inline-flex items-center gap-2 rounded-full border bg-(--surface-1) px-3 py-1.75 text-[13px] transition-colors duration-300"
+                style={{
+                  borderColor:
+                    done || current || failed ? color : "var(--line-2)",
+                  color:
+                    done || current
+                      ? "var(--foreground)"
+                      : "var(--muted-foreground)",
+                }}
+              >
+                <span
+                  className="size-1.75 rounded-full transition-colors duration-300"
+                  style={{ background: color }}
+                />
+                {label}
+              </li>
+            );
+          })}
+        </ul>
+
         {showLogPanel && (
-          <div className="rounded-2xl border border-(--border) bg-(--card)/70 p-4 backdrop-blur-sm animate-fade-in w-3/4 mx-auto min-h-40">
-            <div className="mb-3">
+          <div className="box-border flex w-full max-w-190 flex-col gap-3 rounded-[20px] border border-(--line-2) bg-(--surface-1)/90 p-4.5 backdrop-blur-sm animate-fade-in">
+            <div className="flex flex-col gap-0.5">
               <h3 className="text-sm font-semibold text-(--foreground)">
                 {isMarkdown ? "Reasoning log" : "Generation log"}
               </h3>
@@ -113,25 +228,24 @@ export function AiGenOverlay({ state, onDismissError }: Props) {
             </div>
             <div
               ref={reasoningRef}
-              className="h-80 overflow-y-auto rounded-xl bg-(--background)/70 p-4 scrollbar-thin"
+              className="h-57.5 overflow-y-auto rounded-xl bg-(--ink) p-3.5 scrollbar-thin"
             >
-              <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-(--muted-foreground)">
-                {state.thinkingTokens ||
-                  (isMarkdown
-                    ? "Waiting for reasoning…"
-                    : "Waiting for reasoning…")}
+              <pre className="whitespace-pre-wrap font-mono text-xs leading-[1.75] text-(--muted-foreground)">
+                {state.thinkingTokens || "Waiting for reasoning…"}
                 {state.stage !== "error" && state.thinkingTokens.length > 0 && (
-                  <span className="animate-typewriter-blink">|</span>
+                  <span className="animate-typewriter-blink text-(--violet)">
+                    |
+                  </span>
                 )}
               </pre>
             </div>
           </div>
         )}
 
-        {state.stage === "error" && (
+        {failed && (
           <div className="flex justify-center animate-slide-up">
             <button
-              className="rounded-xl border border-(--border) px-5 py-2.5 text-sm font-medium text-(--muted-foreground) transition-opacity hover:opacity-80"
+              className="min-h-11 rounded-[11px] border border-(--line-3) px-4.5 text-sm text-(--foreground) transition-colors hover:cursor-pointer hover:bg-(--surface-3)"
               onClick={onDismissError}
             >
               Dismiss

@@ -53,7 +53,7 @@ const rowOrder = (container: HTMLElement) =>
 const activeRow = (container: HTMLElement) =>
   rows(container)
     .find((row) =>
-      row.className.includes("border-(--primary) text-(--foreground)"),
+      row.className.includes("border-(--line-3) bg-(--surface-3) text-(--foreground)"),
     )
     ?.querySelector("span.truncate")?.textContent ?? null;
 
@@ -89,7 +89,7 @@ describe("DocTabs", () => {
 
   it("renders no trailing slot when none is given", () => {
     const { container } = render(<Harness />);
-    expect(container.querySelector(".shrink-0")).toBeNull();
+    expect(container.querySelector("div.justify-between > div.shrink-0")).toBeNull();
   });
 
   it("hides the close button when no close handler is supplied", () => {

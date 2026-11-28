@@ -103,7 +103,7 @@ function renderTree(children: React.ReactNode) {
 const activeTab = () =>
   screen
     .getAllByRole("button")
-    .find((b) => b.className.includes("bg-(--primary)/15") && b.textContent);
+    .find((b) => b.getAttribute("aria-current") === "page" && b.textContent);
 
 beforeEach(() => {
   fakeSocket.reset();

@@ -345,7 +345,7 @@ export default function AiModelPicker({
                   setCustomId("");
                   probe.reset();
                 }}
-                className="shrink-0 bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted) hover:cursor-pointer"
+                className="shrink-0 bg-transparent border border-(--line-2) text-(--foreground) hover:bg-(--surface-3) hover:cursor-pointer"
               >
                 Cancel
               </Button>
@@ -402,7 +402,7 @@ export default function AiModelPicker({
       {customOpen && (probe.result || probe.error) && (
         <div
           data-testid={`${feature}-probe-result`}
-          className="space-y-1.5 rounded-xl border border-(--border) bg-(--muted)/30 px-3 py-2"
+          className="space-y-1.5 rounded-xl border border-(--line-2) bg-(--panel) px-3 py-2"
         >
           {probe.error && (
             <p role="alert" className="text-xs text-(--destructive)">
@@ -523,7 +523,7 @@ function CapabilityChips({
         <span
           key={chip.capability}
           data-testid={`chip-${chip.capability}`}
-          className="rounded-md border border-(--border) bg-(--muted)/50 px-1.5 py-0.5 text-[10px] text-(--muted-foreground)"
+          className="rounded-md border border-(--line-2) bg-(--surface-3) px-1.5 py-0.5 text-[10px] text-(--muted-foreground)"
         >
           {chip.label}
         </span>

@@ -1,13 +1,11 @@
 "use client";
 
 import { AiWorkspaceStatusDTO, Message } from "@nimbus/types";
-import Button from "@nimbus/ui/Button";
 import ChatMsgA from "@nimbus/ui/ChatMsgA";
 import ChatMsgB from "@nimbus/ui/ChatMsgB";
-import Textarea from "@nimbus/ui/Textarea";
 import ChatIcon from "@nimbus/ui/icons/Chat";
 import PaperclipIcon from "@nimbus/ui/icons/Paperclip";
-import { getAvatarForUser } from "@nimbus/ui/utils/getAvatarForUser";
+import { avatarFor } from "../lib/nimbusAvatar";
 import { timeAgo } from "@nimbus/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 /**
@@ -306,11 +304,11 @@ export default function Chat({
       : "@Nimbus is unavailable in this workspace";
 
   return (
-    <div className="h-full min-h-0 rounded-xl bg-(--background)/50 backdrop-blur-sm border border-(--border) flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 border-t border-(--line-1) flex flex-col overflow-hidden font-sans">
       {workspaceError && (
         <div
           role="alert"
-          className="mx-2 mt-2 flex items-start justify-between gap-2 rounded-lg border border-(--destructive)/40 bg-(--destructive)/10 px-3 py-2 text-xs text-(--destructive)"
+          className="mx-3 mt-3 flex items-start justify-between gap-2 rounded-xl border border-(--destructive)/40 bg-(--destructive)/10 px-3 py-2 text-xs text-(--destructive)"
         >
           <span>{workspaceError}</span>
           <button
@@ -328,7 +326,7 @@ export default function Chat({
         <div
           role="alert"
           data-testid="vision-refusal"
-          className="mx-2 mt-2 flex items-start justify-between gap-2 rounded-lg border border-(--border) bg-(--muted)/40 px-3 py-2 text-xs"
+          className="mx-3 mt-3 flex items-start justify-between gap-2 rounded-xl border border-(--line-3) bg-(--surface-3) px-3 py-2 text-xs text-(--text-strong)"
         >
           <span>{aiRefusal.message}</span>
           <span className="flex shrink-0 items-center gap-2">
@@ -356,14 +354,14 @@ export default function Chat({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 scrollbar-thin">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 scrollbar-thin flex flex-col gap-3.5">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-12 h-12 rounded-2xl bg-(--primary)/10 flex items-center justify-center mb-3">
-              <ChatIcon className="w-6 h-6 text-(--primary)" />
+            <div className="w-12 h-12 rounded-2xl bg-(--surface-4) flex items-center justify-center mb-3">
+              <ChatIcon className="w-6 h-6 text-(--violet)" />
             </div>
-            <p className="text-sm text-(--muted-foreground)">No messages yet</p>
-            <p className="text-xs text-(--muted-foreground)/60 mt-1">
+            <p className="text-sm text-(--text-body)">No messages yet</p>
+            <p className="text-xs text-(--text-dim) mt-1">
               Start the conversation
             </p>
           </div>
@@ -373,7 +371,7 @@ export default function Chat({
             <ChatMsgB
               key={msg.id}
               name={msg.name}
-              image={msg.image || getAvatarForUser(msg.userId)}
+              image={avatarFor(msg.userId, msg.image)}
               message={msg.content}
               imageUrl={msg.imageUrl}
               time={timeAgo(msg.createdAt)}
@@ -382,7 +380,7 @@ export default function Chat({
             <ChatMsgA
               key={msg.id}
               name={msg.name}
-              image={msg.image || getAvatarForUser(msg.userId)}
+              image={avatarFor(msg.userId, msg.image)}
               message={msg.content}
               content={
                 hasDocLink(msg.content) ? (
@@ -402,7 +400,7 @@ export default function Chat({
         <div ref={bottomRef} />
       </div>
 
-      <div className="p-2 pt-0">
+      <div className="px-3 pb-3.5 pt-0">
         {!chatEnabled && (
           <AiRefusalBanner
             message={
@@ -425,7 +423,7 @@ export default function Chat({
         {pendingImage.status !== "idle" && pendingImage.status !== "error" && (
           <div
             data-testid="chat-image-pending"
-            className="mb-1 flex items-center gap-2 rounded-lg border border-(--border) bg-(--muted)/40 p-1.5"
+            className="mb-2 flex items-center gap-2 rounded-xl border border-(--line-3) bg-(--surface-1) p-1.5"
           >
             {/* A blob: preview of a local file; next/image cannot optimise it. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -434,7 +432,7 @@ export default function Chat({
               alt="Selected image"
               className="h-10 w-10 rounded object-cover"
             />
-            <div className="min-w-0 flex-1 text-[10px] text-(--muted-foreground)">
+            <div className="min-w-0 flex-1 text-[10px] text-(--text-dim)">
               {pendingImage.status === "uploading" ? (
                 <>
                   <div
@@ -442,10 +440,10 @@ export default function Chat({
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={pendingImage.progress}
-                    className="h-1.5 w-full overflow-hidden rounded bg-(--muted)"
+                    className="h-1.5 w-full overflow-hidden rounded bg-(--line-2)"
                   >
                     <div
-                      className="h-full bg-(--primary)"
+                      className="h-full bg-(--violet)"
                       style={{ width: `${pendingImage.progress}%` }}
                     />
                   </div>
@@ -470,7 +468,7 @@ export default function Chat({
           <div
             role="alert"
             data-testid="chat-image-error"
-            className="mb-1 flex items-start justify-between gap-2 rounded-lg border border-(--destructive)/40 bg-(--destructive)/10 px-2 py-1 text-[10px] text-(--destructive)"
+            className="mb-2 flex items-start justify-between gap-2 rounded-xl border border-(--destructive)/40 bg-(--destructive)/10 px-2.5 py-1.5 text-[11px] text-(--destructive)"
           >
             <span>{pendingImage.message}</span>
             <button
@@ -484,7 +482,7 @@ export default function Chat({
           </div>
         )}
         <form
-          className={`relative rounded-xl ${dragging ? "ring-2 ring-(--primary)" : ""}`}
+          className={`flex items-end gap-2 rounded-[14px] border border-(--line-3) bg-(--surface-1) p-1.5 pl-2 transition-colors focus-within:border-(--violet) ${dragging ? "ring-2 ring-(--violet)" : ""}`}
           onSubmit={(e) => e.preventDefault()}
           data-testid="chat-dropzone"
           onDragOver={(e) => {
@@ -517,12 +515,13 @@ export default function Chat({
             disabled={!chatEnabled}
             onClick={() => fileInputRef.current?.click()}
             title="Attach image"
-            className="absolute bottom-3 left-2 z-10 grid h-7 w-7 place-items-center rounded-lg border border-(--border) bg-(--card) text-(--muted-foreground) shadow-sm transition-colors hover:cursor-pointer hover:text-(--foreground) hover:bg-(--muted) disabled:opacity-40 disabled:cursor-not-allowed"
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-(--muted-foreground) transition-colors hover:cursor-pointer hover:bg-(--surface-3) hover:text-(--foreground) disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <PaperclipIcon className="h-4 w-4" />
           </button>
-          <Textarea
-            className="text-xs w-full rounded-xl bg-(--muted)/50 pb-12"
+          <textarea
+            rows={1}
+            className="field-sizing-content max-h-32 min-h-8.5 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-sm text-(--foreground) outline-none placeholder:text-(--text-dim) disabled:cursor-not-allowed disabled:opacity-60"
             placeholder={placeholder}
             value={content}
             onChange={handleChange}
@@ -532,8 +531,9 @@ export default function Chat({
             aria-disabled={!chatEnabled}
             data-testid="chat-composer"
           />
-          <Button
-            size="xs"
+          <button
+            type="button"
+            aria-label="Send"
             onClick={handleSend}
             disabled={
               !chatEnabled ||
@@ -541,12 +541,24 @@ export default function Chat({
               (!content.trim() && pendingImage.status !== "ready")
             }
             data-testid="chat-send"
-            className="absolute bottom-3 right-2 hover:cursor-pointer rounded-lg"
+            className="grid size-8.5 shrink-0 place-items-center rounded-[9px] bg-(--brand) text-white transition-colors hover:cursor-pointer hover:bg-(--brand)/90 disabled:cursor-default disabled:bg-(--brand)/40"
           >
-            Send
-          </Button>
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </button>
         </form>
-        <p className="text-[10px] text-(--muted-foreground)/60 mt-1 text-right px-1">
+        <p className="mt-1.5 px-1 text-right text-[11px] text-(--text-dim)">
           {chatEnabled
             ? "Ask anything from @Nimbus"
             : canManageAi

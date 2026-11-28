@@ -1,6 +1,6 @@
 /**
  * @module web/tests/components/WorkspaceSettingsImage
- * @description The add-document dialog's "From an image…" shortcut: it uploads
+ * @description The add-document dialog's "From an image" mode: it uploads
  * the picked picture and posts the same `@nimbus turn this into a diagram`
  * chat message a member would type, with the image attached. There is no
  * second code path, so the test pins exactly the `message:send` it produces.
@@ -69,7 +69,8 @@ async function openDialog() {
     </DocEditorRefProvider>,
   );
   await user.click(screen.getByRole("button", { name: "Documents" }));
-  await user.click(screen.getByRole("button", { name: "+ Add Document" }));
+  await user.click(screen.getByRole("button", { name: "+ New document" }));
+  await user.click(screen.getByRole("tab", { name: /From an image/ }));
   return user;
 }
 

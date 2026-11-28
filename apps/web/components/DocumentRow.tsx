@@ -2,7 +2,9 @@
  * @module web/components/DocumentRow
  * @description One row of the settings Documents list: the document's icon,
  * title and type, with a pen button that turns the title into an inline input,
- * a download button, and a slot for the delete control.
+ * a download button, and a slot for the delete control. When `onOpen` is given
+ * the icon and title are a button that opens the document and closes the
+ * surrounding settings dialog (through `data-alert-dialog-close`).
  *
  * Editing: Enter or leaving the field saves, Escape cancels, an unchanged title
  * is a no-op, and an empty or over-long title is refused with a message under
@@ -17,8 +19,6 @@
 
 import Download from "@nimbus/ui/icons/Download";
 import Edit from "@nimbus/ui/icons/Edit";
-import Flow from "@nimbus/ui/icons/Flow";
-import Markdown from "@nimbus/ui/icons/Markdown";
 import { useRef, useState, type ReactNode } from "react";
 import type { ClientDocument } from "../api/document";
 import {
@@ -27,13 +27,14 @@ import {
 } from "../hooks/useWorkspaceDocuments";
 
 const ACTION =
-  "p-1.5 rounded-lg hover:bg-(--muted) transition-colors hover:cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40";
+  "p-1.5 rounded-lg hover:bg-(--surface-4) transition-colors hover:cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-40";
 
 /**
  * @param props.document - The document shown.
  * @param props.busy - A request for this document is in flight.
  * @param props.onRename - Saves a new title; resolves with the outcome.
  * @param props.onDownload - Downloads the document.
+ * @param props.onOpen - Opens the document in the editor.
  * @param props.children - The delete control.
  */
 export default function DocumentRow({
@@ -41,12 +42,14 @@ export default function DocumentRow({
   busy,
   onRename,
   onDownload,
+  onOpen,
   children,
 }: {
   document: ClientDocument;
   busy: boolean;
   onRename: (title: string) => Promise<RenameResult>;
   onDownload: () => void;
+  onOpen?: () => void;
   children?: ReactNode;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -87,19 +90,28 @@ export default function DocumentRow({
   return (
     <div
       data-testid="document-row"
-      className="flex justify-between items-center p-3 rounded-xl hover:bg-(--muted)/30 transition-colors group"
+      className="flex justify-between items-center gap-3.5 rounded-[13px] border border-(--line-1) bg-(--panel) px-3.5 py-3 transition-colors hover:bg-(--grid-line) group"
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-(--muted)/50 flex items-center justify-center shrink-0">
-          {doc.type === "MARKDOWN" ? (
-            <Markdown className="w-5 h-5 text-(--muted-foreground)" />
-          ) : (
-            <Flow className="w-5 h-5 text-(--muted-foreground)" />
-          )}
+      <div className="relative flex min-w-0 flex-1 items-center gap-3.5">
+        {onOpen && draft === null && (
+          <button
+            type="button"
+            aria-label={`Open "${doc.label}"`}
+            data-alert-dialog-close
+            onClick={onOpen}
+            className="absolute inset-0 rounded-lg hover:cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--violet)"
+          />
+        )}
+        <div
+          className={`grid size-9.5 shrink-0 place-items-center rounded-[10px] bg-(--surface-4) font-mono text-[10px] font-bold ${
+            doc.type === "MARKDOWN" ? "text-(--violet)" : "text-(--lime)"
+          }`}
+        >
+          {doc.type === "MARKDOWN" ? "DOC" : "BRD"}
         </div>
         <div className="min-w-0 flex-1">
           {draft === null ? (
-            <div className="truncate text-sm font-medium">{doc.label}</div>
+            <div className="truncate text-sm font-semibold">{doc.label}</div>
           ) : (
             <>
               <input
@@ -123,7 +135,7 @@ export default function DocumentRow({
                   }
                 }}
                 onBlur={() => void commit()}
-                className="w-full rounded-md border border-(--border) bg-(--background) px-2 py-1 text-sm outline-none focus:border-(--primary)"
+                className="w-full rounded-md border border-(--line-3) bg-(--surface-1) px-2 py-1 text-sm outline-none focus:border-(--violet)"
               />
               {problem && (
                 <p role="alert" className="mt-1 text-xs text-(--destructive)">

@@ -29,35 +29,40 @@ export default function PresenceAvatars({ peers }: { peers: PresencePeer[] }) {
       role="group"
       aria-label={alsoEditingLabel(peers)}
       data-testid="presence-avatars"
-      className="flex items-center -space-x-2"
+      className="flex items-center gap-3"
     >
-      {visible.map((peer) => (
-        <div
-          key={peer.userId}
-          title={peer.name}
-          data-testid="presence-avatar"
-          className="rounded-full"
-          style={{ boxShadow: `0 0 0 2px ${peer.color}` }}
-        >
-          <Avatar
-            user={{
-              name: peer.name,
-              image: peer.image ?? getAvatarForUser(peer.userId),
-            }}
-            classname="h-6 w-6"
-          />
-        </div>
-      ))}
+      <span aria-hidden="true" className="text-xs text-(--muted-foreground)">
+        Also editing
+      </span>
+      <div className="flex items-center -space-x-1.5">
+        {visible.map((peer) => (
+          <div
+            key={peer.userId}
+            title={peer.name}
+            data-testid="presence-avatar"
+            className="rounded-full"
+            style={{ boxShadow: `0 0 0 2px ${peer.color}` }}
+          >
+            <Avatar
+              user={{
+                name: peer.name,
+                image: peer.image ?? getAvatarForUser(peer.userId),
+              }}
+              classname="size-6.5"
+            />
+          </div>
+        ))}
 
-      {hidden.length > 0 && (
-        <div
-          title={hidden.map((peer) => peer.name).join(", ")}
-          data-testid="presence-overflow"
-          className="z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 border-(--background) bg-(--muted) text-[10px] font-medium text-(--muted-foreground)"
-        >
-          +{hidden.length}
-        </div>
-      )}
+        {hidden.length > 0 && (
+          <div
+            title={hidden.map((peer) => peer.name).join(", ")}
+            data-testid="presence-overflow"
+            className="z-10 flex size-6.5 items-center justify-center rounded-full border-2 border-(--background) bg-(--surface-4) text-[10px] font-bold text-(--muted-foreground)"
+          >
+            +{hidden.length}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

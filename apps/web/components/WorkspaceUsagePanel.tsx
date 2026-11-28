@@ -10,6 +10,7 @@
  * Costs are estimates from list prices. A call whose model has no price shows a
  * dash rather than zero, so a missing price is visible instead of looking free.
  */
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import Select, { type SelectOption } from "@nimbus/ui/Select";
 import { AI_FEATURES, type AiCallDTO, type AiFeature } from "@nimbus/types";
 import { useWorkspaceAiUsage } from "../hooks/useWorkspaceAiUsage";
@@ -130,7 +131,7 @@ export default function WorkspaceUsagePanel({
       {/* Only the first load shows a placeholder; paging keeps the current
           rows on screen, dimmed, until the next page replaces them. */}
       {usage.loading && usage.calls.length === 0 ? (
-        <p className="text-sm text-(--muted-foreground)">Loading usage…</p>
+        <LogoSpinner label="Loading usage…" centered />
       ) : usage.calls.length === 0 ? (
         <p
           className="text-sm text-(--muted-foreground)"
@@ -161,7 +162,7 @@ export default function WorkspaceUsagePanel({
                 <tr
                   key={call.id}
                   data-testid={`usage-row-${call.id}`}
-                  className="border-t border-(--border)"
+                  className="border-t border-(--line-2)"
                 >
                   <td className="py-1 pr-3 whitespace-nowrap">
                     {new Date(call.createdAt).toLocaleString()}
@@ -210,7 +211,7 @@ function StatTile({
   return (
     <div
       data-testid={`usage-tile-${label}`}
-      className="rounded-xl border border-(--border) bg-(--muted)/30 px-3 py-2"
+      className="rounded-xl border border-(--line-2) bg-(--panel) px-3 py-2"
     >
       <p className="text-xs capitalize text-(--muted-foreground)">{label}</p>
       <p className="text-lg font-semibold">{value}</p>

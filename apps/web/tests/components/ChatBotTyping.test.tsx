@@ -157,7 +157,7 @@ describe("Chat: Nimbus typing line", () => {
     const line = screen.getByText("Nimbus is typing…");
     const region = line.closest("[role='status']");
     expect(region).toHaveAttribute("aria-live", "polite");
-    expect(region?.querySelectorAll(".animate-pulse")).toHaveLength(3);
+    expect(region?.querySelectorAll(".ws-dot")).toHaveLength(3);
 
     typing(false);
     expect(screen.queryByText("Nimbus is typing…")).not.toBeInTheDocument();

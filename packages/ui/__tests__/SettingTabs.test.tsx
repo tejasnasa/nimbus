@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import SettingTabs from "../src/components/SettingTabs";
-import { cleanupDom, click, queryAll, render } from "./testUtils";
+import { cleanupDom, click, query, queryAll, render } from "./testUtils";
 
 afterEach(cleanupDom);
 
@@ -35,8 +35,11 @@ describe("SettingTabs", () => {
     expect(container.textContent).not.toContain("general-panel");
 
     const buttons = queryAll<HTMLButtonElement>(container, "button");
-    expect(buttons[1]!.className).toContain("bg-(--primary)/15");
-    expect(buttons[0]!.className).not.toContain("bg-(--primary)/15");
+    expect(buttons[1]!.className).toContain("bg-(--surface-4)");
+    expect(buttons[1]!.className).toContain("font-semibold");
+    expect(buttons[1]!.getAttribute("aria-current")).toBe("page");
+    expect(buttons[0]!.className).not.toContain("bg-(--surface-4)");
+    expect(buttons[0]!.getAttribute("aria-current")).toBeNull();
     expect(buttons[0]!.className).toContain("text-(--muted-foreground)");
   });
 
@@ -66,5 +69,26 @@ describe("SettingTabs", () => {
       "General",
     ]);
     expect(container.textContent).not.toContain("danger-panel");
+  });
+
+  it("shows the active tab's title and description with the heading and action", () => {
+    const { container } = render(
+      <SettingTabs
+        tabs={[
+          { label: "General", content: <p>general-panel</p>, description: "Name and description." },
+          { label: "Members", content: <p>members-panel</p>, nested: true },
+        ]}
+        heading={<span>Studio</span>}
+        headerAction={<button type="button">Close</button>}
+      />,
+    );
+    expect(query(container, "h2").textContent).toBe("General");
+    expect(container.textContent).toContain("Name and description.");
+    expect(container.textContent).toContain("Studio");
+    expect(container.textContent).toContain("Close");
+
+    click(queryAll(container, "nav button")[1]!);
+    expect(query(container, "h2").textContent).toBe("Members");
+    expect(container.textContent).not.toContain("Name and description.");
   });
 });

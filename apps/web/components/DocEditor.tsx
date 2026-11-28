@@ -26,6 +26,7 @@ import Canvas from "./Canvas";
 import { useDocEditorRef } from "./DocEditorRefContext";
 import { MarkdownEditor } from "./MarkdownEditor";
 import PresenceAvatars from "./PresenceAvatars";
+import { useOptionalWorkspaceSettings } from "./WorkspaceSettingsContext";
 
 /**
  * @module web/components/DocEditor
@@ -41,7 +42,9 @@ import PresenceAvatars from "./PresenceAvatars";
  * a tab that is open on it with a "This document was deleted" notice (the tab
  * stays until closed, so nobody is left typing into a document that is gone).
  * The person who deleted it needs no warning, so their own tab just closes.
- * Exposes `addTab` to siblings (e.g. Chat) via `DocEditorRefContext`.
+ * The strip's "+" button opens the workspace settings on the Documents tab, where
+ * the new-document dialog lives. Exposes `addTab` to siblings (e.g. Chat) via
+ * `DocEditorRefContext`.
  *
  * Presence: the open editor reports who else is in its document (markdown
  * awareness, or the canvas pointers seen so far) and the tab strip shows them as
@@ -146,6 +149,7 @@ export default function DocEditor({
   );
   const aiGeneratingRef = useRef<AIGenerationState | null>(null);
   const addTabRef = useDocEditorRef();
+  const settings = useOptionalWorkspaceSettings();
 
   const userId = user?.id;
   const userName = user?.name;
@@ -474,7 +478,10 @@ export default function DocEditor({
   if (!current) return null;
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--background)">
+    <section
+      aria-label="Documents"
+      className="flex min-h-0 min-w-0 flex-1 flex-col bg-(--background) font-sans"
+    >
       <DocTabs
         tabs={tabs}
         setTabs={setTabs}
@@ -482,6 +489,7 @@ export default function DocEditor({
         setActive={setActive}
         highlightTabId={highlightTabId}
         onCloseTab={closeTab}
+        onAddTab={settings ? () => settings.open("Documents") : undefined}
         trailing={
           isGeneratingTab(current) || deletedIds.has(current.id) ? null : (
             <PresenceAvatars peers={peers} />
@@ -503,7 +511,9 @@ export default function DocEditor({
             data-testid="document-deleted"
             className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
           >
-            <p className="text-base font-medium">This document was deleted</p>
+            <p className="font-display text-xl font-semibold">
+              This document was deleted
+            </p>
             <p className="max-w-sm text-sm text-(--muted-foreground)">
               Someone removed &ldquo;{current.label}&rdquo; from the workspace.
               Anything typed since is not saved.
@@ -511,7 +521,7 @@ export default function DocEditor({
             <button
               type="button"
               onClick={() => closeTab(current.id)}
-              className="rounded-xl border border-(--border) px-3 py-1.5 text-sm hover:bg-(--muted) hover:cursor-pointer"
+              className="min-h-10 rounded-[11px] border border-(--line-3) px-4 text-sm transition-colors hover:bg-(--surface-3) hover:cursor-pointer"
             >
               Close tab
             </button>

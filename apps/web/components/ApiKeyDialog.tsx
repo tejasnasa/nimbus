@@ -103,18 +103,18 @@ export default function ApiKeyDialog({
     <AlertDialog open={open} onOpenChange={handleClose}>
       <form
         aria-label="add-api-key-form"
-        className="relative z-50 w-110 rounded-2xl border border-(--border) bg-(--card) shadow-2xl p-6"
+        className="relative z-50 w-[min(460px,calc(100vw-40px))] rounded-[22px] border border-(--line-3) bg-(--surface-1) p-6.5 font-sans shadow-[0_50px_120px_rgba(0,0,0,0.65)]"
         onSubmit={(e) => {
           e.preventDefault();
           void onSubmit(onSave);
         }}
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-(--primary)/15 flex items-center justify-center shrink-0">
-            <Key className="w-5 h-5 text-(--primary)" />
+          <div className="size-10 rounded-xl bg-(--violet)/15 flex items-center justify-center shrink-0">
+            <Key className="w-5 h-5 text-(--violet-soft)" />
           </div>
           <div>
-            <h3 className="font-semibold">Add API key</h3>
+            <h3 className="font-display font-semibold">Add API key</h3>
             <p className="text-xs text-(--muted-foreground)">
               Every member of this workspace will spend this key. It is
               encrypted at rest.
@@ -143,7 +143,7 @@ export default function ApiKeyDialog({
         />
 
         <label
-          className="block text-xs font-medium mb-1"
+          className="mb-2 block text-[13px] font-medium text-(--text-soft)"
           htmlFor="api-key-input"
         >
           API key
@@ -159,7 +159,7 @@ export default function ApiKeyDialog({
         />
 
         <label
-          className="block text-xs font-medium mb-1 mt-4"
+          className="mb-2 mt-4 block text-[13px] font-medium text-(--text-soft)"
           htmlFor="api-key-label"
         >
           Label (optional)
@@ -189,7 +189,7 @@ export default function ApiKeyDialog({
             data-alert-dialog-close
             data-testid="api-key-cancel"
             onClick={handleClose}
-            className="bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted) rounded-xl"
+            className="min-h-10 rounded-[10px] border border-(--line-3) bg-transparent text-(--foreground) hover:bg-(--surface-3)"
           >
             Cancel
           </Button>
@@ -198,7 +198,7 @@ export default function ApiKeyDialog({
             size="sm"
             loading={isSubmitting}
             data-testid="api-key-save"
-            className="rounded-xl"
+            className="min-h-10 rounded-[10px] bg-(--brand) font-semibold text-white hover:bg-(--brand)/90"
           >
             Save
           </Button>

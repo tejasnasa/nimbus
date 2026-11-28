@@ -22,6 +22,7 @@
  * panel on every visit, so the hooks' auto-fetch on mount runs again. That is
  * the deliberate property already documented for `Sessions`; do not "fix" it.
  */
+import LogoSpinner from "@nimbus/ui/LogoSpinner";
 import Button from "@nimbus/ui/Button";
 import Input from "@nimbus/ui/Input";
 import Delete from "@nimbus/ui/icons/Delete";
@@ -87,9 +88,9 @@ const KIND_LABEL: Record<AiModelKind, string> = {
 export default function WorkspaceAiPanel({ workspaceId, status }: Props) {
   if (status.state.kind === "loading") {
     return (
-      <p className="text-sm text-(--muted-foreground)" data-testid="ai-loading">
-        Loading AI settings…
-      </p>
+      <div data-testid="ai-loading">
+        <LogoSpinner label="Loading AI settings…" centered />
+      </div>
     );
   }
   if (status.state.kind === "error") {
@@ -145,11 +146,11 @@ function MemberView({ status }: { status: AiWorkspaceStatusDTO }) {
           <li
             key={row.label}
             data-testid={`ai-summary-${row.label}`}
-            className="flex items-center justify-between gap-3 rounded-xl border border-(--border) bg-(--muted)/30 px-3 py-2"
+            className="flex items-center justify-between gap-3 rounded-xl border border-(--line-2) bg-(--panel) px-3 py-2"
           >
             <span className="text-sm">{row.label}</span>
             <span
-              className={`text-xs ${row.on ? "text-(--primary)" : "text-(--muted-foreground)"}`}
+              className={`text-xs ${row.on ? "text-(--violet-soft)" : "text-(--muted-foreground)"}`}
             >
               {row.on ? "Works here" : humanReason(row.reason)}
             </span>
@@ -318,7 +319,7 @@ function AdminView({
 
       <section className="space-y-3">
         <header className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">API keys</h2>
+          <h2 className="font-display text-base font-semibold">API keys</h2>
           <Button
             size="xs"
             data-testid="ai-add-key"
@@ -366,7 +367,7 @@ function AdminView({
           <div
             role="status"
             data-testid="ai-save-warnings"
-            className="rounded-lg border border-(--border) bg-(--muted)/30 px-3 py-2 text-xs text-(--muted-foreground)"
+            className="rounded-lg border border-(--line-2) bg-(--panel) px-3 py-2 text-xs text-(--muted-foreground)"
           >
             <p>Saved. Some model kinds could not be verified:</p>
             <ul className="list-disc pl-4">
@@ -386,7 +387,7 @@ function AdminView({
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Models</h2>
+        <h2 className="font-display text-base font-semibold">Models</h2>
         <p className="text-xs text-(--muted-foreground)">
           Changes save automatically. Models without the required capabilities
           for a feature are hidden, and a custom text model id is checked before
@@ -484,7 +485,7 @@ function AssistantSection({
 
   return (
     <section className="space-y-3" data-testid="ai-assistant-section">
-      <h2 className="text-sm font-semibold">Assistant</h2>
+      <h2 className="font-display text-sm font-semibold">Assistant</h2>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -553,7 +554,7 @@ function SpendCapSection({
 
   return (
     <section className="space-y-3" data-testid="ai-spend-section">
-      <h2 className="text-sm font-semibold">Monthly spend cap</h2>
+      <h2 className="font-display text-sm font-semibold">Monthly spend cap</h2>
       <div className="flex items-end gap-3">
         <div className="flex flex-col gap-1">
           <label htmlFor="ai-spend-cap" className="text-xs font-medium">
@@ -617,7 +618,7 @@ function CredentialRow({
   return (
     <li
       data-testid={`ai-credential-row-${credential.providerId}`}
-      className="flex items-center justify-between gap-3 rounded-xl border border-(--border) bg-(--muted)/30 px-3 py-2"
+      className="flex items-center justify-between gap-3 rounded-xl border border-(--line-2) bg-(--panel) px-3 py-2"
     >
       <div className="flex flex-col min-w-0 gap-1">
         <span className="text-sm font-medium truncate">
@@ -631,7 +632,7 @@ function CredentialRow({
             <span
               key={kind}
               data-testid={`ai-kind-${credential.providerId}-${kind}`}
-              className="rounded-md border border-(--border) bg-(--muted)/50 px-1.5 py-0.5 text-[10px] text-(--muted-foreground)"
+              className="rounded-md border border-(--line-2) bg-(--surface-3) px-1.5 py-0.5 text-[10px] text-(--muted-foreground)"
             >
               {KIND_LABEL[kind]}
             </span>
@@ -644,7 +645,7 @@ function CredentialRow({
           onClick={onReplace}
           disabled={disabled}
           data-testid={`ai-replace-credential-${credential.providerId}`}
-          className="rounded-lg hover:cursor-pointer bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted)"
+          className="rounded-lg hover:cursor-pointer bg-transparent border border-(--line-2) text-(--foreground) hover:bg-(--surface-3)"
         >
           Replace
         </Button>

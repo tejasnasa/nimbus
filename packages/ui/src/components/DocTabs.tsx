@@ -4,7 +4,9 @@
  *
  * Supports HTML5 drag-to-reorder with active-index remapping, a pulsing
  * indicator for `GENERATING` / `generating:*` tabs, a glow highlight for
- * newly AI-created tabs, and hover-revealed close buttons.
+ * newly AI-created tabs, hover-revealed close buttons, a `DOC` / `BRD` chip
+ * telling documents from whiteboards, and an optional "new document" button
+ * after the last tab.
  */
 import { Dispatch, ReactNode, SetStateAction, useRef, useState } from "react";
 
@@ -18,7 +20,15 @@ interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
   onCloseTab?: (id: string) => void;
   /** Content pinned to the strip's right edge, e.g. who else is in the document. */
   trailing?: ReactNode;
+  /** Adds a "New document" button after the tabs; hidden when omitted. */
+  onAddTab?: () => void;
 }
+
+/** Chip text and colour per document type; other types show no chip. */
+const KIND_CHIP: Record<string, { code: string; color: string }> = {
+  MARKDOWN: { code: "DOC", color: "text-(--violet)" },
+  CANVAS: { code: "BRD", color: "text-(--lime)" },
+};
 
 /**
  * Document tab strip with drag-reorder.
@@ -31,6 +41,7 @@ interface DocTabsProps<T extends { id: string; label: string; type?: string }> {
  * @param props.highlightTabId - Tab id receiving the `animate-border-glow`.
  * @param props.onCloseTab - Close-button handler; hidden when omitted.
  * @param props.trailing - Optional content pinned right of the (scrollable) tabs.
+ * @param props.onAddTab - Shows the "New document" button and handles its click.
  */
 export default function DocTabs<
   T extends { id: string; label: string; type?: string },
@@ -42,6 +53,7 @@ export default function DocTabs<
   highlightTabId,
   onCloseTab,
   trailing,
+  onAddTab,
 }: DocTabsProps<T>) {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const dragIndex = useRef<number | null>(null);
@@ -67,12 +79,13 @@ export default function DocTabs<
   };
 
   return (
-    <div className="w-full bg-(--card)/20 backdrop-blur-sm select-none">
-      <div className="flex items-center border-b border-(--border)">
-        <div className="flex min-w-0 flex-1 flex-nowrap overflow-x-auto scrollbar-none items-center">
+    <div className="w-full select-none border-b border-(--line-1)">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+        <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto scrollbar-none">
           {tabs.map((tab, i) => {
             const isGenerating =
               tab.type === "GENERATING" || tab.id.startsWith("generating:");
+            const chip = tab.type ? KIND_CHIP[tab.type] : undefined;
             return (
               <div
                 key={tab.id}
@@ -89,18 +102,25 @@ export default function DocTabs<
                   dragIndex.current = null;
                 }}
                 onClick={() => setActive(i)}
-                className={`group relative flex items-center gap-2 py-2.5 pl-4 pr-9 text-sm font-medium transition-all duration-200 -mb-px border-b-2 cursor-pointer min-w-30 max-w-50 ${
+                className={`group relative flex min-h-8.5 min-w-30 max-w-52 shrink-0 cursor-pointer items-center gap-2 rounded-[9px] border py-1 pl-3 pr-8 text-[13px] transition-colors duration-200 ${
                   dragOver === i
-                    ? "border-(--primary) opacity-50"
+                    ? "border-(--violet) opacity-50"
                     : active === i
-                      ? "border-(--primary) text-(--foreground) bg-(--primary)/5"
-                      : "border-transparent text-(--muted-foreground) hover:text-(--foreground) hover:bg-(--muted)/30"
+                      ? "border-(--line-3) bg-(--surface-3) text-(--foreground)"
+                      : "border-transparent text-(--muted-foreground) hover:text-(--foreground)"
                 } ${highlightTabId === tab.id ? "animate-border-glow" : ""}`}
               >
                 {isGenerating && (
-                  <span className="flex h-2 w-2 relative shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-(--primary) opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-(--primary)"></span>
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-(--violet) opacity-75 animate-ping motion-reduce:animate-none"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-(--violet)"></span>
+                  </span>
+                )}
+                {!isGenerating && chip && (
+                  <span
+                    className={`shrink-0 rounded-sm bg-(--surface-4) px-1.25 py-0.5 font-mono text-[9px] font-bold ${chip.color}`}
+                  >
+                    {chip.code}
                   </span>
                 )}
                 <span className="truncate w-full pr-1">{tab.label}</span>
@@ -111,7 +131,7 @@ export default function DocTabs<
                       e.stopPropagation();
                       onCloseTab(tab.id);
                     }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-(--muted-foreground)/60 hover:text-(--foreground) hover:bg-(--muted)/85 transition-all opacity-0 group-hover:opacity-100 hover:cursor-pointer"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-(--muted-foreground) opacity-0 transition-all hover:cursor-pointer hover:bg-(--surface-4) hover:text-(--foreground) focus-visible:opacity-100 group-hover:opacity-100"
                     title="Close tab"
                   >
                     <svg
@@ -132,8 +152,21 @@ export default function DocTabs<
               </div>
             );
           })}
+          {onAddTab && (
+            <button
+              type="button"
+              aria-label="New document"
+              title="New document"
+              onClick={onAddTab}
+              className="grid size-8 shrink-0 place-items-center rounded-lg border border-dashed border-(--line-3) text-base text-(--muted-foreground) transition-colors hover:cursor-pointer hover:border-(--violet) hover:text-(--foreground)"
+            >
+              +
+            </button>
+          )}
         </div>
-        {trailing ? <div className="shrink-0 px-3">{trailing}</div> : null}
+        {trailing ? (
+          <div className="flex shrink-0 items-center gap-3">{trailing}</div>
+        ) : null}
       </div>
     </div>
   );

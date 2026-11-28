@@ -95,7 +95,11 @@ async function openTab(
 }
 
 /** Captures requests to `method path`, returning their parsed bodies. */
-function capture(method: "put" | "delete" | "post", path: string, response?: Response) {
+function capture(
+  method: "put" | "delete" | "post",
+  path: string,
+  response?: Response,
+) {
   const bodies: unknown[] = [];
   server.use(
     http[method](`${BACKEND_URL}${path}`, async ({ request }) => {
@@ -141,7 +145,9 @@ describe("WorkspaceSettings", () => {
 
       expect(screen.getByLabelText("Title")).toHaveValue("Design Guild");
       expect(screen.getByLabelText("Description")).toHaveValue("Shared drafts");
-      expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Save Changes" }),
+      ).toBeDisabled();
 
       await user.type(screen.getByLabelText("Title"), "!");
 
@@ -198,7 +204,9 @@ describe("WorkspaceSettings", () => {
 
       expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
       expect(screen.getByText("Grace Hopper")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "MEMBER" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "MEMBER" }),
+      ).toBeInTheDocument();
     });
 
     it("changes a member's role through the role menu", async () => {
@@ -243,9 +251,7 @@ describe("WorkspaceSettings", () => {
 
       await openTab(user, "Members");
       await user.click(iconButtonIn("Grace Hopper"));
-      await user.click(
-        await screen.findByRole("button", { name: "Remove" }),
-      );
+      await user.click(await screen.findByRole("button", { name: "Remove" }));
 
       await waitFor(() =>
         expect(bodies[0]).toMatchObject({ memberId: "user-2" }),
@@ -273,7 +279,10 @@ describe("WorkspaceSettings", () => {
       const bodies: unknown[] = [];
       server.use(
         http.post(`${BACKEND_URL}/api/document/create`, async ({ request }) => {
-          const body = (await request.json()) as { title: string; type: string };
+          const body = (await request.json()) as {
+            title: string;
+            type: string;
+          };
           bodies.push(body);
           return HttpResponse.json({
             success: true,
@@ -289,10 +298,10 @@ describe("WorkspaceSettings", () => {
       const { onAddTab } = renderSettings();
 
       await openTab(user, "Documents");
-      await user.click(screen.getByRole("button", { name: "+ Add Document" }));
+      await user.click(screen.getByRole("button", { name: "+ New document" }));
       await user.type(screen.getByLabelText("Title"), "Sprint Plan");
-      await user.click(screen.getByRole("button", { name: "CANVAS" }));
-      await user.click(screen.getByRole("button", { name: "Create" }));
+      await user.click(screen.getByRole("button", { name: /Whiteboard/ }));
+      await user.click(screen.getByRole("button", { name: "Create document" }));
 
       await waitFor(() =>
         expect(bodies[0]).toMatchObject({
@@ -314,14 +323,26 @@ describe("WorkspaceSettings", () => {
       renderSettings();
 
       await openTab(user, "Documents");
-      await user.click(screen.getByRole("button", { name: "+ Add Document" }));
+      await user.click(screen.getByRole("button", { name: "+ New document" }));
       await user.type(screen.getByLabelText("Title"), "ab");
-      await user.click(screen.getByRole("button", { name: "Create" }));
+      await user.click(screen.getByRole("button", { name: "Create document" }));
 
       expect(
         await screen.findByText("Title must be at least 3 characters"),
       ).toBeInTheDocument();
       expect(bodies).toHaveLength(0);
+    });
+
+    it("opens a document in the editor when its row is clicked", async () => {
+      const user = userEvent.setup();
+      const { onAddTab } = renderSettings();
+
+      await openTab(user, "Documents");
+      await user.click(screen.getByRole("button", { name: 'Open "Readme"' }));
+
+      expect(onAddTab).toHaveBeenCalledWith(
+        expect.objectContaining({ id: documents[0]!.id }),
+      );
     });
 
     it("deletes a document after confirmation", async () => {
@@ -333,7 +354,9 @@ describe("WorkspaceSettings", () => {
       renderSettings();
 
       await openTab(user, "Documents");
-      await user.click(iconButtonIn("Readme"));
+      await user.click(
+        screen.getByRole("button", { name: 'Delete "Readme"' }),
+      );
       await user.click(await screen.findByRole("button", { name: "Delete" }));
 
       await waitFor(() => expect(deleted).toHaveLength(1));
@@ -355,7 +378,9 @@ describe("WorkspaceSettings", () => {
       renderSettings();
 
       await openTab(user, "Permissions");
-      await user.click(screen.getByRole("button", { name: "Copy Invite Code" }));
+      await user.click(
+        screen.getByRole("button", { name: "Copy Invite Code" }),
+      );
 
       expect(writeText).toHaveBeenCalledWith("invite-code");
       expect(await screen.findByTestId("permissions-notice")).toHaveTextContent(
@@ -403,7 +428,9 @@ describe("WorkspaceSettings", () => {
       renderSettings();
 
       await openTab(user, "Permissions");
-      await user.click(screen.getByRole("button", { name: /Delete Workspace/ }));
+      await user.click(
+        screen.getByRole("button", { name: /Delete Workspace/ }),
+      );
       await user.click(
         await screen.findByRole("button", { name: "Delete Forever" }),
       );

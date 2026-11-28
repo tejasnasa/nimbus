@@ -18,7 +18,7 @@ import { useState } from "react";
 import { useWorkspaceMembership } from "../hooks/useWorkspaceMembership";
 
 const CANCEL_CLASS =
-  "bg-transparent border border-(--border) text-(--foreground) hover:bg-(--muted) rounded-xl";
+  "bg-transparent border border-(--line-2) text-(--foreground) hover:bg-(--surface-3) rounded-xl";
 
 /**
  * @param props.workspace - The workspace and its members.
@@ -45,7 +45,7 @@ export default function WorkspaceMembershipControls({
 
   return (
     <div
-      className="p-4 rounded-xl border border-(--border) bg-(--muted)/20 space-y-3"
+      className="p-4 rounded-xl border border-(--line-2) bg-(--panel) space-y-3"
       data-testid="membership-controls"
     >
       <div>
@@ -102,8 +102,8 @@ export default function WorkspaceMembershipControls({
                 </Button>
               }
             >
-              <div className="relative z-50 w-110 rounded-2xl border border-(--border) bg-(--card) shadow-2xl p-6">
-                <h3 className="font-semibold mb-4">Transfer ownership</h3>
+              <div className="relative z-50 w-110 rounded-2xl border border-(--line-2) bg-(--surface-1) shadow-2xl p-6">
+                <h3 className="font-display font-semibold mb-4">Transfer ownership</h3>
                 <p className="text-sm text-(--muted-foreground) mb-6">
                   Make {newOwner?.name ?? "this member"} the owner of{" "}
                   {workspace.name}? You will become an admin, and only the new
@@ -147,8 +147,8 @@ export default function WorkspaceMembershipControls({
             </Button>
           }
         >
-          <div className="relative z-50 w-110 rounded-2xl border border-(--border) bg-(--card) shadow-2xl p-6">
-            <h3 className="font-semibold mb-4">Leave Workspace</h3>
+          <div className="relative z-50 w-110 rounded-2xl border border-(--line-2) bg-(--surface-1) shadow-2xl p-6">
+            <h3 className="font-display font-semibold mb-4">Leave Workspace</h3>
             <p className="text-sm text-(--muted-foreground) mb-6">
               Leave {workspace.name}? You will lose access until someone shares
               an invite code with you again.
